@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 use crate::utility::default::*;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 /// 获取课表
 #[derive(Deserialize, Debug)]
@@ -45,9 +45,9 @@ pub struct GetCourseInfoReq {
 /// 获取考试安排，机考安排复用此结构体
 #[derive(Deserialize, Debug)]
 pub struct GetExamArrangeReq {
-    #[serde(default = "default_xn")]
+    #[serde(default = "default_xn", deserialize_with = "xn_default")]
     pub xn: u32,
-    #[serde(default = "default_xq")]
+    #[serde(default = "default_xq", deserialize_with = "xq_default")]
     pub xq: u32,
 }
 
@@ -60,4 +60,22 @@ pub struct GetEmptyRoomReq {
     pub week: u32,       // 周次
     pub xn: u32,
     pub xq: u32,
+}
+
+// 解决参数为空字符串时候的解析问题
+fn xn_default<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: String = Deserialize::deserialize(deserializer)?;
+    Ok(if s.is_empty() { default_xn() } else { s.parse().unwrap() })
+}
+
+// 解决参数为空字符串时候的解析问题
+fn xq_default<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: String = Deserialize::deserialize(deserializer)?;
+    Ok(if s.is_empty() { default_xq() } else { s.parse().unwrap() })
 }
