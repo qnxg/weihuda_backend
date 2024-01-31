@@ -30,7 +30,7 @@ async fn main() {
         .directory(&CFG.log.directory)
         .file_name(&CFG.log.file_name)
         .rolling(&CFG.log.rolling)
-        .with_source_location(true) // 在调试时候可以打开，确认日志所处的代码位置
+        .with_source_location(false) // 在调试时候可以打开，确认日志所处的代码位置
         .with_thread_ids(false) // 无需打开，线程模型有tokio调度
         .with_thread_names(false) // 无需打开，线程模型有tokio调度
         .with_target(false) // 无需打开，打开后日志很累赘
