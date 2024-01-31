@@ -1,0 +1,75 @@
+mod app_error;
+mod app_result;
+mod config;
+mod extract;
+mod handler;
+mod middleware;
+mod model;
+mod router;
+mod schema;
+mod utility;
+
+use crate::{config::CFG, router::create_router};
+use sqlx::{
+    mysql::{MySqlPool, MySqlPoolOptions},
+    Executor,
+};
+use std::sync::Arc;
+
+pub struct Pool {
+    db: MySqlPool,
+}
+
+#[tokio::main]
+async fn main() {
+    // Config the tracing logger，专用于Linux服务器系统，Windows上跑无法获取正确TimeZone，不会报错，但日志记录时间为Utc，慢8小时
+    let _guard = clia_tracing_config::build()
+        .filter_level(&CFG.log.filter_level)
+        .with_ansi(CFG.log.with_ansi)
+        .to_stdout(CFG.log.to_stdout)
+        .directory(&CFG.log.directory)
+        .file_name(&CFG.log.file_name)
+        .rolling(&CFG.log.rolling)
+        .with_source_location(true) // 在调试时候可以打开，确认日志所处的代码位置
+        .with_thread_ids(false) // 无需打开，线程模型有tokio调度
+        .with_thread_names(false) // 无需打开，线程模型有tokio调度
+        .with_target(false) // 无需打开，打开后日志很累赘
+        .init();
+
+    // Mark the log level
+    tracing::info!("📓 Log level: {}", &CFG.log.filter_level);
+
+    // Connect to MySQL
+    let pool = match MySqlPoolOptions::new()
+        .after_connect(|conn, _meta| {
+            Box::pin(async move {
+                let _ =
+                    conn.execute("SET time_zone='+08:00'; SET system_time_zone='+08:00'").await; // 由于sqlx默认时区设置为UTC，虽然很合理，数据库只存储Utc时间，时间转换在业务层处理，但是必须按照我们数据库的时区来设置，否则会出现8小时的误差
+                Ok(())
+            })
+        })
+        .max_connections(CFG.database.max_connections)
+        .connect(&CFG.database.database_url)
+        .await
+    {
+        Ok(pool) => {
+            tracing::info!("🔥 Successfully connected to MySQL");
+            pool
+        }
+        Err(e) => {
+            tracing::error!("🪨 Failed to connect to MySQL: {:?}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // Build the final router combined with middleware layers
+    let app = create_router(Arc::new(Pool { db: pool })); // 将AppState用原子化引用计数包装，使其可以在多个线程中共享
+
+    // Start the server
+    tracing::info!("🚀 Server {} is starting", &CFG.server.name);
+    tracing::info!("🔄 Listening on port: {}", &CFG.server.address);
+    let listener = tokio::net::TcpListener::bind(&CFG.server.address).await.unwrap();
+
+    // Serve the server
+    axum::serve(listener, app).await.unwrap();
+}

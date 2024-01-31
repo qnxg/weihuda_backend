@@ -1,0 +1,9 @@
+/old
+/target
+/config
+/migrations
+/logs
+/.vscode
+/.idea
+Cargo.lock
+docker-compose.yml
