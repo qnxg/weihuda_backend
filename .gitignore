@@ -3,5 +3,6 @@
 /migrations
 /.vscode
 /.idea
+/logs
 Cargo.lock
 docker-compose.yml
