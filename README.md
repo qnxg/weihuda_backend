@@ -5,6 +5,7 @@
 2. VSCode安装rust-analyzer插件，用来提供代码提示
 3. `cargo run`即可运行
 4. 发布时候运行`cargo build --release`生成可执行文件，Linux客户端最好在WSL环境编译。
+5. 注意：不是湖南大学校园网环境需要开启**湖南大学VPN**，这样才能连接到数据库完成sql语句的静态结构检查，否则无法成功编译。DATABATE_URL在.env文件中配置，也可以创建一个相同结构的本地数据库用来供结构静态检查。
 ## 项目结构
 ```shell
 |-- Cargo.toml      // 项目依赖配置
