@@ -1,7 +1,6 @@
 /old
 /target
 /migrations
-/logs
 /.vscode
 /.idea
 Cargo.lock
