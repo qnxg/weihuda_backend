@@ -1,5 +1,10 @@
 # Rust Full Back
 将原有的中间件和后端合并，用Rust语言重写，提高性能。Web框架采用axum，异步运行时采用Tokio，数据库采用Sqlx，json和yaml的解析采用serde。
+## 运行
+1. 前往[Rust官网](https://www.rust-lang.org/tools/install)按指示安装好Rust工具链
+2. VSCode安装rust-analyzer插件，用来提供代码提示
+3. `cargo run`即可运行
+4. 发布时候运行`cargo build --release`生成可执行文件，Linux客户端最好在WSL环境编译。
 ## 项目结构
 ```shell
 |-- Cargo.toml      // 项目依赖配置
