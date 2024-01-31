@@ -1,35 +1,47 @@
 # Rust Full Back
 将原有的中间件和后端合并，用Rust语言重写，提高性能。Web框架采用axum，异步运行时采用Tokio，数据库采用Sqlx，json和yaml的解析采用serde。
-## 代码结构
+## 项目结构
+```shell
+|-- Cargo.toml      // 项目依赖配置
+|-- Makefile        // 暂时没有用到
+|-- config          // 配置文件
+|-- logs            // 日志文件
+|-- migrations      // sqlx的数据库迁移文件
+|-- rustfmt.toml    // rust代码格式化配置
+|-- src             // 源代码
+|-- .env            // 环境变量配置，编译时候sqlx会根据这个文件连接数据库进行静态结构检查   
+`-- target          // 编译文件
 ```
-|-- app_error.rs // 自定义的错误类型，统一处理，逻辑层只负责传递错误
-|-- app_result.rs // 自定义的结果类型，统一处理，逻辑层只负责传递结果
-|-- config.rs // 配置文件的解析
-|-- extract // 自定义请求参数的解析，用于与自定义错误类型匹配
-|   |-- json.rs // Json请求体参数的解析
-|   `-- query.rs // Query请求头参数的解析
-|-- handler // 逻辑处理层
-|   |-- back // 后端逻辑处理层
-|   `-- spider // 爬虫逻辑处理层
-|-- main.rs // 入口文件
-|-- middleware // 中间件
-|   |-- auth.rs // 鉴权中间件，获取用户authorization字段放入Extension中
-|   |-- cors.rs // 跨域中间件
-|   |-- log.rs // 日志中间件
-|   `-- timeout.rs // 超时中间件
-|-- model // 爬虫返回数据的结构定义，返回数据结构定义
-|   |-- back // 数据库相关
-|   `-- spider // 爬虫相关
-|-- router // 路由
-|   `-- mod.rs // 路由的注册
-|-- schema // 请求参数的结构定义
-|   |-- back // 后端相关
-|   `-- spider // 爬虫相关
+## 代码结构
+```shell
+|-- app_error.rs    // 自定义的错误类型，统一处理，逻辑层只负责传递错误
+|-- app_result.rs   // 自定义的结果类型，统一处理，逻辑层只负责传递结果
+|-- config.rs       // 配置文件的解析
+|-- extract         // 自定义请求参数的解析，用于与自定义错误类型匹配
+|   |-- json.rs     // Json请求体参数的解析
+|   `-- query.rs    // Query请求头参数的解析
+|-- handler         // 逻辑处理层
+|   |-- back        // 后端逻辑处理层
+|   `-- spider      // 爬虫逻辑处理层
+|-- main.rs         // 入口文件
+|-- middleware      // 中间件
+|   |-- auth.rs     // 鉴权中间件，获取用户authorization字段放入Extension中
+|   |-- cors.rs     // 跨域中间件
+|   |-- log.rs      // 日志中间件
+|   `-- timeout.rs  // 超时中间件
+|-- model           // 爬虫返回数据的结构定义，返回数据结构定义
+|   |-- back        // 数据库相关
+|   `-- spider      // 爬虫相关
+|-- router          // 路由
+|   `-- mod.rs      // 路由的注册
+|-- schema          // 请求参数的结构定义
+|   |-- back        // 后端相关
+|   `-- spider      // 爬虫相关
 `-- utility
-    |-- default.rs // 一些参数的默认值
-    |-- jwt.rs // jwt的生成和解析
-    |-- request.rs // 爬虫请求的发送
-    `-- wrapper.rs // 返回数据的包装
+    |-- default.rs  // 一些参数的默认值
+    |-- jwt.rs      // jwt的生成和解析
+    |-- request.rs  // 爬虫请求的发送
+    `-- wrapper.rs  // 返回数据的包装
 ```
 ## 逻辑层代码示例(以get_course_handler为例)
 这个函数闲置了，因为获取自定义课程直接在获取class_table中一起实现了，这里只是一个示例
