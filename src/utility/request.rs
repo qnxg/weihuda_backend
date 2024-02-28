@@ -40,7 +40,6 @@ pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
 
     // #[cfg(debug_assertions)] // 在cargo build --release时不执行
     // {
-    //FIXME 后续部署到生产环境不需要判定重定向
     while res.status().is_redirection() {
         let redirect_url = res.headers().get(LOCATION).unwrap().to_str().unwrap();
         res = client.get(redirect_url).send().await?;
@@ -52,7 +51,7 @@ pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
     let mut json_res: Value = serde_json::from_str(&res)?;
 
     if json_res.get("data").map_or(true, |v| v.is_null()) {
-        return Err(anyhow::anyhow!("获取数据失败，请检查个人门户密码和登录状态"));
+        return Err(anyhow::anyhow!("请检查个人门户密码或5分钟后再次尝试"));
     }
 
     let res: U = serde_json::from_value(json_res["data"].take())?; // take()方法将json_res的所有权转移给res
@@ -71,7 +70,6 @@ pub async fn spider<T: Serialize, U: DeserializeOwned>(
 
     // #[cfg(debug_assertions)] // 在cargo build --release时不执行
     // {
-    //FIXME 后续部署到生产环境不需要判定重定向
     while res.status().is_redirection() {
         let redirect_url = res.headers().get(LOCATION).unwrap().to_str().unwrap();
         res = client.get(redirect_url).send().await?;
@@ -82,7 +80,7 @@ pub async fn spider<T: Serialize, U: DeserializeOwned>(
 
     let json_res: Value = serde_json::from_str(&res)?;
 
-    let res: U = serde_json::from_value(json_res).map_err(|_| anyhow::anyhow!("获取数据失败，请检查个人门户密码和登录状态"))?;
+    let res: U = serde_json::from_value(json_res).map_err(|_| anyhow::anyhow!("请检查个人门户密码或5分钟后再次尝试"))?;
 
     Ok(res)
 }
@@ -96,7 +94,6 @@ pub async fn spider_data_url<T: Serialize, U: DeserializeOwned>(
 
     // #[cfg(debug_assertions)] // 在cargo build --release时不执行
     // {
-    //FIXME 后续部署到生产环境不需要判定重定向
     while res.status().is_redirection() {
         let redirect_url = res.headers().get(LOCATION).unwrap().to_str().unwrap();
         res = client.get(redirect_url).send().await?;
@@ -108,7 +105,7 @@ pub async fn spider_data_url<T: Serialize, U: DeserializeOwned>(
     let mut json_res: Value = serde_json::from_str(&res)?;
 
     if json_res.get("data").map_or(true, |v| v.is_null()) {
-        return Err(anyhow::anyhow!("获取数据失败，请检查个人门户密码和登录状态"));
+        return Err(anyhow::anyhow!("请检查个人门户密码或5分钟后再次尝试"));
     }
 
     let res: U = serde_json::from_value(json_res["data"].take())?; // take()方法将json_res的所有权转移给res
