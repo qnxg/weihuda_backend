@@ -4,6 +4,6 @@ stages:
 deploy_job:
   stage: deploy
   script:
-    - ssh://root:Weihuda0415@202.197.99.118:22 "/root/project/rust-back-2024/deploy.sh"
+    - /root/project/rust-back-2024/deploy.sh
   only:
     - master
