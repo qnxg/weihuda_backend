@@ -4,7 +4,6 @@ stages:
 deploy_job:
   stage: deploy
   script:
-    - sshpass -p 'Weihuda0415' ssh root@202.197.99.118:22
-    - /root/project/rust-back-2024/deploy.sh
+    - sshpass -p 'Weihuda0415' ssh root@202.197.99.118 "/root/project/rust-back-2024/deploy.sh"
   only:
     - master
