@@ -4,6 +4,12 @@ stages:
 deploy_job:
   stage: deploy
   script:
-    - /root/project/rust-back-2024/deploy.sh
+    - cd /root/project/rust-back-2024/src/back_2024
+    - git pull
+    - cargo build --release
+    - cd /root/project/rust-back-2024/
+    - netstat -tunlp | grep 8000 | awk '{print $7}' | cut -d'/' -f1 | xargs kill
+    - cp ./src/back_2024/target/release/back_2024 ./
+    - nohup ./back_2024 > /dev/null 2>&1 &
   only:
     - master
