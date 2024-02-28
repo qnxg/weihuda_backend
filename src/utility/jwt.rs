@@ -1,4 +1,5 @@
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -13,6 +14,15 @@ struct Claims {
     platform: u8,
     id: u32,
     stu_id: String,
+}
+
+// 把validation设置为const常量
+lazy_static! {
+    pub static ref VALIDATION: Validation = {
+        let mut validation = Validation::default();
+        validation.validate_exp = false;
+        validation
+    };
 }
 
 /// 用mini_bind_id和stu_id生成token
@@ -40,7 +50,7 @@ pub fn parse_id(token: &str) -> Result<u32, jsonwebtoken::errors::Error> {
     let res = decode::<Claims>(
         token,
         &DecodingKey::from_secret(CFG.jwt.secret.as_bytes()),
-        &Validation::default(),
+        &VALIDATION,
     )?;
 
     Ok(res.claims.id)
@@ -51,7 +61,7 @@ pub fn parse_stu_id(token: &str) -> Result<String, jsonwebtoken::errors::Error> 
     let res = decode::<Claims>(
         token,
         &DecodingKey::from_secret(CFG.jwt.secret.as_bytes()),
-        &Validation::default(),
+        &VALIDATION,
     )?;
 
     Ok(res.claims.stu_id)
@@ -62,8 +72,21 @@ pub fn parse(token: &str) -> Result<(u32, String), jsonwebtoken::errors::Error> 
     let res = decode::<Claims>(
         token,
         &DecodingKey::from_secret(CFG.jwt.secret.as_bytes()),
-        &Validation::default(),
+        &VALIDATION,
     )?;
 
     Ok((res.claims.id, res.claims.stu_id))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse() {
+        let token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJxbnhnIiwiZXhwIjoxNzE2ODA1MzgxLCJzdWIiOiJtaW5pLWp3dCIsImlhdCI6MTcwOTAyOTM4MSwicGxhdGZvcm0iOjAsImlkIjo0NDk3MSwic3R1X2lkIjoiMjAyMTA0MDYxMzE0In0.xfG3LjhZPgKSstoVKy4ISvp6ZgwJrfjURK2SSipbBTc";
+        let (id, stu_id) = parse(token).unwrap();
+        assert_eq!(id, 44971);
+        assert_eq!(stu_id, "202104061314");
+    }
 }

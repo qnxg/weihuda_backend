@@ -50,7 +50,7 @@ pub async fn get_class_table_handler(
     )
     .fetch_all(&data.db)
     .await?; // the type of back_res is Vec<CourseInfo>
-    // 爬虫返回教务课程
+             // 爬虫返回教务课程
     let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
     let spider_res: Vec<SpiderCourseInfo> = spider_data("/bks/classtable", &params).await?;
     // 合并两个数据源
@@ -81,7 +81,7 @@ pub async fn get_class_table_handler(
             id: item.id,
             class_id: item.ktmc_name,
             classname: item.kc_name,
-            location: item.js_name,
+            location: item.js_name.unwrap_or("".to_string()),
             teachers: item.teachernames,
             week: item.pkzcmx,
             day: std::str::from_utf8(&item.pksj.as_bytes()[..1]).unwrap().to_string(), // 考虑性能不采用迭代器写法，选取字符串第一个字节，转换为utf8编码，再转换为字符串
@@ -101,7 +101,7 @@ pub async fn get_class_start_date_handler(Query(req): Query<GetClassStartDateReq
     let key = format!("{}-{}", req.xn, req.xq);
     match ClassStartDateMap.get(key.as_str()) {
         Some(res) => Ok(res.to_string().into()),
-        None => Err("无此学期开课时间信息".into()),
+        None => Ok(().into()),
     }
 }
 
@@ -113,7 +113,12 @@ pub async fn get_grade_handler(
     let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
     let spider_res: SpiderGrade = spider_data("/bks/grade", &params).await?;
 
+    if spider_res.rowCount == 0 {
+        return Ok(().into()); // 返回数据为空，直接返回空数据
+    }
+
     let mut res = Vec::with_capacity(spider_res.rowCount as usize);
+
     for item in spider_res.items.into_iter().rev()
     // 参照原有中间件代码，将数据反转
     {
@@ -191,6 +196,9 @@ pub async fn get_grade_rank_handler(Extension(token): Extension<String>) -> AppR
         let temp = GradeRankResSemesters { items: v, year: format!("{}-{}", k, k + 1) };
         res_semesters.push(temp);
     });
+
+    res_semesters.sort_by(|a, b| b.year.cmp(&a.year)); // 按年份降序排列
+
     let res = GradeRankRes { total: res_total, semesters: res_semesters };
     Ok(res.into())
 }
@@ -201,7 +209,10 @@ pub async fn get_raw_grade_handler(
 ) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
     let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
-    let spider_res: SpiderRawGrade = spider_data("/bks/raw/grade", &params).await?;
+    let spider_res: SpiderRawGrade = match spider_data("/bks/raw/grade", &params).await {
+        Ok(x) => x,
+        Err(_) => return Ok(().into()), // 返回数据为空，直接返回空数据
+    };
 
     let mut res: Vec<RawGradeRes> = Vec::with_capacity(spider_res.cjxmcj.rowCount as usize);
 
@@ -222,6 +233,8 @@ pub async fn get_raw_grade_handler(
                     .to_string(),
                 grade: v,
             });
+            // 对temp按照k值大小升序排列
+            temp.sort_by(|a, b| a.name.cmp(&b.name));
         });
         // cjxm1的特例，留下方便以后理解，为了避免重复代码，所以利用HashMap来复用代码
         // if let Some(x) = item.cjxm1 {
@@ -238,6 +251,7 @@ pub async fn get_raw_grade_handler(
         // }
         res.push(RawGradeRes { name: item.kc_name, item: temp })
     }
+
     Ok(res.into())
 }
 

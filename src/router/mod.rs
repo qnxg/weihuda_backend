@@ -52,7 +52,7 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
         .route("/exam-num", get(get_exam_num_handler)) // 获取考号预存
         .route("/exam-num", post(add_exam_num_handler)) // 添加考号预存
         .route("/exam-num", delete(delete_exam_num_handler)); // 删除考号预存
-    // .route("/exam-num", put(update_exam_num_handler))
+                                                              // .route("/exam-num", put(update_exam_num_handler))
 
     let auth = Router::new().route("/token", get(get_auth_handler)); // 用code换取token
 
@@ -152,5 +152,5 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
         .merge(with_db)
         .layer(log_middleware()) // 增加日志中间件
         .layer(timeout_middleware()) // 增加超时中间件
-    // .layer(cors_middleware()) // 增加跨域中间件
+                                     // .layer(cors_middleware()) // 增加跨域中间件
 }

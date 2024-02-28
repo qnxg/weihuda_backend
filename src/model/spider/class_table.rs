@@ -5,7 +5,7 @@ pub struct SpiderCourseInfo {
     pub djkssj: String,
     pub djjssj: String,
     pub jczy013id: String,
-    pub js_name: String,
+    pub js_name: Option<String>,
     pub kc_name: String,
     pub ktmc_name: String,
     pub pkzcmx: String,

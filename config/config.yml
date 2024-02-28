@@ -1,11 +1,14 @@
 server:
-  name: "back_2023"
+  name: "back_2024"
   address: "0.0.0.0:8000"
 
 database:
   max_connections: 100
-  database_url: "mysql://weihuda:QNuyuidsq%23%2412ERop@202.197.98.3:3306/weihuda" # %23 represents #, %24 represents $
-  # database_url: "mysql://root:6SMiuiJ6uSQsYX:@sh-cynosdbmysql-grp-j2zcsmka.sql.tencentcdb.com:23525/dev?parseTime=true"
+  database_url: "mysql://weihuda:Weihuda0415@202.197.99.30:3306/weihuda" # %23 represents #, %24 represents $
+
+redis:
+  redis_url: "202.197.99.30:6379"
+  redis_password: "Weihuda0415"
 
 jwt:
   secret: "__qnxg__jwt_secret__"
@@ -15,14 +18,14 @@ wechat:
   secret: "ea93f2019c75f5376ee048dc409885ab"
 
 service:
-  verify_url: "https://qnxg.cn/api/spider/bks/auth"
-  crypto_url: "https://new.qnxg.cn/api/crypto/v1/encrypt"
-  spider_url: "https://qnxg.cn/api/spider"  # 注意结尾一定不要带/，因为后续请求会拼接路径
+  verify_url: "http://202.197.99.30:6000/bks/auth"
+  crypto_url: "http://202.197.99.118/api/crypto/v1/encrypt"
+  spider_url: "http://202.197.99.118/api/spider" # 注意结尾一定不要带/，因为后续请求会拼接路径
 
 log:
-  filter_level: "info"        # Available options: "debug", "info", "warn", "error"
-  with_ansi: false             # Enable ANSI color output, but it would be better to disable it in the production environment
-  to_stdout: false             # At the same time, logs are only output to the terminal or file, which are defined by this configuration
+  filter_level: "error" # Available options: "debug", "info", "warn", "error"
+  with_ansi: false # Enable ANSI color output, but it would be better to disable it in the production environment
+  to_stdout: true # At the same time, logs are only output to the terminal or file, which are defined by this configuration
   directory: "./logs"
   file_name: "qnxg.log" # 文件前缀名，后缀为时间戳
-  rolling: "daily"            # Available options: "minutely", "hourly", "daily", "never"
+  rolling: "daily" # Available options: "minutely", "hourly", "daily", "never"

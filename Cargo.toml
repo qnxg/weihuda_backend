@@ -19,6 +19,9 @@ jsonwebtoken = "9.2.0"
 lazy_static = "1.4.0"
 mime = "0.3.17"
 once_cell = "1.19.0"
+redis = { version = "0.24.0", default-features = false, features = [
+    "tokio-comp",
+] }
 regex = { version = "1.10.3", default-features = false }
 reqwest = { version = "0.11.23", default-features = false, features = [
     "default-tls",

@@ -3,6 +3,8 @@ use std::sync::Arc;
 
 use crate::{extract::Json, utility::request::client};
 use axum::{extract::State, Extension};
+use lazy_static::lazy_static;
+use redis::AsyncCommands as _;
 use tokio::try_join;
 
 use crate::{
@@ -15,18 +17,40 @@ use crate::{
     model::back::user::UserBind,
     schema::back::user::BindReq,
     utility::jwt::parse_id,
-    Pool,
+    Pool, CFG,
 };
+
+// 定义Redis客户端
+lazy_static! {
+    pub static ref REDIS: redis::Client = {
+        let url = format!("redis://:{}@{}/", CFG.redis.redis_password, CFG.redis.redis_url);
+        redis::Client::open(url.as_str()).unwrap()
+    };
+}
+
+// 清除redis缓存
+async fn clear_redis_cache(stu_id: &str) -> Result<(), anyhow::Error> {
+    let mut con = REDIS
+        .get_async_connection()
+        .await
+        .map_err(|_| anyhow::anyhow!("Redis连接失败，请反馈给管理员"))?;
+    let keys: Vec<String> = con.keys(format!("*{}*", stu_id)).await.unwrap();
+    for key in keys {
+        let _: () = con.del(key).await.unwrap();
+    }
+    Ok(())
+}
 
 pub async fn bind_user_handler(
     State(data): State<Arc<Pool>>,
     Json(req): Json<BindReq>,
 ) -> AppResult {
     // 三个请求并发提高速度，验证密码和获取openid和加密密码
-    let (verify_res, openid, crypto_res) = try_join!(
+    let (verify_res, openid, crypto_res, _) = try_join!(
         verify_password(&client, &req.stuId, &req.hdjwPassword, &req.stuPassword),
         get_openid(&req.code),
-        crypto_password(&client, &req.hdjwPassword, &req.stuPassword)
+        crypto_password(&client, &req.hdjwPassword, &req.stuPassword),
+        clear_redis_cache(&req.stuId),
     )?;
 
     match verify_res.code {
@@ -40,7 +64,7 @@ pub async fn bind_user_handler(
     let check_res = check_by_openid(data.clone(), &openid).await;
 
     if check_res.is_ok() {
-        return Err("该微信号已绑定".into());
+        return Ok("该微信号已绑定".into());
     }
 
     let user_bind = UserBind {
