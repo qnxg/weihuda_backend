@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use once_cell::sync::Lazy;
 use reqwest::{
     header::{HeaderMap, AUTHORIZATION, LOCATION},
@@ -15,8 +13,8 @@ use crate::config::CFG;
 pub static client: Lazy<Client> = Lazy::new(|| {
     Client::builder()
         .connection_verbose(false)
-        .timeout(Duration::from_secs(3))
-        .default_headers({
+        // .timeout(Duration::from_secs(6)) // timeout直接使用后端中间件的超时时间，不再单独设置
+        .default_headers({ 
             let mut headers = HeaderMap::new();
             headers.insert(
                 AUTHORIZATION,
@@ -54,7 +52,7 @@ pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
     let mut json_res: Value = serde_json::from_str(&res)?;
 
     if json_res.get("data").map_or(true, |v| v.is_null()) {
-        return Err(anyhow::anyhow!("爬虫返回数据为空"));
+        return Err(anyhow::anyhow!("获取数据失败，请检查个人门户密码和登录状态"));
     }
 
     let res: U = serde_json::from_value(json_res["data"].take())?; // take()方法将json_res的所有权转移给res
@@ -84,7 +82,7 @@ pub async fn spider<T: Serialize, U: DeserializeOwned>(
 
     let json_res: Value = serde_json::from_str(&res)?;
 
-    let res: U = serde_json::from_value(json_res)?;
+    let res: U = serde_json::from_value(json_res).map_err(|_| anyhow::anyhow!("获取数据失败，请检查个人门户密码和登录状态"))?;
 
     Ok(res)
 }
@@ -110,7 +108,7 @@ pub async fn spider_data_url<T: Serialize, U: DeserializeOwned>(
     let mut json_res: Value = serde_json::from_str(&res)?;
 
     if json_res.get("data").map_or(true, |v| v.is_null()) {
-        return Err(anyhow::anyhow!("网络请求返回数据为空"));
+        return Err(anyhow::anyhow!("获取数据失败，请检查个人门户密码和登录状态"));
     }
 
     let res: U = serde_json::from_value(json_res["data"].take())?; // take()方法将json_res的所有权转移给res
@@ -121,14 +119,35 @@ pub async fn spider_data_url<T: Serialize, U: DeserializeOwned>(
 // 后续再写单元测试
 #[cfg(test)]
 mod tests {
-    // use super::*;
-    use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+    use super::*;
+    use reqwest::header::{HeaderMap, AUTHORIZATION};
 
     #[tokio::test]
     async fn test_spider() {
-        let _params = [("xn", "2023")];
+        let params = [("xn", "2023"), ("xq", "1"), ("stuid", "202213010107")];
+        let path = "/bks/classtable";
 
-        let mut headers = HeaderMap::new();
-        headers.insert(AUTHORIZATION, HeaderValue::from_static("OUJhbGciOiJIUzU(x7)iIsImlhdCI6MTYxNzQy$jAwMiwiZXh#IjoxNjUzNDI2MDAyfQ@eyI6ImFkbWhjXzxcwEiT7dlm9sFeSRlgY7rnJKpBA"));
+        let url = format!("{}{}", "http://202.197.99.118/api/spider", path);
+
+        let res =     Client::builder()
+        .default_headers({
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                AUTHORIZATION,
+                "OUJhbGciOiJIUzU(x7)iIsImlhdCI6MTYxNzQy$jAwMiwiZXh#IjoxNjUzNDI2MDAyfQ@eyI6ImFkbWhjXzxcwEiT7dlm9sFeSRlgY7rnJKpBA"
+                    .parse()
+                    .unwrap(),
+            );
+            headers
+        }).build().unwrap()
+            .get(url)
+            .query(&params)
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        dbg!(res);
     }
 }

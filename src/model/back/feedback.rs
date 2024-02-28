@@ -2,7 +2,7 @@
 use serde::Serialize;
 use sqlx::FromRow;
 
-#[derive(FromRow, Serialize)]
+#[derive(FromRow, Serialize, Debug)]
 pub struct FeedbackInfo {
     // pub id: u32,
     // pub contact: String,
@@ -14,4 +14,10 @@ pub struct FeedbackInfo {
     // pub _type: String,
     pub status: Option<i8>,
     pub comment: Option<String>,
+}
+
+#[derive(FromRow, Serialize, Debug)]
+pub struct FeedbackRes {
+    pub count: u32,
+    pub rows: Vec<FeedbackInfo>,
 }

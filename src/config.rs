@@ -8,6 +8,7 @@ use std::{fs::File, io::Read};
 pub struct Configs {
     pub server: Server,
     pub database: DataBase,
+    pub redis: Redis,
     pub log: Log,
     pub jwt: Jwt,
     pub wechat: Wechat,
@@ -24,6 +25,12 @@ pub struct Server {
 pub struct DataBase {
     pub max_connections: u32,
     pub database_url: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Redis {
+    pub redis_url: String,
+    pub redis_password: String,
 }
 
 #[derive(Deserialize, Debug)]

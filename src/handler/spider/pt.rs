@@ -75,7 +75,10 @@ pub async fn get_card_history_handler(
 pub async fn get_email_handler(Extension(token): Extension<String>) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
     let params = [("stuid", stu_id)];
-    let spider_res: SpiderEmail = spider_data("/pt/email", &params).await?;
+    let spider_res: SpiderEmail = match spider_data("/pt/email", &params).await {
+        Ok(res) => res,
+        Err(_) => return Ok(serde_json::Value::Null.into()),
+    };
 
     match spider_res.unReadCount {
         Some(count) => Ok(count.into()),

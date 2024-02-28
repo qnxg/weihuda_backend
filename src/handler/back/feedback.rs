@@ -7,7 +7,7 @@ use regex::Regex;
 use crate::{
     app_result::AppResult,
     extract::{Json, Query},
-    model::back::feedback::FeedbackInfo,
+    model::back::feedback::{FeedbackInfo, FeedbackRes},
     schema::back::feedback::{AddFeedbackReq, GetFeedbackReq, UpdateFeedbackReq},
     Pool,
 };
@@ -33,14 +33,15 @@ pub async fn get_feedback_handler(
     .fetch_all(&data.db)
     .await?;
 
-    Ok(feedback_items.into())
+    let res = FeedbackRes { count: feedback_items.len() as u32, rows: feedback_items };
+
+    Ok(res.into())
 }
 
 pub async fn add_feedback_handler(
     State(data): State<Arc<Pool>>,
     Json(req): Json<AddFeedbackReq>,
 ) -> AppResult {
-    tracing::warn!("{:?}", &req.createTime);
     // 检查时间字符串格式为类似 2022-06-08 05:48:09
     if !Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
         .unwrap()
