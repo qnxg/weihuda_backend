@@ -112,39 +112,3 @@ pub async fn spider_data_url<T: Serialize, U: DeserializeOwned>(
 
     Ok(res)
 }
-
-// 后续再写单元测试
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use reqwest::header::{HeaderMap, AUTHORIZATION};
-
-    #[tokio::test]
-    async fn test_spider() {
-        let params = [("xn", "2023"), ("xq", "1"), ("stuid", "202213010107")];
-        let path = "/bks/classtable";
-
-        let url = format!("{}{}", "http://202.197.99.118/api/spider", path);
-
-        let res =     Client::builder()
-        .default_headers({
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                AUTHORIZATION,
-                "OUJhbGciOiJIUzU(x7)iIsImlhdCI6MTYxNzQy$jAwMiwiZXh#IjoxNjUzNDI2MDAyfQ@eyI6ImFkbWhjXzxcwEiT7dlm9sFeSRlgY7rnJKpBA"
-                    .parse()
-                    .unwrap(),
-            );
-            headers
-        }).build().unwrap()
-            .get(url)
-            .query(&params)
-            .send()
-            .await
-            .unwrap()
-            .text()
-            .await
-            .unwrap();
-        dbg!(res);
-    }
-}
