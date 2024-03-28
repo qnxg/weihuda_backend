@@ -86,6 +86,7 @@ pub async fn spider<T: Serialize, U: DeserializeOwned>(
     Ok(res)
 }
 
+#[allow(dead_code)]
 ///访问地址完全自定义
 pub async fn spider_data_url<T: Serialize, U: DeserializeOwned>(
     url: &str,

@@ -38,23 +38,23 @@ pub async fn get_notice_handler(
     Extension(token): Extension<String>,
 ) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
-    let sendTime = format!(
-        "%{}%",
-        if req.sendTime.is_some() {
-            req.sendTime.unwrap().to_string()
-        } else {
-            "".to_string()
-        }
-    );
-    let status = format!(
-        "%{}%",
-        if req.status.is_some() {
-            req.status.unwrap().to_string()
-        } else {
-            "".to_string()
-        }
-    );
-    let result = format!("%{}%", req.result.unwrap_or_default());
+    // let sendTime = format!(
+    //     "%{}%",
+    //     if req.sendTime.is_some() {
+    //         req.sendTime.unwrap().to_string()
+    //     } else {
+    //         "".to_string()
+    //     }
+    // );
+    // let status = format!(
+    //     "%{}%",
+    //     if req.status.is_some() {
+    //         req.status.unwrap().to_string()
+    //     } else {
+    //         "".to_string()
+    //     }
+    // );
+    // let result = format!("%{}%", req.result.unwrap_or_default());    // 这里有bug，数据库为null时候无法查出
     let page = req.page.unwrap_or(1);
     let pageSize = req.pageSize.unwrap_or(10);
     let offset = (page - 1) * pageSize;
@@ -74,16 +74,13 @@ pub async fn get_notice_handler(
         From 
             notices
         WHERE 
-            stuId = ? AND sendTime LIKE ? AND status LIKE ? AND result LIKE ?
+            stuId = ?
         ORDER BY 
             id DESC
         LIMIT 
             ?, ?
         "#,
         stu_id,
-        sendTime,
-        status,
-        result,
         offset,
         pageSize,
     )
