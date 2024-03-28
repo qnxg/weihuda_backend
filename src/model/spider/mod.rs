@@ -11,7 +11,6 @@ pub mod lab;
 pub mod library;
 pub mod netflow;
 pub mod raw_grade;
-pub mod zhihu;
 
 /// 当学分为整数时，序列化为整数，而不是显示类似4.0的浮点数
 /// 使用方式：use super::serialize_f64;

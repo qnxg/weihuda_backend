@@ -1,15 +1,13 @@
 use crate::{
     app_result::AppResult,
+    extract::{Json, Query},
+    model::back::course::CourseInfo,
     schema::back::course::{AddCourseReq, DeleteCourseReq, GetCourseReq},
     utility::jwt::parse_id,
-    Pool, model::back::course::CourseInfo,
+    Pool,
 };
-use axum::{
-    extract::State,
-    Extension, 
-};
+use axum::{extract::State, Extension};
 use std::sync::Arc;
-use crate::extract::{Json, Query};
 
 #[allow(dead_code)]
 pub async fn get_course_handler(
@@ -61,7 +59,6 @@ pub async fn add_course_handler(
     )
     .execute(&data.db) 
     .await?;
-
 
     if account.rows_affected() == 0 {
         return Err("添加失败".into());

@@ -1,5 +1,9 @@
 pub mod auth;
+pub mod config;
 pub mod course;
 pub mod exam_num;
 pub mod feedback;
+pub mod notice;
+pub mod record;
 pub mod user;
+pub mod zhihu;

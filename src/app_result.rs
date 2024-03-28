@@ -1,5 +1,7 @@
-use crate::{app_error::AppError, utility::wrapper::success_json};
-use axum::{http::StatusCode, response::IntoResponse, Json};
+use std::sync::Arc;
+
+use crate::{app_error::AppError, utility::wrapper::success_json, Pool};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -22,3 +24,6 @@ impl IntoResponse for AppRes {
         (StatusCode::OK, self.0).into_response()
     }
 }
+
+/// 类型别名，方便书写函数参数
+pub type AppState = State<Arc<Pool>>;

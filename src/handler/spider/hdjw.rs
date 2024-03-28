@@ -50,7 +50,7 @@ pub async fn get_class_table_handler(
     )
     .fetch_all(&data.db)
     .await?; // the type of back_res is Vec<CourseInfo>
-             // 爬虫返回教务课程
+    // 爬虫返回教务课程
     let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
     let spider_res: Vec<SpiderCourseInfo> = spider_data("/bks/classtable", &params).await?;
     // 合并两个数据源
