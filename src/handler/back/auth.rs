@@ -103,11 +103,12 @@ pub async fn get_auth_qrcode_status_handler(Path(code): Path<String>) -> AppResu
 
 pub async fn put_auth_qrcode_status_handler(
     Path(code): Path<String>,
+    Extension(token): Extension<String>,
     Json(data): Json<PostAuthQrCodeStatusReq>,
 ) -> AppResult {
     let mut map = AUTH_QRCODE_MAP.lock().unwrap();
 
-    // let stu_id = parse_stu_id(&token)?;
+    let stu_id = parse_stu_id(&token)?;
 
     // 参数校验
     if !["using", "confirmed", "canceled"].contains(&data.status.as_str()) {
@@ -122,7 +123,7 @@ pub async fn put_auth_qrcode_status_handler(
         };
         if data.status == "confirmed" {
             qrcode.info = Some(Info {
-                stu_id: "test".to_string(), // token中的stuId
+                stu_id: stu_id.to_string(), // token中的stuId
                 name: "新用户".to_string(), // token中的name，或者从数据库中获取
             });
         }
