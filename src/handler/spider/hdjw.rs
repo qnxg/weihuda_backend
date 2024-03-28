@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use crate::{
     app_result::AppResult,
@@ -93,6 +96,9 @@ pub async fn get_class_table_handler(
         };
         res.push(temp);
     }
+    // 数据去重，根据id去重
+    let mut seen = HashSet::new();
+    res.retain(|item| seen.insert(item.id.clone()));
     // 返回数据
     Ok(res.into())
 }
