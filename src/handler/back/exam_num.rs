@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
-use axum::extract::State;
-use axum::Extension;
 use crate::extract::{Json, Query};
+use axum::{extract::State, Extension};
 
 use crate::{
     app_result::AppResult,
     model::back::exam_num::ExamNumberInfo,
-    schema::back::exam_num::{AddExamNumberReq, UpdateExamNumberReq, DeleteExamNumberReq},
+    schema::back::exam_num::{AddExamNumberReq, DeleteExamNumberReq, UpdateExamNumberReq},
     utility::jwt::parse_id,
     Pool,
 };

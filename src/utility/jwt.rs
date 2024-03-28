@@ -89,4 +89,13 @@ mod tests {
         assert_eq!(id, 44971);
         assert_eq!(stu_id, "202104061314");
     }
+
+    #[test]
+    fn test_auth() {
+        let id = 44971;
+        let stu_id = "202104061314";
+        let token = auth(id, stu_id).unwrap();
+        let (res_id, res_stu_id) = parse(&token).unwrap();
+        assert_eq!(id, res_id);
+    }
 }

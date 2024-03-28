@@ -80,7 +80,8 @@ pub async fn spider<T: Serialize, U: DeserializeOwned>(
 
     let json_res: Value = serde_json::from_str(&res)?;
 
-    let res: U = serde_json::from_value(json_res).map_err(|_| anyhow::anyhow!("请检查个人门户密码或5分钟后再次尝试"))?;
+    let res: U = serde_json::from_value(json_res)
+        .map_err(|_| anyhow::anyhow!("请检查个人门户密码或5分钟后再次尝试"))?;
 
     Ok(res)
 }

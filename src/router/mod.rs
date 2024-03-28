@@ -1,13 +1,27 @@
 use crate::{
     handler::{
         back::{
-            auth::get_auth_handler,
+            auth::{
+                get_auth_handler, get_auth_qrcode_handler, get_auth_qrcode_info_handler,
+                get_auth_qrcode_status_handler, put_auth_qrcode_status_handler,
+            },
+            config::get_config_handler,
             course::{add_course_handler, delete_course_handler},
             exam_num::{add_exam_num_handler, delete_exam_num_handler, get_exam_num_handler},
             feedback::{add_feedback_handler, get_feedback_handler, update_feedback_handler},
             health::health_checker_handler,
             message::get_message_handler,
+            notice::{get_notice_handler, put_notice_by_id_handler},
+            record::{
+                get_record_goods_handler, get_record_handler, get_record_rules_handler,
+                get_record_total_handler, get_webview_read_handler, post_goods_handler,
+                post_record_handler,
+            },
             user::{bind_user_handler, unbind_user_handler},
+            zhihu::{
+                delete_zhihu_handler, get_zhihu_by_id_handler, get_zhihu_page_handler,
+                post_zhihu_handler, put_zhihu_handler,
+            },
         },
         spider::{
             hdjw::{
@@ -27,7 +41,6 @@ use crate::{
                 get_fitness_appoint_handler, get_fitness_handler, get_lab_arrange_handler,
                 get_lab_grade_handler,
             },
-            zhihu::get_zhihu_list_handler,
         },
     },
     middleware::{auth::auth_middleware, log::log_middleware, timeout::timeout_middleware},
@@ -52,7 +65,7 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
         .route("/exam-num", get(get_exam_num_handler)) // 获取考号预存
         .route("/exam-num", post(add_exam_num_handler)) // 添加考号预存
         .route("/exam-num", delete(delete_exam_num_handler)); // 删除考号预存
-                                                              // .route("/exam-num", put(update_exam_num_handler))
+    // .route("/exam-num", put(update_exam_num_handler))
 
     let auth = Router::new().route("/token", get(get_auth_handler)); // 用code换取token
 
@@ -97,7 +110,12 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
         .route("/netflow", get(get_netflow_handler)); // 获取校园网流量订单
 
     // 知湖 zhihu
-    let zhihu = Router::new().route("/zhihu", get(get_zhihu_list_handler)); // 获取知湖列表
+    let zhihu = Router::new()
+        .route("/zhihu", get(get_zhihu_page_handler))
+        .route("/zhihu/:id", get(get_zhihu_by_id_handler))
+        .route("/zhihu/:id", put(put_zhihu_handler))
+        .route("/zhihu/:id", delete(delete_zhihu_handler))
+        .route("/zhihu", post(post_zhihu_handler)); // 获取知湖列表
 
     // 个人门户 pt
     let pt = Router::new()
@@ -112,12 +130,39 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
     // 图书馆 library
     let library = Router::new().route("/library", get(get_library_handler)); // 获取图书馆信息
 
+    // 积分
+    let record = Router::new()
+        .route("/jifen/total", get(get_record_total_handler))
+        .route("/jifen/record", get(get_record_handler))
+        .route("/jifen/goods", get(get_record_goods_handler))
+        .route("/jifen/rules", get(get_record_rules_handler))
+        .route("/jifen", post(post_record_handler))
+        .route("/jifen/goods-record", get(get_record_handler))
+        .route("/jifen/goods-record", post(post_goods_handler))
+        .route("/jifen/webview-read", get(get_webview_read_handler));
+
+    // 配置
+    let config = Router::new().route("/config", get(get_config_handler));
+
+    // 通知
+    let notice = Router::new()
+        .route("/notice", get(get_notice_handler))
+        .route("/notice/:id", put(put_notice_by_id_handler));
+
+    // 二维码
+    let qr = Router::new()
+        .route("/auth-qrcode", get(get_auth_qrcode_handler))
+        .route("/auth-qrcode/status/:code", get(get_auth_qrcode_status_handler))
+        .route("/auth-qrcode/status/:code", put(put_auth_qrcode_status_handler))
+        .route("/auth-qrcode/info/:code", get(get_auth_qrcode_info_handler));
+
     // 按所需权限分类总结，注重api的权限划分严谨性，用到什么权限就分配什么权限
     let with_db = Router::new()
         .merge(auth)
         .merge(user_bind)
         .merge(message)
         .merge(feedback)
+        .merge(config)
         .with_state(db_pool.clone());
 
     let with_db_auth = Router::new()
@@ -125,6 +170,9 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
         .merge(user_unbind)
         .merge(exam_num)
         .merge(class_table)
+        .merge(zhihu)
+        .merge(record)
+        .merge(notice)
         .layer(auth_middleware())
         .with_state(db_pool.clone());
 
@@ -141,8 +189,8 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
         .merge(ping)
         .merge(class_start_date)
         .merge(empty_room)
-        .merge(semester_info)
-        .merge(zhihu);
+        .merge(qr)
+        .merge(semester_info);
 
     // 合并所有router
     Router::new()
@@ -152,5 +200,5 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
         .merge(with_db)
         .layer(log_middleware()) // 增加日志中间件
         .layer(timeout_middleware()) // 增加超时中间件
-                                     // .layer(cors_middleware()) // 增加跨域中间件
+    // .layer(cors_middleware()) // 增加跨域中间件
 }
