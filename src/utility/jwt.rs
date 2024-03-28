@@ -95,7 +95,7 @@ mod tests {
         let id = 44971;
         let stu_id = "202104061314";
         let token = auth(id, stu_id).unwrap();
-        let (res_id, res_stu_id) = parse(&token).unwrap();
+        let (res_id, _res_stu_id) = parse(&token).unwrap();
         assert_eq!(id, res_id);
     }
 }
