@@ -153,8 +153,9 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
     let qr = Router::new()
         .route("/auth-qrcode", get(get_auth_qrcode_handler))
         .route("/auth-qrcode/status/:code", get(get_auth_qrcode_status_handler))
-        .route("/auth-qrcode/status/:code", put(put_auth_qrcode_status_handler))
         .route("/auth-qrcode/info/:code", get(get_auth_qrcode_info_handler));
+    let qr_auth =
+        Router::new().route("/auth-qrcode/status/:code", put(put_auth_qrcode_status_handler)); // put请求需要获取jwt，所以需要加入到with_auth的路由组
 
     // 按所需权限分类总结，注重api的权限划分严谨性，用到什么权限就分配什么权限
     let with_db = Router::new()
@@ -183,14 +184,15 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
         .merge(netflow)
         .merge(pt)
         .merge(library)
+        .merge(qr_auth)
         .layer(auth_middleware());
 
     let without = Router::new()
         .merge(ping)
         .merge(class_start_date)
         .merge(empty_room)
-        .merge(qr)
-        .merge(semester_info);
+        .merge(semester_info)
+        .merge(qr);
 
     // 合并所有router
     Router::new()
