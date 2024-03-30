@@ -21,11 +21,12 @@ pub async fn get_zhihu_page_handler(
     Query(req): Query<GetZhihuPageReq>,
     Extension(token): Extension<String>,
 ) -> AppResult {
-    if req.pageSize > 100 {
+    if req.pageSize.is_some() && req.pageSize.unwrap() > 100 {
         return Err("pageSize不能大于100".into());
     }
-    let offset = (req.page - 1) * req.pageSize;
-    let limit = req.pageSize;
+    let page = req.page.unwrap_or(1);
+    let pageSize = req.pageSize.unwrap_or(10);
+    let offset = (page - 1) * pageSize;
 
     let title = format!("%{}%", req.title.unwrap_or_default());
     let _type = format!("%{}%", req._type.unwrap_or_default());
@@ -81,7 +82,7 @@ pub async fn get_zhihu_page_handler(
         tags,
         stu_id,
         offset,
-        limit
+        pageSize
     )
     .fetch_all(&data.db)
     .await?;
