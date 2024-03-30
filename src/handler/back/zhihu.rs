@@ -32,6 +32,26 @@ pub async fn get_zhihu_page_handler(
     let tags = format!("%{}%", req.tags.unwrap_or_default());
     let stu_id = parse_stu_id(&token)?;
 
+    let count = sqlx::query!(
+        r#"
+        SELECT 
+            COUNT(*) AS count
+        FROM 
+            zhihus 
+        WHERE 
+            (title LIKE ? AND type LIKE ? AND tags LIKE ?) 
+            AND (status = 1 OR stuId = ?)
+            AND deletedAt IS NULL
+        "#,
+        title,
+        _type,
+        tags,
+        stu_id
+    )
+    .fetch_one(&data.db)
+    .await?
+    .count;
+
     let res: Vec<ZhihuListItem> = sqlx::query_as!(
         ZhihuListItem,
         r#"
@@ -66,7 +86,7 @@ pub async fn get_zhihu_page_handler(
     .fetch_all(&data.db)
     .await?;
 
-    let res: ZhihuPage = ZhihuPage { count: res.len() as u32, rows: res };
+    let res: ZhihuPage = ZhihuPage { count: count as u32, rows: res };
 
     Ok(res.into())
 }
@@ -109,7 +129,7 @@ pub async fn post_zhihu_handler(
 ) -> AppResult {
     if let Some(_type) = json._type.clone() {
         // data必须是article和link之一
-        if _type != "article" || _type != "link" {
+        if !["article", "link"].contains(&_type.as_str()) {
             return Err("类型必须为'article', 'link'中的一个".into());
         }
     } else {
@@ -121,7 +141,7 @@ pub async fn post_zhihu_handler(
     }
 
     if let Some(status) = json.status {
-        if status != 0 || status != 1 || status != 2 {
+        if ![0, 1].contains(&status) {
             return Err("status必须为0或1".into());
         }
     } else {
@@ -157,7 +177,7 @@ pub async fn put_zhihu_handler(
     Json(json): Json<ZhihuListItem>,
 ) -> AppResult {
     if let Some(_type) = json._type.clone() {
-        if _type != "article" && _type != "link" {
+        if !["article", "link"].contains(&_type.as_str()) {
             return Err("类型必须为'article', 'link'中的一个".into());
         }
     } else {
@@ -169,7 +189,7 @@ pub async fn put_zhihu_handler(
     }
 
     if let Some(status) = json.status {
-        if status != 0 && status != 1 && status != 2 {
+        if ![0, 1, 2].contains(&status) {
             return Err("status必须为0或1或2".into());
         }
     } else {
