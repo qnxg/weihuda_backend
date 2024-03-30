@@ -1,16 +1,14 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
-use crate::utility::default::default_page;
+use crate::utility::parse::deserialize_option_naive_datetime;
 
 /// 获取月流量明细
 #[allow(non_snake_case)]
 #[derive(Deserialize, Debug)]
 pub struct GetZhihuPageReq {
-    #[serde(default = "default_page")]
-    pub page: u32,
-    #[serde(default = "default_page_size")]
-    pub pageSize: u32,
+    pub page: Option<u32>,
+    pub pageSize: Option<u32>,
     pub title: Option<String>,
     #[serde(rename = "type")]
     pub _type: Option<String>,
@@ -32,10 +30,7 @@ pub struct UpdateZhihuBody {
     pub tags: Option<String>,
     pub cover: Option<String>,
     pub status: Option<i32>,
+    #[serde(deserialize_with = "deserialize_option_naive_datetime")]
     pub publishTime: Option<NaiveDateTime>,
     pub stuId: Option<String>,
-}
-
-fn default_page_size() -> u32 {
-    10
 }
