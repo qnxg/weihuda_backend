@@ -1,7 +1,9 @@
 #![allow(non_snake_case)]
 use chrono::NaiveDateTime;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+
+use crate::utility::parse::deserialize_naive_datetime;
 
 #[derive(FromRow, Serialize, Debug)]
 pub struct MiniBindRecord {
@@ -94,11 +96,3 @@ pub struct GoodsReq {
 //     pub description: Option<String>,
 //     pub createTime: NaiveDateTime,
 // }
-
-fn deserialize_naive_datetime<'de, D>(deserializer: D) -> Result<NaiveDateTime, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S").map_err(serde::de::Error::custom)
-}

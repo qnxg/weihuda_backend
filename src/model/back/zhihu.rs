@@ -3,9 +3,11 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+use crate::utility::parse::deserialize_option_naive_datetime;
+
 #[derive(FromRow, Serialize, Deserialize, Debug)]
 pub struct ZhihuListItem {
-    pub id: i32,
+    pub id: Option<i32>,
     pub title: String,
     #[serde(rename = "type")]
     pub _type: Option<String>,
@@ -13,6 +15,7 @@ pub struct ZhihuListItem {
     pub tags: Option<String>,
     pub cover: Option<String>,
     pub status: Option<i32>,
+    #[serde(deserialize_with = "deserialize_option_naive_datetime")]
     pub publishTime: Option<NaiveDateTime>,
     pub stuId: Option<String>,
 }
