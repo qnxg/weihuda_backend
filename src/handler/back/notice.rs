@@ -75,6 +75,7 @@ pub async fn get_notice_handler(
             notices
         WHERE 
             stuId = ?
+            AND deletedAt IS NULL
         ORDER BY 
             id DESC
         LIMIT 
