@@ -12,7 +12,7 @@ mod utility;
 use crate::{config::CFG, router::create_router};
 use sqlx::{
     mysql::{MySqlPool, MySqlPoolOptions},
-    Executor,
+    // Executor,
 };
 use std::sync::Arc;
 
@@ -41,13 +41,13 @@ async fn main() {
 
     // Connect to MySQL
     let pool = match MySqlPoolOptions::new()
-        .after_connect(|conn, _meta| {
-            Box::pin(async move {
-                let _ =
-                    conn.execute("SET time_zone='+08:00'; SET system_time_zone='+08:00'").await; // 由于sqlx默认时区设置为UTC，虽然很合理，数据库只存储Utc时间，时间转换在业务层处理，但是必须按照我们数据库的时区来设置，否则会出现8小时的误差
-                Ok(())
-            })
-        })
+        // .after_connect(|conn, _meta| {
+        //     Box::pin(async move {
+        //         let _ =
+        //             conn.execute("SET time_zone='+08:00'; SET system_time_zone='+08:00'").await; // 由于sqlx默认时区设置为UTC，虽然很合理，数据库只存储Utc时间，时间转换在业务层处理，但是必须按照我们数据库的时区来设置，否则会出现8小时的误差
+        //         Ok(())
+        //     })
+        // })
         .max_connections(CFG.database.max_connections)
         .connect(&CFG.database.database_url)
         .await
