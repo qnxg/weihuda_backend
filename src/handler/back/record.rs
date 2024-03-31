@@ -110,6 +110,7 @@ pub async fn get_record_goods_handler(
             jifen_goods
         WHERE 
             name LIKE ?
+            AND deletedAt IS NULL
         ORDER BY 
             id DESC
         LIMIT 
@@ -153,6 +154,7 @@ pub async fn get_record_rules_handler(
             jifen_rules
         WHERE 
             `key` LIKE ? AND name LIKE ? AND enabled = 1
+            AND deletedAt IS NULL
         ORDER BY 
             id DESC
         LIMIT 
@@ -193,6 +195,7 @@ pub async fn post_record_handler(
             jifen_rules
         WHERE 
             `key` = ?
+            AND deletedAt IS NULL
         "#,
         req.key
     )
@@ -208,6 +211,7 @@ pub async fn post_record_handler(
             jifen_records
         WHERE 
             `key` = ? AND param = ? AND stuId = ?
+            AND deletedAt IS NULL
         "#,
         req.key,
         req.param,
@@ -234,6 +238,7 @@ pub async fn post_record_handler(
             jifen_records
         WHERE 
             `key` = ? AND stuId = ? AND createTime >= ?
+            AND deletedAt IS NULL
         "#,
         req.key,
         stu_id,
