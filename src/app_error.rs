@@ -3,7 +3,7 @@
 use axum::{http::StatusCode, response::IntoResponse};
 use thiserror::Error;
 
-use crate::utility::wrapper::error_json;
+use crate::utils::wrapper::error_json;
 
 /// 自定义的错误处理类型，支持多种错误类型，可以通过?操作符链式传播，传播链的初始类型必须是可转换为AppError的分支的类型
 #[derive(Error, Debug)]
@@ -64,7 +64,3 @@ impl IntoResponse for AppError {
         }
     }
 }
-
-// static INTERNAL_SERVER_ERROR: StatusCode = StatusCode::INTERNAL_SERVER_ERROR;
-// static BAD_REQUEST: StatusCode = StatusCode::BAD_REQUEST;
-// pub static UNAUTHORIZED: StatusCode = StatusCode::UNAUTHORIZED;

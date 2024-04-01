@@ -1,15 +1,15 @@
 mod app_error;
 mod app_result;
 mod config;
-mod extract;
-mod handler;
-mod middleware;
-mod model;
-mod router;
-mod schema;
-mod utility;
+mod dtos;
+mod entities;
+mod extractors;
+mod handlers;
+mod middlewares;
+mod routers;
+mod utils;
 
-use crate::{config::CFG, router::create_router};
+use crate::{config::CFG, routers::create_router};
 use sqlx::{
     mysql::{MySqlPool, MySqlPoolOptions},
     // Executor,
@@ -44,7 +44,7 @@ async fn main() {
         // .after_connect(|conn, _meta| {
         //     Box::pin(async move {
         //         let _ =
-        //             conn.execute("SET time_zone='+08:00'; SET system_time_zone='+08:00'").await; // 由于sqlx默认时区设置为UTC，虽然很合理，数据库只存储Utc时间，时间转换在业务层处理，但是必须按照我们数据库的时区来设置，否则会出现8小时的误差
+        //             conn.execute("SET time_zone='+08:00'; SET system_time_zone='+08:00'").await;
         //         Ok(())
         //     })
         // })

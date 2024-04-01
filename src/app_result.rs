@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{app_error::AppError, utility::wrapper::success_json, Pool};
+use crate::{app_error::AppError, utils::wrapper::success_json, Pool};
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::Serialize;
 use serde_json::Value;
