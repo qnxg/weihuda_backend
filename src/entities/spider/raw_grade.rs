@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::utils::parse::serialize_f64;
+use crate::utils::serde::serialize_f64;
 
 #[derive(Deserialize, Debug)]
 pub struct SpiderRawGrade {

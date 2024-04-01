@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::Deserialize;
 
-use crate::utils::parse::deserialize_option_naive_datetime;
+use crate::utils::serde::deserialize_option_naive_datetime;
 
 /// 获取月流量明细
 #[allow(non_snake_case)]
