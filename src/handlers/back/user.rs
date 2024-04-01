@@ -29,7 +29,7 @@ lazy_static! {
 // 清除redis缓存
 async fn clear_redis_cache(stu_id: &str) -> Result<(), anyhow::Error> {
     let mut con = REDIS
-        .get_async_connection()
+        .get_multiplexed_async_connection()
         .await
         .map_err(|_| anyhow::anyhow!("Redis连接失败，请反馈给管理员"))?;
     let keys: Vec<String> = con.keys(format!("*{}*", stu_id)).await.unwrap();
