@@ -2,7 +2,7 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
-use crate::utils::parse::deserialize_naive_datetime;
+use crate::utils::serde::deserialize_naive_datetime;
 
 #[derive(Serialize, Debug)]
 pub struct MiniBindRecord {

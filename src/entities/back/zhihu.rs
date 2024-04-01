@@ -2,7 +2,7 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
-use crate::utils::parse::deserialize_option_naive_datetime;
+use crate::utils::serde::deserialize_option_naive_datetime;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ZhihuListItem {
