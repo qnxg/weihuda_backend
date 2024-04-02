@@ -17,7 +17,14 @@ where
 {
     match date {
         Some(date) => {
-            let s = date.to_string().split(' ').next().unwrap_or("").to_string();
+            let s = date
+                .with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap())
+                .naive_local()
+                .to_string()
+                .split(' ')
+                .next()
+                .unwrap_or("")
+                .to_string();
             serializer.serialize_str(&s)
         }
         None => serializer.serialize_none(),

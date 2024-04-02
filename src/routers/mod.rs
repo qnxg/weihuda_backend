@@ -10,7 +10,7 @@ use crate::{
             exam_num::{add_exam_num_handler, delete_exam_num_handler, get_exam_num_handler},
             feedback::{add_feedback_handler, get_feedback_handler, update_feedback_handler},
             health::health_checker_handler,
-            // message::get_message_handler,
+            message::get_message_handler,
             notice::{get_notice_handler, put_notice_by_id_handler},
             record::{
                 get_record_goods_handler, get_record_handler, get_record_rules_handler,
@@ -69,7 +69,7 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
 
     let auth = Router::new().route("/token", get(get_auth_handler)); // 用code换取token
 
-    // let message = Router::new().route("/message", get(get_message_handler)); // 获取消息
+    let message = Router::new().route("/message", get(get_message_handler)); // 获取消息
 
     let user_bind = Router::new().route("/bind", post(bind_user_handler)); // 绑定用户
 
@@ -161,7 +161,7 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
     let with_db = Router::new()
         .merge(auth)
         .merge(user_bind)
-        // .merge(message)
+        .merge(message)
         .merge(feedback)
         .merge(config)
         .with_state(db_pool.clone());
