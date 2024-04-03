@@ -23,6 +23,9 @@ pub enum AppError {
     /// JWT编解码错误
     #[error("JWT编解码错误: {0}")]
     JwtError(#[from] jsonwebtoken::errors::Error),
+    /// 时间解析错误
+    #[error("时间解析错误: {0}")]
+    ParseError(#[from] chrono::ParseError),
     // Axum框架错误
     // #[error("Axum error: {0}")]
     // AxumError(#[from] axum::Error),
@@ -60,6 +63,10 @@ impl IntoResponse for AppError {
             AppError::JwtError(e) => {
                 tracing::error!("JWT编解码错误 {}", e);
                 (StatusCode::OK, error_json(401, "身份验证错误")).into_response()
+            }
+            AppError::ParseError(e) => {
+                tracing::error!("时间解析错误 {}", e);
+                (StatusCode::OK, error_json(400, "时间解析错误")).into_response()
             }
         }
     }

@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 use axum::extract::State;
-use regex::Regex;
+// use regex::Regex;
 
 use crate::{
     app_result::{AppResult, AppState},
@@ -40,12 +40,13 @@ pub async fn add_feedback_handler(
     Json(req): Json<AddFeedbackReq>,
 ) -> AppResult {
     // 检查时间字符串格式为类似 2022-06-08 05:48:09
-    if !Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
-        .unwrap()
-        .is_match(&req.createTime)
-    {
-        return Err("时间格式不正确".into());
-    }
+    // if !Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
+    //     .unwrap()
+    //     .is_match(&req.createTime)
+    // {
+    //     return Err("时间格式不正确".into());
+    // }
+    let create_time = chrono::NaiveDateTime::parse_from_str(&req.createTime, "%Y-%m-%d %H:%M:%S")?;
     let now = chrono::Local::now();
     sqlx::query!(
         r#"
@@ -56,7 +57,7 @@ pub async fn add_feedback_handler(
         req.contact,
         req.imgUrl,
         req._type,
-        req.createTime,
+        create_time,
         now,
         now,
     )
