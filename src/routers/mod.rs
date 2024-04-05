@@ -56,7 +56,8 @@ use axum::{
     routing::{delete, get, post, put},
     Router,
 };
-use std::sync::Arc;
+use std::sync::{atomic::AtomicUsize, Arc};
+use tokio::sync::RwLock;
 
 pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     let ping = Router::new().route("/ping", get(health_checker_handler));
@@ -206,10 +207,10 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
 
     // 计数的中间件
     let count_inner = Count {
-        count: 0,
-        last_update: chrono::Local::now().naive_local().date(),
+        count: AtomicUsize::new(0),
+        last_update: RwLock::new(chrono::Local::now().naive_local().date()),
     };
-    let count = Arc::new(tokio::sync::Mutex::new(count_inner));
+    let count = Arc::new(count_inner);
 
     // 合并所有router
     Router::new()
