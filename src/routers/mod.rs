@@ -9,9 +9,9 @@ use crate::{
             course::{add_course_handler, delete_course_handler},
             exam_num::{add_exam_num_handler, delete_exam_num_handler, get_exam_num_handler},
             feedback::{add_feedback_handler, get_feedback_handler, update_feedback_handler},
-            health::health_checker_handler,
             message::get_message_handler,
             notice::{get_notice_handler, put_notice_by_id_handler},
+            ping::health_checker_handler,
             record::{
                 get_record_goods_handler, get_record_handler, get_record_rules_handler,
                 get_record_total_handler, get_webview_read_handler, post_goods_handler,
@@ -42,6 +42,7 @@ use crate::{
                 get_lab_grade_handler,
             },
         },
+        // test::{test_naive_datetime_parsing, test_option_naive_datetime_parsing},
     },
     middlewares::{auth::auth_middleware, log::log_middleware, timeout::timeout_middleware},
     Pool,
@@ -157,6 +158,9 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
     let qr_auth =
         Router::new().route("/auth-qrcode/status/:code", put(put_auth_qrcode_status_handler)); // put请求需要获取jwt，所以需要加入到with_auth的路由组
 
+    // Test 用来开发测试的接口路由
+    // let test = Router::new().route("/test", post(test_option_naive_datetime_parsing));
+
     // 按所需权限分类总结，注重api的权限划分严谨性，用到什么权限就分配什么权限
     let with_db = Router::new()
         .merge(auth)
@@ -192,6 +196,7 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
         .merge(class_start_date)
         .merge(empty_room)
         .merge(semester_info)
+        // .merge(test)
         .merge(qr);
 
     // 合并所有router

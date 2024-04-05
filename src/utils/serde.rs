@@ -16,11 +16,11 @@ where
     D: Deserializer<'de>,
 {
     let s = Option::<String>::deserialize(deserializer)?;
+
     match s {
-        Some(s) => Ok(Some(
-            NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S")
-                .map_err(serde::de::Error::custom)?,
-        )),
+        Some(s) => NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S")
+            .map(Some)
+            .map_err(serde::de::Error::custom),
         None => Ok(None),
     }
 }
