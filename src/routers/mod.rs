@@ -44,8 +44,13 @@ use crate::{
         },
         // test::{test_naive_datetime_parsing, test_option_naive_datetime_parsing},
     },
-    middlewares::{auth::auth_middleware, log::log_middleware, timeout::timeout_middleware},
-    Pool,
+    middlewares::{
+        auth::auth_middleware,
+        count::{count_middleware, Count},
+        log::log_middleware,
+        timeout::timeout_middleware,
+    },
+    DbPool,
 };
 use axum::{
     routing::{delete, get, post, put},
@@ -53,7 +58,7 @@ use axum::{
 };
 use std::sync::Arc;
 
-pub fn create_router(db_pool: Arc<Pool>) -> Router {
+pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     let ping = Router::new().route("/ping", get(health_checker_handler));
 
     // 后端路由
@@ -199,6 +204,13 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
         // .merge(test)
         .merge(qr);
 
+    // 计数的中间件
+    let count_inner = Count {
+        count: 0,
+        last_update: chrono::Local::now().naive_local().date(),
+    };
+    let count = Arc::new(tokio::sync::Mutex::new(count_inner));
+
     // 合并所有router
     Router::new()
         .merge(without)
@@ -207,5 +219,6 @@ pub fn create_router(db_pool: Arc<Pool>) -> Router {
         .merge(with_db)
         .layer(log_middleware()) // 增加日志中间件
         .layer(timeout_middleware()) // 增加超时中间件
-                                     // .layer(cors_middleware()) // 增加跨域中间件
+        .layer(axum::middleware::from_fn_with_state(count, count_middleware))
+    // .layer(cors_middleware()) // 增加跨域中间件
 }

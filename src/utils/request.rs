@@ -30,6 +30,7 @@ pub static client: Lazy<Client> = Lazy::new(|| {
 });
 
 /// 提取爬虫返回值的data字段
+#[inline]
 pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
     path: &str,
     params: &T,
@@ -57,6 +58,7 @@ pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
 }
 
 /// 直接返回爬虫返回的json数据
+#[inline]
 pub async fn spider<T: Serialize, U: DeserializeOwned>(
     path: &str,
     params: &T,
@@ -82,6 +84,7 @@ pub async fn spider<T: Serialize, U: DeserializeOwned>(
 
 #[allow(dead_code)]
 ///访问地址完全自定义
+#[inline]
 pub async fn spider_data_url<T: Serialize, U: DeserializeOwned>(
     url: &str,
     params: &T,

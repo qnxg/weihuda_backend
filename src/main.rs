@@ -14,7 +14,7 @@ use sqlx::mysql::{MySqlPool, MySqlPoolOptions};
 use std::sync::Arc;
 use tokio::signal;
 
-pub struct Pool {
+pub struct DbPool {
     db: MySqlPool,
 }
 
@@ -54,7 +54,7 @@ async fn main() {
     };
 
     // Build the final router combined with middleware layers
-    let app = create_router(Arc::new(Pool { db: pool })); // 将AppState用原子化引用计数包装，使其可以在多个线程中共享
+    let app = create_router(Arc::new(DbPool { db: pool })); // 将AppState用原子化引用计数包装，使其可以在多个线程中共享
 
     // Start the server
     tracing::info!("🚀 Server {} is starting", &CFG.server.name);
