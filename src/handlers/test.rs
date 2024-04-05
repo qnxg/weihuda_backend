@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::{app_result::AppResult, extractors::Json};
 
 #[derive(serde::Deserialize, Debug)]

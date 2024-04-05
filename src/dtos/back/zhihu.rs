@@ -30,6 +30,7 @@ pub struct UpdateZhihuBody {
     pub tags: Option<String>,
     pub cover: Option<String>,
     pub status: Option<i32>,
+    #[serde(default)]
     #[serde(deserialize_with = "deserialize_option_naive_datetime")]
     pub publishTime: Option<NaiveDateTime>,
     pub stuId: Option<String>,
