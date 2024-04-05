@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{app_error::AppError, utils::wrapper::success_json, Pool};
+use crate::{app_error::AppError, utils::wrapper::success_json, DbPool};
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::Serialize;
 use serde_json::Value;
@@ -26,4 +26,4 @@ impl IntoResponse for AppRes {
 }
 
 /// 类型别名，方便书写函数参数
-pub type AppState = State<Arc<Pool>>;
+pub type AppState = State<Arc<DbPool>>;

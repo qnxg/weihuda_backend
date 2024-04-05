@@ -1,11 +1,11 @@
 use crate::{
     app_error::AppError, entities::back::mini_bind::MiniBind,
-    handlers::back::common::wechat::get_openid, Pool,
+    handlers::back::common::wechat::get_openid, DbPool,
 };
 use std::sync::Arc;
 
 #[allow(non_snake_case)]
-pub async fn check_by_code(data: Arc<Pool>, code: &str) -> Result<MiniBind, AppError> {
+pub async fn check_by_code(data: Arc<DbPool>, code: &str) -> Result<MiniBind, AppError> {
     let openid = get_openid(code).await?;
     let res = sqlx::query_as!(
         MiniBind,
@@ -19,7 +19,7 @@ pub async fn check_by_code(data: Arc<Pool>, code: &str) -> Result<MiniBind, AppE
 
 #[allow(dead_code)]
 #[allow(non_snake_case)]
-pub async fn check_by_openid(data: Arc<Pool>, openid: &str) -> Result<MiniBind, AppError> {
+pub async fn check_by_openid(data: Arc<DbPool>, openid: &str) -> Result<MiniBind, AppError> {
     let res = sqlx::query_as!(
         MiniBind,
         r#"
@@ -32,7 +32,7 @@ pub async fn check_by_openid(data: Arc<Pool>, openid: &str) -> Result<MiniBind, 
 
 #[allow(dead_code)]
 #[allow(non_snake_case)]
-pub async fn check_by_id(data: Arc<Pool>, id: u32) -> Result<MiniBind, AppError> {
+pub async fn check_by_id(data: Arc<DbPool>, id: u32) -> Result<MiniBind, AppError> {
     let res = sqlx::query_as!(
         MiniBind,
         r#"
