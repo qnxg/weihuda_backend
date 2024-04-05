@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
 use reqwest::{
-    header::{HeaderMap, AUTHORIZATION},
+    header::{HeaderMap, AUTHORIZATION, LOCATION},
     redirect::Policy,
     Client,
 };
@@ -36,7 +36,14 @@ pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
 ) -> Result<U, anyhow::Error> {
     let url = format!("{}{}", CFG.service.spider_url, path);
 
-    let res = client.get(url).query(params).send().await?.text().await?;
+    let mut res = client.get(url).query(params).send().await?;
+
+    while res.status().is_redirection() {
+        let redirect_url = res.headers().get(LOCATION).unwrap().to_str().unwrap();
+        res = client.get(redirect_url).send().await?;
+    }
+
+    let res = res.text().await?;
 
     let mut json_res: Value = serde_json::from_str(&res)?;
 
@@ -56,7 +63,14 @@ pub async fn spider<T: Serialize, U: DeserializeOwned>(
 ) -> Result<U, anyhow::Error> {
     let url = format!("{}{}", CFG.service.spider_url, path);
 
-    let res = client.get(url).query(params).send().await?.text().await?;
+    let mut res = client.get(url).query(params).send().await?;
+
+    while res.status().is_redirection() {
+        let redirect_url = res.headers().get(LOCATION).unwrap().to_str().unwrap();
+        res = client.get(redirect_url).send().await?;
+    }
+
+    let res = res.text().await?;
 
     let json_res: Value = serde_json::from_str(&res)?;
 
@@ -72,7 +86,14 @@ pub async fn spider_data_url<T: Serialize, U: DeserializeOwned>(
     url: &str,
     params: &T,
 ) -> Result<U, anyhow::Error> {
-    let res = client.get(url).query(params).send().await?.text().await?;
+    let mut res = client.get(url).query(params).send().await?;
+
+    while res.status().is_redirection() {
+        let redirect_url = res.headers().get(LOCATION).unwrap().to_str().unwrap();
+        res = client.get(redirect_url).send().await?;
+    }
+
+    let res = res.text().await?;
 
     let mut json_res: Value = serde_json::from_str(&res)?;
 

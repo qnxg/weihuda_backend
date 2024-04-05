@@ -10,10 +10,7 @@ mod routers;
 mod utils;
 
 use crate::{config::CFG, routers::create_router};
-use sqlx::{
-    mysql::{MySqlPool, MySqlPoolOptions},
-    // Executor,
-};
+use sqlx::mysql::{MySqlPool, MySqlPoolOptions};
 use std::sync::Arc;
 use tokio::signal;
 
@@ -42,13 +39,6 @@ async fn main() {
 
     // Connect to MySQL
     let pool = match MySqlPoolOptions::new()
-        // .after_connect(|conn, _meta| {
-        //     Box::pin(async move {
-        //         let _ =
-        //             conn.execute("SET time_zone='+08:00'; SET system_time_zone='+08:00'").await;
-        //         Ok(())
-        //     })
-        // })
         .max_connections(CFG.database.max_connections)
         .connect(&CFG.database.database_url)
         .await
