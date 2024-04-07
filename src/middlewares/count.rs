@@ -61,7 +61,7 @@ async fn update_count_file(
         .open("count.txt")
         .await?;
     let data = format!(
-        "{} total: {}, successed: {}, rate: {}%\n",
+        "{} total: {}, success: {}, rate: {}%\n",
         last_update,
         count,
         count - err_count,
