@@ -1,3 +1,4 @@
+#![allow(unused)]
 use axum::{body::Body, extract::ConnectInfo, http::Request, response::Response};
 use chrono::Utc;
 use futures::Future;
@@ -109,18 +110,20 @@ fn ip_from_connect_info(extensions: &Extensions) -> Option<IpAddr> {
         .map(|ConnectInfo(addr)| addr.ip())
 }
 
+#[inline]
 fn extract_ip_address(req: &Request<Body>) -> String {
-    let extensions = req.extensions();
-    let headers = req.headers();
-    let mut ip_address = "127.0.0.1".to_string();
-    if let Some(val) = ip_from_x_forwarded_for(headers) {
-        ip_address = val.to_string();
-    } else if let Some(val) = ip_from_x_real_ip(headers) {
-        ip_address = val.to_string();
-    } else if let Some(val) = ip_from_connect_info(extensions) {
-        ip_address = val.to_string();
-    }
-    ip_address
+    // let extensions = req.extensions();
+    // let headers = req.headers();
+    // let mut ip_address = String::new();
+    // if let Some(val) = ip_from_x_forwarded_for(headers) {
+    //     ip_address = val.to_string();
+    // } else if let Some(val) = ip_from_x_real_ip(headers) {
+    //     ip_address = val.to_string();
+    // } else if let Some(val) = ip_from_connect_info(extensions) {
+    //     ip_address = val.to_string();
+    // }
+    // ip_address
+    "127.0.0.1".to_string()
 }
 
 lazy_static! {
