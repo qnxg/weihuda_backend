@@ -8,10 +8,10 @@ use tracing::Level;
 #[inline]
 pub fn log_middleware() -> TraceLayer<HttpMakeClassifier> {
     TraceLayer::new_for_http()
-        .make_span_with(trace::DefaultMakeSpan::new().level(Level::ERROR)) // 默认的span level
-        // .on_response(trace::DefaultOnResponse::new().level(Level::INFO))
-        // .on_request(trace::DefaultOnRequest::new().level(Level::INFO))
-        .on_failure(trace::DefaultOnFailure::new().level(Level::ERROR))
+        .make_span_with(trace::DefaultMakeSpan::new().level(Level::ERROR))
+        .on_request(trace::DefaultOnRequest::new().level(Level::DEBUG))
+        .on_response(trace::DefaultOnResponse::new().level(Level::DEBUG))
+        .on_failure(trace::DefaultOnFailure::new().level(Level::DEBUG))
 }
 
 // Register the tracing subscriber
