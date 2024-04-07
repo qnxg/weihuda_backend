@@ -145,10 +145,12 @@ impl Payload {
 }
 
 fn post_requests(data: Payload) {
-    let _ = Client::new()
+    println!("Posting requests: {:#?}", data);
+    let res = Client::new()
         .post("https://www.apianalytics-server.com/api/log-request")
         .json(&data)
         .send();
+    println!("Response: {:#?}", res);
 }
 
 fn log_request(api_key: String, request_data: RequestData) {
