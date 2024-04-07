@@ -11,6 +11,7 @@ use tokio::{fs::OpenOptions, io::AsyncWriteExt, sync::RwLock};
 
 pub struct Count {
     pub count: AtomicUsize,
+    pub err_count: AtomicUsize,
     pub last_update: RwLock<NaiveDate>,
 }
 
@@ -25,14 +26,15 @@ pub async fn count_middleware(
 
     if today != last_update {
         let count = state.count.load(Ordering::Relaxed);
-        let res = update_count_file(count, &last_update).await;
-        if let Err(e) = res {
-            return (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to update count file: {}", e),
-            )
-                .into_response();
-        }
+        let _res = update_count_file(count, &last_update).await;
+        // 不去处理这个错误
+        // if let Err(e) = _res {
+        //     return (
+        //         axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        //         format!("Failed to update count file: {}", e),
+        //     )
+        //         .into_response();
+        // }
         state.count.store(1, Ordering::Relaxed);
         let mut last_update = state.last_update.write().await;
         *last_update = today;
@@ -40,7 +42,20 @@ pub async fn count_middleware(
         state.count.fetch_add(1, Ordering::Relaxed);
     }
 
-    next.run(request).await
+    let response = next.run(request).await;
+
+    // 如果Response为Error，增加错误计数
+    // if let Ok(body) = hyper::body::to_bytes(response.body()).await {
+    //     if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&body) {
+    //         if let Some(code) = json.get("code").and_then(|v| v.as_u64()) {
+    //             if code != 200 {
+    //                 state.err_count.fetch_add(1, Ordering::Relaxed);
+    //             }
+    //         }
+    //     }
+    // }
+
+    response
 }
 
 async fn update_count_file(count: usize, last_update: &NaiveDate) -> tokio::io::Result<()> {

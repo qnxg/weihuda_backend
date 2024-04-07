@@ -12,6 +12,7 @@ unsafe_code = "forbid"
 [dependencies]
 anyhow = "1.0.81"
 axum = "0.7.5"
+axum-analytics = "1.1.3"
 bytes = "1.6.0"
 chrono = { version = "0.4.37", features = ["serde"] }
 clia-tracing-config = "0.2.7"

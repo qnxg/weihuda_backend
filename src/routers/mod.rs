@@ -44,20 +44,14 @@ use crate::{
         },
         // test::{test_naive_datetime_parsing, test_option_naive_datetime_parsing},
     },
-    middlewares::{
-        auth::auth_middleware,
-        count::{count_middleware, Count},
-        log::log_middleware,
-        timeout::timeout_middleware,
-    },
+    middlewares::{auth::auth_middleware, log::log_middleware, timeout::timeout_middleware},
     DbPool,
 };
 use axum::{
     routing::{delete, get, post, put},
     Router,
 };
-use std::sync::{atomic::AtomicUsize, Arc};
-use tokio::sync::RwLock;
+use std::sync::Arc;
 
 pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     let ping = Router::new().route("/ping", get(health_checker_handler));
@@ -206,11 +200,12 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(qr);
 
     // 计数的中间件
-    let count_inner = Count {
-        count: AtomicUsize::new(0),
-        last_update: RwLock::new(chrono::Local::now().naive_local().date()),
-    };
-    let count = Arc::new(count_inner);
+    // let count_inner = Count {
+    //     count: AtomicUsize::new(0),
+    //     err_count: AtomicUsize::new(0),
+    //     last_update: RwLock::new(chrono::Local::now().naive_local().date()),
+    // };
+    // let count = Arc::new(count_inner);
 
     // 合并所有router
     Router::new()
@@ -220,6 +215,7 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(with_db)
         .layer(log_middleware()) // 增加日志中间件
         .layer(timeout_middleware()) // 增加超时中间件
-        .layer(axum::middleware::from_fn_with_state(count, count_middleware))
+        .layer(axum_analytics::Analytics::new("c1924fe0-0706-4961-9088-307d067d50af".to_owned()))
+    // .layer(axum::middleware::from_fn_with_state(count, count_middleware))
     // .layer(cors_middleware()) // 增加跨域中间件
 }
