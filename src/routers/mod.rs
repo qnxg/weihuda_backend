@@ -221,6 +221,6 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(with_db)
         .layer(log_middleware()) // 增加日志中间件
         .layer(timeout_middleware()) // 增加超时中间件
-        .layer(analytics::Analytics::new("c1924fe0-0706-4961-9088-307d067d50af".to_owned())) // monitor中间件测试中
+        .layer(analytics::Analytics::new("8a019718-bd48-4725-966b-c95af1cd316b".to_owned())) // monitor中间件测试中
         .layer(axum::middleware::from_fn_with_state(count, count_middleware)) // 启用计数中间件
 }
