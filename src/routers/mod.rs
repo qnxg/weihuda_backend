@@ -192,11 +192,11 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .layer(auth_middleware());
 
     let without = Router::new()
+        // .merge(test)
         .merge(ping)
         .merge(class_start_date)
         .merge(empty_room)
         .merge(semester_info)
-        // .merge(test)
         .merge(qr);
 
     // 计数的中间件
