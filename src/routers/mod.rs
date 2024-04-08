@@ -206,12 +206,12 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(qr);
 
     // 计数的中间件
-    let count_inner = Count {
-        count: AtomicUsize::new(0),
-        err_count: AtomicUsize::new(0),
-        last_update: RwLock::new(chrono::Local::now().naive_local().date()),
-    };
-    let count = Arc::new(count_inner);
+    // let count_inner = Count {
+    //     count: AtomicUsize::new(0),
+    //     err_count: AtomicUsize::new(0),
+    //     last_update: RwLock::new(chrono::Local::now().naive_local().date()),
+    // };
+    // let count = Arc::new(count_inner);
 
     // 合并所有router
     Router::new()
@@ -221,6 +221,6 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(with_db)
         .layer(log_middleware()) // 增加日志中间件
         .layer(timeout_middleware()) // 增加超时中间件
-        .layer(analytics::Analytics::new("8a019718-bd48-4725-966b-c95af1cd316b".to_owned())) // monitor中间件测试中
-        .layer(axum::middleware::from_fn_with_state(count, count_middleware)) // 启用计数中间件
+        .layer(analytics::Analytics::new("8a019718-bd48-4725-966b-c95af1cd316b".to_owned()))
+    // .layer(axum::middleware::from_fn_with_state(count, count_middleware)) // 启用计数中间件
 }
