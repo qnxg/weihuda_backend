@@ -44,20 +44,14 @@ use crate::{
         },
         // test::{test_naive_datetime_parsing, test_option_naive_datetime_parsing},
     },
-    middlewares::{
-        auth::auth_middleware,
-        count::{count_middleware, Count},
-        log::log_middleware,
-        timeout::timeout_middleware,
-    },
+    middlewares::{auth::auth_middleware, log::log_middleware, timeout::timeout_middleware},
     DbPool,
 };
 use axum::{
     routing::{delete, get, post, put},
     Router,
 };
-use std::sync::{atomic::AtomicUsize, Arc};
-use tokio::sync::RwLock;
+use std::sync::Arc;
 
 pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     let ping = Router::new().route("/ping", get(health_checker_handler));
