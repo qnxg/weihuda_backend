@@ -145,7 +145,7 @@ impl Payload {
 }
 
 fn post_requests(data: Payload) {
-    let res = Client::new()
+    let _ = Client::new()
         .post("https://www.apianalytics-server.com/api/log-request")
         .json(&data)
         .send();
@@ -183,7 +183,8 @@ where
         let ip_address = extract_ip_address(&req);
         let path = req.uri().path().to_owned();
         let method = req.method().to_string();
-        let user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36".to_string();
+        let user_agent = req.headers().get(USER_AGENT).map(|x| x.to_string()).unwrap_or_default();
+        // let user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36".to_string();
 
         let future = self.inner.call(req);
 
