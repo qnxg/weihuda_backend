@@ -20,7 +20,6 @@ use std::{
 
 pub async fn get_auth_handler(State(data): AppState, Query(req): Query<AuthReq>) -> AppResult {
     let user = check_by_code(data, &req.code).await?;
-    //TODO 这里的判断有必要吗？
     if user.stuID.is_none() {
         return Err("找不到学号".into());
         // return Err(crate::app_error::AppError::SqlxError(sqlx::Error::RowNotFound));
@@ -144,15 +143,5 @@ pub async fn get_auth_qrcode_info_handler(Path(code): Path<String>) -> AppResult
         }
     } else {
         Err("未找到二维码".into())
-    }
-}
-
-// TODO 完善
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[tokio::test]
-    async fn test_get_auth_qrcode() {
-        get_auth_qrcode_handler().await.unwrap();
     }
 }

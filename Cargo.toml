@@ -1,4 +1,3 @@
-workspace = { members = ["analytics"] }
 [package]
 name = "back_2024"
 version = "1.1.0"
@@ -13,8 +12,9 @@ unsafe_code = "forbid"
 [dependencies]
 anyhow = "1.0.81"
 axum = "0.7.5"
-analytics = { version = "0.1.0", path = "./analytics" }
+analytics = { version = "0.1.0", path = "./lib/analytics" }
 bytes = "1.6.0"
+# cache_map = {version = "0.1.0", path = "./lib/cache_map"}
 chrono = { version = "0.4.37", features = ["serde"] }
 clia-tracing-config = "0.2.7"
 jsonwebtoken = "9.3.0"

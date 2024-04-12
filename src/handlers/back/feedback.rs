@@ -46,7 +46,6 @@ pub async fn add_feedback_handler(
     // {
     //     return Err("时间格式不正确".into());
     // }
-    let create_time = chrono::NaiveDateTime::parse_from_str(&req.createTime, "%Y-%m-%d %H:%M:%S")?;
     let now = chrono::Local::now();
     sqlx::query!(
         r#"
@@ -57,7 +56,7 @@ pub async fn add_feedback_handler(
         req.contact,
         req.imgUrl,
         req._type,
-        create_time,
+        req.createTime,
         now,
         now,
     )
