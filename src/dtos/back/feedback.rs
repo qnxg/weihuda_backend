@@ -1,7 +1,9 @@
 #![allow(non_snake_case)]
+use chrono::NaiveDateTime;
 use serde::Deserialize;
 
 use crate::utils::default::default_page;
+use crate::utils::serde::deserialize_naive_datetime;
 
 #[derive(Deserialize, Debug)]
 pub struct GetFeedbackReq {
@@ -18,7 +20,8 @@ pub struct AddFeedbackReq {
     pub imgUrl: Option<String>,
     #[serde(rename = "type")]
     pub _type: String,
-    pub createTime: String,
+    #[serde(deserialize_with="deserialize_naive_datetime")]
+    pub createTime: NaiveDateTime,
 }
 
 #[derive(Deserialize, Debug)]

@@ -6,3 +6,4 @@
 /logs
 Cargo.lock
 docker-compose.yml
+/lib/cache_map
