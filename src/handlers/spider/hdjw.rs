@@ -304,7 +304,7 @@ pub async fn get_exam_arrange_handler(
             classroom: item.kcmc_name,
             startTime: item.kskssj,
             endTime: item.ksjssj,
-            seat: item.zwh,
+            seat: item.zwh.unwrap_or_default(),
         };
         res.push(temp);
     }

@@ -14,7 +14,7 @@ pub struct SpiderExamArrangeItem {
     pub kcmc_name: String,
     pub kskssj: String,
     pub ksjssj: String,
-    pub zwh: String,
+    pub zwh: Option<String>,
 }
 
 /// 考试安排，机考安排复用此结构体
