@@ -8,6 +8,7 @@ use axum::{
     response::Response,
 };
 use chrono::{Local, NaiveDate};
+use tokio::io::AsyncReadExt;
 use tokio::{fs::OpenOptions, io::AsyncWriteExt, sync::RwLock};
 
 pub struct Count {
@@ -60,6 +61,19 @@ async fn update_count_file(
         .append(true)
         .open("count.txt")
         .await?;
+
+    // 先读取文件最后一行的内容，如果日期与当前的last_update相同就跳过修改
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).await?;
+
+    // 获取倒数第二行
+    let second_last_line = contents.lines().rev().nth(1).unwrap_or("");
+
+    // 如果倒数第二行的日期与last_update相同，就跳过修改
+    if second_last_line.starts_with(&last_update.to_string()) {
+        return Ok(());
+    }
+
     let data = format!(
         "{} total: {}, success: {}, rate: {}%\n",
         last_update,
