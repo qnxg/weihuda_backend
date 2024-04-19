@@ -12,7 +12,7 @@ unsafe_code = "forbid"
 [dependencies]
 anyhow = "1.0.81"
 axum = "0.7.5"
-analytics = { version = "0.1.0", path = "./lib/analytics" }
+# analytics = { version = "0.1.0", path = "./lib/analytics" }
 bytes = "1.6.0"
 # cache_map = {version = "0.1.0", path = "./lib/cache_map"}
 chrono = { version = "0.4.37", features = ["serde"] }
