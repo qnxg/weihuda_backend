@@ -320,7 +320,7 @@ pub async fn get_computer_exam_arrange_handler(
     let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
     //TODO 结构正确性有待验证
     let spider_res: Vec<SpiderComputerExamArrange> =
-        spider_data("/bks/jxexam/schedule", &params).await?;
+        spider_data("/bks/jkexam/schedule", &params).await?;
 
     let mut res = Vec::with_capacity(spider_res.len());
     for item in spider_res {
