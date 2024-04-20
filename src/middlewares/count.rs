@@ -28,12 +28,17 @@ pub async fn count_middleware(
 
     if today != last_update {
         let count = state.count.load(Ordering::Relaxed);
+        // 应对极端情况，虽然没有任何可能出现。
+        if count == 0 {
+            state.count.store(1, Ordering::Relaxed);
+        }   
         let err_count = state.err_count.load(Ordering::Relaxed);
         let _res = update_count_file(count, err_count, &last_update).await; // 不去处理这个错误
         if _res.is_err() {
             tracing::error!("更新计数文件失败");
         }
         state.count.store(1, Ordering::Relaxed);
+        state.err_count.store(0, Ordering::Relaxed);    // 每日重置错误计数
         let mut last_update = state.last_update.write().await;
         *last_update = today;
     } else {
@@ -56,6 +61,7 @@ async fn update_count_file(
     last_update: &NaiveDate,
 ) -> tokio::io::Result<()> {
     let mut file = OpenOptions::new()
+        .read(true)
         .write(true)
         .create(true)
         .append(true)
@@ -67,7 +73,7 @@ async fn update_count_file(
     file.read_to_string(&mut contents).await?;
 
     // 获取倒数第二行
-    let second_last_line = contents.lines().rev().nth(1).unwrap_or("");
+    let second_last_line = contents.lines().next_back().unwrap_or("");
 
     // 如果倒数第二行的日期与last_update相同，就跳过修改
     if second_last_line.starts_with(&last_update.to_string()) {
