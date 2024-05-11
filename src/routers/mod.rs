@@ -44,15 +44,20 @@ use crate::{
         },
         // test::{test_naive_datetime_parsing, test_option_naive_datetime_parsing},
     },
-    middlewares::{auth::auth_middleware, count::{count_middleware, Count}, log::log_middleware, timeout::timeout_middleware},
+    middlewares::{
+        auth::auth_middleware,
+        count::{count_middleware, Count},
+        log::log_middleware,
+        timeout::timeout_middleware,
+    },
     DbPool,
 };
 use axum::{
     routing::{delete, get, post, put},
     Router,
 };
-use tokio::sync::RwLock;
 use std::sync::{atomic::AtomicUsize, Arc};
+use tokio::sync::RwLock;
 
 pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     let ping = Router::new().route("/ping", get(health_checker_handler));
@@ -217,5 +222,5 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .layer(log_middleware()) // 增加日志中间件
         .layer(timeout_middleware()) // 增加超时中间件
         .layer(axum::middleware::from_fn_with_state(count, count_middleware)) // 启用计数中间件
-        // .layer(analytics::Analytics::new("8a019718-bd48-4725-966b-c95af1cd316b".to_owned()))
+                                                                              // .layer(analytics::Analytics::new("8a019718-bd48-4725-966b-c95af1cd316b".to_owned()))
 }
