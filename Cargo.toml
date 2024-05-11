@@ -33,9 +33,7 @@ reqwest = { version = "0.12.2", default-features = false, features = [
 serde = "1.0.197"
 serde_json = { version = "1.0.115" }
 # serde_json = { version = "1.0.111", features = ["preserve_order"] }
-serde_path_to_error = "0.1.16"
-serde_urlencoded = "0.7.1"
-serde_yaml = "0.9.34"
+# serde_yaml = "0.9.34"
 sqlx = { version = "0.7.4", features = ["mysql", "runtime-tokio", "chrono"] }
 thiserror = "1.0.58"
 tokio = { version = "1.37.0", features = [
@@ -43,6 +41,7 @@ tokio = { version = "1.37.0", features = [
     "macros",
     "signal",
 ] }
+toml = "0.8.12"
 tower-http = { version = "0.5.2", features = [
     "validate-request",
     "trace",

@@ -61,7 +61,7 @@ pub struct Service {
     pub spider_url: String,
 }
 
-const CONFIG_FILE: &str = "config/config.yml";
+const CONFIG_FILE: &str = "config/config.toml";
 
 pub static CFG: Lazy<Configs> = Lazy::new(self::Configs::init);
 
@@ -78,7 +78,7 @@ impl Configs {
             Ok(s) => s,
             Err(e) => panic!("Failed to read configuration file, error message: {}", e),
         };
-        match serde_yaml::from_str(&cfg_contents) {
+        match toml::from_str(&cfg_contents) {
             Ok(c) => c,
             Err(e) => panic!("Failed to parse configuration file, error message: {}", e),
         }
