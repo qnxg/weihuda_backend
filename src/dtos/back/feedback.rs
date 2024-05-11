@@ -20,7 +20,7 @@ pub struct AddFeedbackReq {
     pub imgUrl: Option<String>,
     #[serde(rename = "type")]
     pub _type: String,
-    #[serde(deserialize_with="deserialize_naive_datetime")]
+    #[serde(deserialize_with = "deserialize_naive_datetime")]
     pub createTime: NaiveDateTime,
 }
 
