@@ -14,7 +14,7 @@ pub static client: Lazy<Client> = Lazy::new(|| {
     Client::builder()
         .connection_verbose(false)
         // .timeout(Duration::from_secs(6)) // timeout直接使用后端中间件的超时时间，不再单独设置
-        .default_headers({ 
+        .default_headers({
             let mut headers = HeaderMap::new();
             headers.insert(
                 AUTHORIZATION,

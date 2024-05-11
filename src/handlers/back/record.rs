@@ -463,8 +463,9 @@ pub async fn get_webview_read_handler(
 
     // 查询周期内的积分记录
     let now = chrono::Local::now();
-    let create_time_greater_than = now - chrono::Duration::days(record_rule.cycle as i64);  // 不用再减1，因为Utc时间需要是前一天的16点对应北京时间24点，所以其实要多减一天，括号内为+1天，消掉-1天
-    let create_time_greater_than_naive_datetime = create_time_greater_than.date_naive().and_hms_opt(16, 0, 0).unwrap();  // 设置时分秒为0
+    let create_time_greater_than = now - chrono::Duration::days(record_rule.cycle as i64); // 不用再减1，因为Utc时间需要是前一天的16点对应北京时间24点，所以其实要多减一天，括号内为+1天，消掉-1天
+    let create_time_greater_than_naive_datetime =
+        create_time_greater_than.date_naive().and_hms_opt(16, 0, 0).unwrap(); // 设置时分秒为0
 
     let count = sqlx::query!(
         r#"
@@ -582,7 +583,6 @@ pub async fn get_webview_read_handler(
 //     Ok(res.into())
 // }
 
-
 #[cfg(test)]
 mod tests {
     #[tokio::test]
@@ -590,11 +590,16 @@ mod tests {
         // 查询周期内的积分记录
         let now = chrono::Local::now();
         let create_time_greater_than = now - chrono::Duration::days(1 + 1 - 1);
-        let create_time_greater_than = create_time_greater_than.date_naive().and_hms_opt(16, 0, 0).unwrap();
-        let create_time_greater_than_str = create_time_greater_than.format("%Y-%m-%d %H:%M:%S").to_string();
+        let create_time_greater_than =
+            create_time_greater_than.date_naive().and_hms_opt(16, 0, 0).unwrap();
+        let create_time_greater_than_str =
+            create_time_greater_than.format("%Y-%m-%d %H:%M:%S").to_string();
         println!("{}", create_time_greater_than);
         println!("{}", create_time_greater_than_str);
-        let dt = chrono::NaiveDateTime::parse_from_str("2024-03-02 11:04:49", "%Y-%m-%d %H:%M:%S").unwrap();
-        dbg!(dt.checked_sub_offset(chrono::FixedOffset::east_opt(8 * 3600).unwrap()).unwrap());
+        let dt = chrono::NaiveDateTime::parse_from_str("2024-03-02 11:04:49", "%Y-%m-%d %H:%M:%S")
+            .unwrap();
+        dbg!(dt
+            .checked_sub_offset(chrono::FixedOffset::east_opt(8 * 3600).unwrap())
+            .unwrap());
     }
 }

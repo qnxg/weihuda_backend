@@ -11,7 +11,7 @@ unsafe_code = "forbid"
 
 [dependencies]
 anyhow = "1.0.81"
-axum = "0.7.5"
+axum = {version = "0.7.5", features = ["macros"]}
 # analytics = { version = "0.1.0", path = "./lib/analytics" }
 bytes = "1.6.0"
 # cache_map = {version = "0.1.0", path = "./lib/cache_map"}
@@ -19,7 +19,6 @@ chrono = { version = "0.4.37", features = ["serde"] }
 clia-tracing-config = "0.2.7"
 jsonwebtoken = "9.3.0"
 lazy_static = "1.4.0"
-mime = "0.3.17"
 once_cell = "1.19.0"
 rand = "0.8.5"
 redis = { version = "0.25.2", default-features = false, features = [
@@ -33,8 +32,6 @@ reqwest = { version = "0.12.2", default-features = false, features = [
 serde = "1.0.197"
 serde_json = { version = "1.0.115" }
 # serde_json = { version = "1.0.111", features = ["preserve_order"] }
-serde_path_to_error = "0.1.16"
-serde_urlencoded = "0.7.1"
 serde_yaml = "0.9.34"
 sqlx = { version = "0.7.4", features = ["mysql", "runtime-tokio", "chrono"] }
 thiserror = "1.0.58"
