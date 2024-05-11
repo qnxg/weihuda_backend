@@ -31,14 +31,14 @@ pub async fn count_middleware(
         // 应对极端情况，虽然没有任何可能出现。
         if count == 0 {
             state.count.store(1, Ordering::Relaxed);
-        }   
+        }
         let err_count = state.err_count.load(Ordering::Relaxed);
         let _res = update_count_file(count, err_count, &last_update).await; // 不去处理这个错误
         if _res.is_err() {
             tracing::error!("更新计数文件失败");
         }
         state.count.store(1, Ordering::Relaxed);
-        state.err_count.store(0, Ordering::Relaxed);    // 每日重置错误计数
+        state.err_count.store(0, Ordering::Relaxed); // 每日重置错误计数
         let mut last_update = state.last_update.write().await;
         *last_update = today;
     } else {

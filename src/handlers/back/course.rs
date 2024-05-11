@@ -1,5 +1,9 @@
 use crate::{
-    app_result::{AppResult, AppState}, dtos::back::course::{AddCourseReq, DeleteCourseReq, GetCourseReq}, entities::back::course::CourseInfo, extractors::{Json, Query}, utils::jwt::parse_id
+    app_result::{AppResult, AppState},
+    dtos::back::course::{AddCourseReq, DeleteCourseReq, GetCourseReq},
+    entities::back::course::CourseInfo,
+    extractors::{Json, Query},
+    utils::jwt::parse_id,
 };
 use axum::{extract::State, Extension};
 
@@ -51,7 +55,7 @@ pub async fn add_course_handler(
         now,
         now,
     )
-    .execute(&data.db) 
+    .execute(&data.db)
     .await?;
 
     if account.rows_affected() == 0 {
@@ -80,7 +84,7 @@ pub async fn delete_course_handler(
         req.id,
         mini_bind_id,
     )
-    .execute(&data.db) 
+    .execute(&data.db)
     .await?;
 
     if account.rows_affected() == 0 {
