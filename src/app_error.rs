@@ -13,10 +13,10 @@ pub enum AppError {
     AnyHow(#[from] anyhow::Error),
     /// Query参数解析错误，400，请求与接口定义不符合
     #[error("Query参数错误: {0}")]
-    QueryError(#[from] serde_urlencoded::de::Error),
+    QueryError(String),
     /// Json参数解析错误，400，请求与接口定义不符合
     #[error("Json请求体参数错误: {0}")]
-    JsonError(#[from] serde_path_to_error::Error<serde_json::Error>),
+    JsonError(String),
     /// Sqlx数据库操作错误，500，服务器内部错误
     #[error("数据库SQL语句执行错误: {0}")]
     SqlxError(#[from] sqlx::Error),
