@@ -1,10 +1,13 @@
-use crate::{app_result::AppState, extractors::{Json, Query}};
+use crate::{
+    app_result::AppState,
+    extractors::{Json, Query},
+};
 use axum::{extract::State, Extension};
 
 use crate::{
     app_result::AppResult,
-    entities::back::exam_num::ExamNumberInfo,
     dtos::back::exam_num::{AddExamNumberReq, DeleteExamNumberReq, UpdateExamNumberReq},
+    entities::back::exam_num::ExamNumberInfo,
     utils::jwt::parse_id,
 };
 
@@ -47,7 +50,7 @@ pub async fn add_exam_num_handler(
         now,
         now,
     )
-    .execute(&data.db) 
+    .execute(&data.db)
     .await?;
 
     if account.rows_affected() == 0 {
@@ -78,7 +81,7 @@ pub async fn update_exam_num_handler(
         req.id,
         mini_bind_id,
     )
-    .execute(&data.db) 
+    .execute(&data.db)
     .await?;
 
     if account.rows_affected() == 0 {
@@ -106,7 +109,7 @@ pub async fn delete_exam_num_handler(
         req.id,
         mini_bind_id,
     )
-    .execute(&data.db) 
+    .execute(&data.db)
     .await?;
 
     if account.rows_affected() == 0 {
