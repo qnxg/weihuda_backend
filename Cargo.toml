@@ -13,7 +13,6 @@ unsafe_code = "forbid"
 anyhow = "1.0.81"
 axum = {version = "0.7.5", features = ["macros"]}
 # analytics = { version = "0.1.0", path = "./lib/analytics" }
-bytes = "1.6.0"
 # cache_map = {version = "0.1.0", path = "./lib/cache_map"}
 chrono = { version = "0.4.37", features = ["serde"] }
 clia-tracing-config = "0.2.7"
