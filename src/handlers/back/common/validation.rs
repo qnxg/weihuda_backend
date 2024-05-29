@@ -13,7 +13,8 @@ pub async fn verify_password(
         .post(&CFG.service.verify_url)
         .form(&[("stuid", stu_id), ("hdjwpass", hdjw_pass), ("ptpass", stu_pass)])
         .send()
-        .await?
+        .await
+        .map_err(|_| anyhow::anyhow!("密码验证服务请求失败"))?
         .text()
         .await?;
     let verify_res = serde_json::from_str(&res)?;
@@ -29,7 +30,8 @@ pub async fn crypto_password(
         .post(&CFG.service.crypto_url)
         .form(&[("password", hdjw_pass), ("ptPassword", stu_pass)])
         .send()
-        .await?
+        .await
+        .map_err(|_| anyhow::anyhow!("密码加密服务请求失败"))?
         .text()
         .await?;
     let crypto_res = serde_json::from_str(&res)?;

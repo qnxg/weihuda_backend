@@ -84,6 +84,7 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
 
     let feedback = Router::new()
         .route("/feedback/no-auth", get(get_feedback_handler))
+        .route("/feedback/no-auth", post(add_feedback_handler))
         .route("/feedback", post(add_feedback_handler))
         .route("/feedback", put(update_feedback_handler)); // 反馈先简单地归类为无需权限
 
