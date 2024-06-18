@@ -39,6 +39,7 @@ lazy_static! {
     .collect();
     /// 学期开课时间
     pub static ref ClassStartDateMap: HashMap<&'static str, &'static str> = [
+        ("2023-3", "2024-06-30"),
         ("2023-2", "2024-02-25"),
         ("2023-1", "2023-09-10"),
         ("2022-3", "2023-06-18"),
