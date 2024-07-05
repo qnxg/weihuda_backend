@@ -45,8 +45,12 @@ pub async fn flutter_auth_handler(
     }
 
     let user = check_by_stu_id(data.clone(), &req.stu_id).await?;
-    if user.openid.is_none() {
-        return Err("微生活小程序完成登录操作才可使用本软件".into());
+    if let Some(openid) = user.openid {
+        if openid.is_empty() {
+            return Err("需要先登录一次微生活小程序".into());
+        }
+    } else {
+        return Err("数据库中没有账号信息".into());  // 应该不会出现这种情况，在check_by_stu_id时就会报错返回
     }
     let token = auth(user.id, &req.stu_id)?;
     Ok(token.into())
