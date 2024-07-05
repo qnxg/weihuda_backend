@@ -2,8 +2,9 @@ use crate::{
     handlers::{
         back::{
             auth::{
-                get_auth_handler, get_auth_qrcode_handler, get_auth_qrcode_info_handler,
-                get_auth_qrcode_status_handler, put_auth_qrcode_status_handler,
+                flutter_auth_handler, get_auth_handler, get_auth_qrcode_handler,
+                get_auth_qrcode_info_handler, get_auth_qrcode_status_handler,
+                put_auth_qrcode_status_handler,
             },
             config::get_config_handler,
             course::{add_course_handler, delete_course_handler},
@@ -78,7 +79,9 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
 
     let message = Router::new().route("/message", get(get_message_handler)); // 获取消息
 
-    let user_bind = Router::new().route("/bind", post(bind_user_handler)); // 绑定用户
+    let user_bind = Router::new()
+        .route("/bind", post(bind_user_handler))
+        .route("/flutter", post(flutter_auth_handler)); // 绑定用户
 
     let user_unbind = Router::new().route("/unbind", post(unbind_user_handler)); // 解绑用户
 
@@ -223,5 +226,4 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .layer(log_middleware()) // 增加日志中间件
         .layer(timeout_middleware()) // 增加超时中间件
         .layer(axum::middleware::from_fn_with_state(count, count_middleware)) // 启用计数中间件
-                                                                              // .layer(analytics::Analytics::new("8a019718-bd48-4725-966b-c95af1cd316b".to_owned()))
 }
