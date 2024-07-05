@@ -1,9 +1,12 @@
 use crate::{
     app_result::{AppResult, AppState},
-    dtos::back::auth::AuthReq,
+    dtos::back::auth::{AuthReq, FlutterReq},
     extractors::{Json, Query},
-    handlers::back::common::check_user::check_by_code,
-    utils::jwt::{auth, parse_stu_id},
+    handlers::back::common::check_user::{check_by_code, check_by_stu_id},
+    utils::{
+        jwt::{auth, parse_stu_id},
+        request::client,
+    },
 };
 use axum::{
     extract::{Path, State},
@@ -18,6 +21,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use super::common::validation::verify_password;
+
 pub async fn get_auth_handler(State(data): AppState, Query(req): Query<AuthReq>) -> AppResult {
     let user = check_by_code(data, &req.code).await?;
     if user.stuID.is_none() {
@@ -25,6 +30,25 @@ pub async fn get_auth_handler(State(data): AppState, Query(req): Query<AuthReq>)
         // return Err(crate::app_error::AppError::SqlxError(sqlx::Error::RowNotFound));
     }
     let token = auth(user.id, &user.stuID.unwrap())?;
+    Ok(token.into())
+}
+
+pub async fn flutter_auth_handler(
+    State(data): AppState,
+    Json(req): Json<FlutterReq>,
+) -> AppResult {
+    let verify_res = verify_password(&client, &req.stu_id, &req.stu_pwd, &req.stu_pwd).await?;
+    match verify_res.code {
+        0 => {} // 验证成功
+        1 => return Err("个人门户密码错误".into()),
+        _ => return Err("密码验证服务返回值错误".into()),
+    }
+
+    let user = check_by_stu_id(data.clone(), &req.stu_id).await?;
+    if user.openid.is_none() {
+        return Err("微生活小程序完成登录操作才可使用本软件".into());
+    }
+    let token = auth(user.id, &req.stu_id)?;
     Ok(token.into())
 }
 
