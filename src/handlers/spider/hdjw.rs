@@ -3,8 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     app_result::{AppResult, AppState},
     dtos::spider::hdjw::{
-        GetClassStartDateReq, GetClassTableReq, GetEmptyRoomReq, GetExamArrangeReq, GetGradeReq,
-        GetRawGradeReq,
+        GetClassStartDateReq, GetClassTableReq, GetEmptyRoomReq, GetExamArrangeReq, GetGradeReq, GetMustGradeReq, GetRawGradeReq
     },
     entities::{
         back::course::CourseInfo,
@@ -30,6 +29,7 @@ use crate::{
     },
 };
 use axum::extract::{Extension, State};
+use tokio::try_join;
 
 pub async fn get_class_table_handler(
     State(data): AppState,
@@ -136,6 +136,32 @@ pub async fn get_grade_handler(
         res.push(temp);
     }
     Ok(res.into())
+}
+
+pub async fn get_must_grade_handler(Query(req): Query<GetMustGradeReq>, Extension(token): Extension<String>) -> AppResult {
+    let stu_id = parse_stu_id(&token)?;
+    let xn = req.xn.to_string();
+    let params_1 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "1".to_string())];
+    let params_2 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "2".to_string())];
+    let params_3 = [("stuid", stu_id), ("xn", xn), ("xq", "3".to_string())];
+    let (spider_1, spider_2, spider_3): (SpiderGrade ,SpiderGrade ,SpiderGrade ) = try_join!(
+        spider_data("/bks/grade", &params_1),
+        spider_data("/bks/grade", &params_2),
+        spider_data("/bks/grade", &params_3)
+    )?;
+    let mut scores = 0.0;
+    let mut credits = 0.0;
+    for item in spider_1.items.iter().chain(spider_2.items.iter()).chain(spider_3.items.iter()) {
+        // 如果kcxzname是必修才加入计算
+        if item.kcxzname == "必修" {
+            scores += item.zcj as f64 * item.xf;
+            credits += item.xf;
+        }
+    }
+    let weighted_avg = scores / credits;
+    // 转换成String，只保留两位小数
+    let weighted_avg = format!("{:.2}", weighted_avg);
+    Ok(weighted_avg.into())
 }
 
 pub async fn get_grade_rank_handler(Extension(token): Extension<String>) -> AppResult {
