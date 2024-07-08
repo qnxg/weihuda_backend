@@ -26,10 +26,7 @@ use crate::{
         },
         spider::{
             hdjw::{
-                get_class_start_date_handler, get_class_table_handler,
-                get_computer_exam_arrange_handler, get_empty_room_handler,
-                get_exam_arrange_handler, get_grade_chart_handler, get_grade_handler,
-                get_grade_rank_handler, get_raw_grade_handler,
+                get_class_start_date_handler, get_class_table_handler, get_computer_exam_arrange_handler, get_empty_room_handler, get_exam_arrange_handler, get_grade_chart_handler, get_grade_handler, get_grade_rank_handler, get_must_grade_handler, get_raw_grade_handler
             },
             info::{get_semester_info_handler, get_user_info_handler},
             library::get_library_handler,
@@ -101,6 +98,7 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .route("/hdjw/grade", get(get_grade_handler)) // 获取成绩
         .route("/hdjw/grade-rank", get(get_grade_rank_handler)) // 获取成绩排名
         .route("/hdjw/raw-grade", get(get_raw_grade_handler)) // 获取项目成绩
+        .route("/hdjw/must-grade", get(get_must_grade_handler)) // 获取一个学年的必修课程加权平均成绩
         .route("/hdjw/chart", get(get_grade_chart_handler)); // 获取成绩趋势
 
     let exam = Router::new()
