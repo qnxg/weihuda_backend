@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::{
     app_result::{AppResult, AppState},
-    dtos::back::notice::{GetNoticeReq, PutNoticeByIdReq},
+    dtos::back::notice::{GetNoticeReq, PostMessageLeft, PutNoticeByIdReq},
     extractors::{Json, Query},
     utils::jwt::parse_stu_id,
 };
@@ -157,4 +157,24 @@ pub async fn put_notice_by_id_handler(
         .await?;
     }
     Ok("更新通知状态成功".into())
+}
+pub async fn post_message_left_handler(
+    State(data): AppState,
+    Json(json): Json<PostMessageLeft>,
+) -> AppResult {
+    let _ = sqlx::query!(
+        r#"
+        INSERT INTO 
+            message_lefts (stuId, `desc`, isAgree, sendTime)
+        VALUES 
+            (?, ?, ?, ?)
+        "#,
+        json.stu_id,
+        json.desc,
+        json.is_agree,
+        json.send_time
+    )
+    .execute(&data.db)
+    .await?;
+    Ok("留言成功".into())
 }
