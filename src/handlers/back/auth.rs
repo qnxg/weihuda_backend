@@ -50,7 +50,7 @@ pub async fn flutter_auth_handler(
             return Err("需要先登录一次微生活小程序".into());
         }
     } else {
-        return Err("数据库中没有账号信息".into());  // 应该不会出现这种情况，在check_by_stu_id时就会报错返回
+        return Err("数据库中没有账号信息".into()); // 应该不会出现这种情况，在check_by_stu_id时就会报错返回
     }
     let token = auth(user.id, &req.stu_id)?;
     Ok(token.into())

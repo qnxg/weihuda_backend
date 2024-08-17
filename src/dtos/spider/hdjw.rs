@@ -27,7 +27,7 @@ pub struct GetGradeReq {
 #[derive(Deserialize, Debug)]
 pub struct GetMustGradeReq {
     pub xn: u32,
-} 
+}
 
 // 获取成绩排名(无需请求参数)
 
