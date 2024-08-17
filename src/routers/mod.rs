@@ -11,7 +11,7 @@ use crate::{
             exam_num::{add_exam_num_handler, delete_exam_num_handler, get_exam_num_handler},
             feedback::{add_feedback_handler, get_feedback_handler, update_feedback_handler},
             message::get_message_handler,
-            notice::{get_notice_handler, put_notice_by_id_handler},
+            notice::{get_notice_handler, post_message_left_handler, put_notice_by_id_handler},
             ping::health_checker_handler,
             record::{
                 get_record_goods_handler, get_record_handler, get_record_rules_handler,
@@ -26,7 +26,10 @@ use crate::{
         },
         spider::{
             hdjw::{
-                get_class_start_date_handler, get_class_table_handler, get_computer_exam_arrange_handler, get_empty_room_handler, get_exam_arrange_handler, get_grade_chart_handler, get_grade_handler, get_grade_rank_handler, get_must_grade_handler, get_raw_grade_handler
+                get_class_start_date_handler, get_class_table_handler,
+                get_computer_exam_arrange_handler, get_empty_room_handler,
+                get_exam_arrange_handler, get_grade_chart_handler, get_grade_handler,
+                get_grade_rank_handler, get_must_grade_handler, get_raw_grade_handler,
             },
             info::{get_semester_info_handler, get_user_info_handler},
             library::get_library_handler,
@@ -156,8 +159,8 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     // 通知
     let notice = Router::new()
         .route("/notice", get(get_notice_handler))
-        .route("/notice/:id", put(put_notice_by_id_handler));
-
+        .route("/notice/:id", put(put_notice_by_id_handler))
+        .route("/message-left", post(post_message_left_handler));
     // 二维码
     let qr = Router::new()
         .route("/auth-qrcode", get(get_auth_qrcode_handler))
