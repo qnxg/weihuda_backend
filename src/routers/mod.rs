@@ -232,6 +232,6 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(with_db)
         .layer(log_middleware()) // 增加日志中间件
         .layer(timeout_middleware()) // 增加超时中间件
-        // .layer(cors_middleware()) // 增加跨域中间件
+        .layer(cors_middleware()) // 增加跨域中间件
         .layer(axum::middleware::from_fn_with_state(count, count_middleware)) // 启用计数中间件
 }
