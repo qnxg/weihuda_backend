@@ -8,5 +8,6 @@ pub mod message;
 pub mod notice;
 pub mod ping;
 pub mod record;
+pub mod survey;
 pub mod user;
 pub mod zhihu;

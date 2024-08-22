@@ -18,6 +18,7 @@ use crate::{
                 get_record_total_handler, get_webview_read_handler, post_goods_handler,
                 post_record_handler,
             },
+            survey::post_query_result_handler,
             user::{bind_user_handler, unbind_user_handler},
             zhihu::{
                 delete_zhihu_handler, get_zhihu_by_id_handler, get_zhihu_page_handler,
@@ -47,6 +48,7 @@ use crate::{
     },
     middlewares::{
         auth::auth_middleware,
+        cors::cors_middleware,
         count::{count_middleware, Count},
         log::log_middleware,
         timeout::timeout_middleware,
@@ -169,6 +171,9 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     let qr_auth =
         Router::new().route("/auth-qrcode/status/:code", put(put_auth_qrcode_status_handler)); // put请求需要获取jwt，所以需要加入到with_auth的路由组
 
+    // 问卷处理接口
+    let survey = Router::new().route("/survey", post(post_query_result_handler));
+
     // Test 用来开发测试的接口路由
     // let test = Router::new().route("/test", post(test_option_naive_datetime_parsing));
 
@@ -208,7 +213,8 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(class_start_date)
         .merge(empty_room)
         .merge(semester_info)
-        .merge(qr);
+        .merge(qr)
+        .merge(survey);
 
     // 计数的中间件
     let count_inner = Count {
@@ -226,5 +232,6 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(with_db)
         .layer(log_middleware()) // 增加日志中间件
         .layer(timeout_middleware()) // 增加超时中间件
+        // .layer(cors_middleware()) // 增加跨域中间件
         .layer(axum::middleware::from_fn_with_state(count, count_middleware)) // 启用计数中间件
 }

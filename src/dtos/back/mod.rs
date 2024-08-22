@@ -5,5 +5,6 @@ pub mod exam_num;
 pub mod feedback;
 pub mod notice;
 pub mod record;
+pub mod survey;
 pub mod user;
 pub mod zhihu;
