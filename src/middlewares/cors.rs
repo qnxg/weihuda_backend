@@ -1,4 +1,4 @@
-use axum::http::{header::AUTHORIZATION, Method};
+use axum::http::Method;
 use tower_http::cors::{Any, CorsLayer};
 
 /// 跨域中间件
@@ -7,7 +7,8 @@ pub fn cors_middleware() -> CorsLayer {
     CorsLayer::new()
         .allow_origin(Any)
         .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT])
-        .allow_headers([AUTHORIZATION])
+        .allow_headers(Any)
+    // .allow_headers([AUTHORIZATION])
 }
 
 // CorsLayer::new()
