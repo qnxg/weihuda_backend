@@ -24,10 +24,7 @@ pub async fn get_user_info_handler(Extension(token): Extension<String>) -> AppRe
     let spider_res: SpiderUserInfo = spider_data("/bks/personInfo", &params).await?;
 
     let res = UserInfoRes {
-        class: match spider_res.bj_name {
-            Some(class) => class,
-            None => "".to_string(),
-        },
+        class: spider_res.bj_name.unwrap_or_default(),
         name: spider_res.name,
         major: spider_res.ndzy_name,
         enter: spider_res.rxnf.parse::<u32>().unwrap(), // 不应该出现错误，直接unwrap
