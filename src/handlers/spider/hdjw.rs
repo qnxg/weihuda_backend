@@ -155,6 +155,7 @@ pub async fn get_must_grade_handler(
     )?;
     let mut scores = 0.0;
     let mut credits = 0.0;
+    let mut count = 0;
     for item in spider_1
         .items
         .iter()
@@ -169,15 +170,17 @@ pub async fn get_must_grade_handler(
         if item.kcxzname == "必修" {
             scores += item.zcj as f64 * item.xf;
             credits += item.xf;
+            count += 1;
         }
     }
-    if { credits == 0.0 } {
+    if credits == 0.0 {
         return Err("无数据".into());
     }
     let weighted_avg = scores / credits;
     // 转换成String，只保留两位小数
     let weighted_avg = format!("{:.2}", weighted_avg);
-    Ok(weighted_avg.into())
+    let res = [weighted_avg, count.to_string()];
+    Ok(res.into())
 }
 
 pub async fn get_grade_rank_handler(Extension(token): Extension<String>) -> AppResult {
