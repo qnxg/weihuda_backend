@@ -174,7 +174,7 @@ pub async fn get_must_grade_handler(
         }
     }
     if credits == 0.0 {
-        return Err("无数据".into());
+        return Ok(().into()); // 返回的data为null值
     }
     let weighted_avg = scores / credits;
     // 转换成String，只保留两位小数
