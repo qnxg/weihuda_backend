@@ -81,8 +81,8 @@ pub async fn get_class_table_handler(
             id: item.id,
             class_id: item.ktmc_name,
             classname: item.kc_name,
-            location: item.js_name.unwrap_or("".to_string()),
-            teachers: item.teachernames,
+            location: item.js_name.unwrap_or_default(),
+            teachers: item.teachernames.unwrap_or_default(),
             week: item.pkzcmx,
             day: std::str::from_utf8(&item.pksj.as_bytes()[..1]).unwrap().to_string(), // 考虑性能不采用迭代器写法，选取字符串第一个字节，转换为utf8编码，再转换为字符串
             section: item.jczy01501ids,
