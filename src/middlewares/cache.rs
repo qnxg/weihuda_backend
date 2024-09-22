@@ -84,6 +84,20 @@ impl Cache {
         self.counters.remove(key, &counters_guard);
         self.last_request.remove(key, &last_request_guard);
     }
+
+    /// 按照字符串前缀模糊删除缓存
+    pub fn reset_prefix(&self, prefix: &str) {
+        let map_guard = self.map.guard();
+        let counters_guard = self.counters.guard();
+        let last_request_guard = self.last_request.guard();
+        for i in self.map.keys(&map_guard) {
+            if i.starts_with(prefix) {
+                self.map.remove(i, &map_guard);
+                self.counters.remove(i, &counters_guard);
+                self.last_request.remove(i, &last_request_guard);
+            }
+        }
+    }
 }
 
 const CACHE_PATHS: [&str; 8] = [
@@ -118,7 +132,7 @@ pub async fn cache_middleware(
         let index = format!("{stu_id}{uri}");
         // 特殊情况处理，检查是否是course请求，需要删除class-table的缓存
         if path == "/course" {
-            cache.reset(&format!("{stu_id}/hdjw/class-table"));
+            cache.reset_prefix(&format!("{stu_id}/hdjw/class-table"));
             let response = next.run(request).await;
             return response;
         }
