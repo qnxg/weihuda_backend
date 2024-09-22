@@ -1,3 +1,4 @@
+use crate::middlewares::cache::{cache_middleware, Cache};
 use crate::{
     handlers::{
         back::{
@@ -59,8 +60,7 @@ use axum::{
     routing::{delete, get, post, put},
     Router,
 };
-use std::sync::{atomic::AtomicUsize, Arc};
-use tokio::sync::RwLock;
+use std::sync::Arc;
 
 pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     let ping = Router::new().route("/ping", get(health_checker_handler));
@@ -217,12 +217,9 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(survey);
 
     // 计数的中间件
-    let count_inner = Count {
-        count: AtomicUsize::new(0),
-        err_count: AtomicUsize::new(0),
-        last_update: RwLock::new(chrono::Local::now().naive_local().date()),
-    };
-    let count = Arc::new(count_inner);
+    let count = Arc::new(Count::new());
+    // 缓存的中间件
+    let cache = Arc::new(Cache::new());
 
     // 合并所有router
     Router::new()
@@ -234,4 +231,5 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .layer(timeout_middleware()) // 增加超时中间件
         .layer(cors_middleware()) // 增加跨域中间件
         .layer(axum::middleware::from_fn_with_state(count, count_middleware)) // 启用计数中间件
+        .layer(axum::middleware::from_fn_with_state(cache, cache_middleware)) // 启用缓存中间件
 }

@@ -17,6 +17,16 @@ pub struct Count {
     pub last_update: RwLock<NaiveDate>,
 }
 
+impl Count {
+    pub fn new() -> Self {
+        Self {
+            count: AtomicUsize::new(0),
+            err_count: AtomicUsize::new(0),
+            last_update: RwLock::new(Local::now().naive_local().date()),
+        }
+    }
+}
+
 pub async fn count_middleware(
     State(state): State<Arc<Count>>,
     request: Request,
