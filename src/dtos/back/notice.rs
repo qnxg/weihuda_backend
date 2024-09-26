@@ -27,6 +27,7 @@ pub struct PostMessageLeft {
     pub stu_id: String,
     pub desc: String,
     pub is_agree: i64,
+    pub is_send: i64,
     #[serde(deserialize_with = "deserialize_naive_datetime")]
     pub send_time: NaiveDateTime,
 }
