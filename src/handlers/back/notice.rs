@@ -165,15 +165,14 @@ pub async fn post_message_left_handler(
     let _ = sqlx::query!(
         r#"
         INSERT INTO 
-            message_lefts (stuId, `desc`, isAgree, sendTime, isSend)
+            message_lefts (stuId, `desc`, isAgree, sendTime)
         VALUES 
-            (?, ?, ?, ?, ?)
+            (?, ?, ?, ?)
         "#,
         json.stu_id,
         json.desc,
         json.is_agree,
-        json.send_time,
-        json.is_send
+        json.send_time
     )
     .execute(&data.db)
     .await?;
