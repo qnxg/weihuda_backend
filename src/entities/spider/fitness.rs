@@ -1,7 +1,8 @@
 use serde::Deserializer;
 use serde::{Deserialize, Serialize};
 
-fn zero_to_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+/// If the value is None, return "0" instead.
+fn none_to_zero<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -27,31 +28,31 @@ pub struct SpiderFitnessData {
     // #[serde(rename = "50m_grade")]
     // pub short_run_grade: String,
     #[serde(rename = "50m_score")]
-    #[serde(deserialize_with = "zero_to_none")]
+    #[serde(deserialize_with = "none_to_zero")]
     pub short_run_score: Option<String>,
     pub bmi_class: Option<String>,
     // pub bmi_grade: String,
-    #[serde(deserialize_with = "zero_to_none")]
+    #[serde(deserialize_with = "none_to_zero")]
     pub bmi_score: Option<String>,
     pub jump_class: Option<String>,
     // pub jump_grade: String,
-    #[serde(deserialize_with = "zero_to_none")]
+    #[serde(deserialize_with = "none_to_zero")]
     pub jump_score: Option<String>,
     // pub lack_show_score_msg: f64,
     pub pull_and_sit_class: Option<String>,
     // pub pull_and_sit_grade: String,
-    #[serde(deserialize_with = "zero_to_none")]
+    #[serde(deserialize_with = "none_to_zero")]
     pub pull_and_sit_score: Option<String>,
     pub report_desc: String,
     pub report_status: String,
     pub report_type: String,
     pub run_class: Option<String>,
     // pub run_grade: String,
-    #[serde(deserialize_with = "zero_to_none")]
+    #[serde(deserialize_with = "none_to_zero")]
     pub run_score: Option<String>,
     pub sit_and_reach_class: Option<String>,
     pub sit_and_reach_grade: String,
-    #[serde(deserialize_with = "zero_to_none")]
+    #[serde(deserialize_with = "none_to_zero")]
     pub sit_and_reach_score: Option<String>,
     // pub student_name: String,
     // pub student_num: String,
@@ -59,7 +60,7 @@ pub struct SpiderFitnessData {
     // pub total_score: f64,
     pub vc_class: Option<String>,
     // pub vc_grade: String,
-    #[serde(deserialize_with = "zero_to_none")]
+    #[serde(deserialize_with = "none_to_zero")]
     pub vc_score: Option<String>,
 }
 

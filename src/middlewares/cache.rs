@@ -65,6 +65,7 @@ impl Cache {
         self.counters.insert(key, 0, &counters_guard);
     }
 
+    #[allow(unused)]
     pub fn increment_counter(&self, key: &str) -> Option<u32> {
         let counters_guard = self.counters.guard();
         if let Some(counter) = self.counters.get(key, &counters_guard) {
@@ -76,6 +77,7 @@ impl Cache {
         }
     }
 
+    #[allow(unused)]
     pub fn reset(&self, key: &str) {
         let map_guard = self.map.guard();
         let counters_guard = self.counters.guard();
