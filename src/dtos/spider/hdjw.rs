@@ -40,7 +40,7 @@ pub struct GetRawGradeReq {
 
 // 获取成绩趋势(无需请求参数)
 
-/// 查询课程信息，暂不实现，爬虫还有bug
+/// 查询课程信息
 #[derive(Deserialize, Debug)]
 pub struct GetCourseInfoReq {
     pub xn: u32,

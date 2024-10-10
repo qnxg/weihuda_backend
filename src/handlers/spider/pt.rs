@@ -55,10 +55,7 @@ pub async fn get_card_history_handler(
             jourName: item.jourName,
             jourNum: item.usedcardnum,
             nowAmt: item.nowAmt,
-            tranLocation: match item.sysname1 {
-                Some(s) => s,
-                None => String::new(),
-            },
+            tranLocation: item.sysname1.unwrap_or_default(),
             tranname: item.tranname,
         };
         res_items.push(item);

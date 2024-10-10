@@ -1,5 +1,6 @@
 pub mod card;
 pub mod class_table;
+pub mod course_detail;
 pub mod email;
 pub mod empty_room;
 pub mod exam;

@@ -49,7 +49,7 @@ pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
     let mut json_res: Value = serde_json::from_str(&res)?;
 
     if json_res.get("data").map_or(true, |v| v.is_null()) {
-        return Err(anyhow::anyhow!("请检查个人门户密码或5分钟后再次尝试"));
+        return Err(anyhow::anyhow!("数据获取失败"));
     }
 
     let res: U = serde_json::from_value(json_res["data"].take())?; // take()方法将json_res的所有权转移给res
@@ -58,6 +58,7 @@ pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
 }
 
 /// 直接返回爬虫返回的json数据
+#[deprecated(note = "请使用spider_data，新爬虫的返回格式完全与本后端的一致")]
 #[inline]
 pub async fn spider<T: Serialize, U: DeserializeOwned>(
     path: &str,
@@ -77,7 +78,7 @@ pub async fn spider<T: Serialize, U: DeserializeOwned>(
     let json_res: Value = serde_json::from_str(&res)?;
 
     let res: U = serde_json::from_value(json_res)
-        .map_err(|_| anyhow::anyhow!("请检查个人门户密码或5分钟后再次尝试"))?;
+        .map_err(|e| anyhow::anyhow!(format!("数据获取失败: {}", e)))?;
 
     Ok(res)
 }
@@ -101,7 +102,7 @@ pub async fn spider_data_url<T: Serialize, U: DeserializeOwned>(
     let mut json_res: Value = serde_json::from_str(&res)?;
 
     if json_res.get("data").map_or(true, |v| v.is_null()) {
-        return Err(anyhow::anyhow!("请检查个人门户密码或5分钟后再次尝试"));
+        return Err(anyhow::anyhow!("数据获取失败"));
     }
 
     let res: U = serde_json::from_value(json_res["data"].take())?; // take()方法将json_res的所有权转移给res

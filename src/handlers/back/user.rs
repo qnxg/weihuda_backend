@@ -32,9 +32,9 @@ async fn clear_redis_cache(stu_id: &str) -> Result<(), anyhow::Error> {
         .get_multiplexed_async_connection()
         .await
         .map_err(|_| anyhow::anyhow!("Redis连接失败，请反馈给管理员"))?;
-    let keys: Vec<String> = con.keys(format!("*{}*", stu_id)).await.unwrap();
+    let keys: Vec<String> = con.keys(format!("*{}*", stu_id)).await?;
     for key in keys {
-        let _: () = con.del(key).await.unwrap();
+        let _: () = con.del(key).await?;
     }
     Ok(())
 }

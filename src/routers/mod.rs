@@ -1,3 +1,4 @@
+use crate::handlers::spider::hdjw::get_course_info_handler;
 use crate::middlewares::cache::{cache_middleware, Cache};
 use crate::{
     handlers::{
@@ -171,6 +172,8 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     let qr_auth =
         Router::new().route("/auth-qrcode/status/:code", put(put_auth_qrcode_status_handler)); // put请求需要获取jwt，所以需要加入到with_auth的路由组
 
+    // 查询全校课表
+    let course_info = Router::new().route("/hdjw/course", get(get_course_info_handler));
     // 问卷处理接口
     let survey = Router::new().route("/survey", post(post_query_result_handler));
 
@@ -205,13 +208,15 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(pt)
         .merge(library)
         .merge(qr_auth)
+        .merge(course_info)
+        .merge(empty_room)
         .layer(auth_middleware());
 
     let without = Router::new()
         // .merge(test)
         .merge(ping)
         .merge(class_start_date)
-        .merge(empty_room)
+        // .merge(empty_room)
         .merge(semester_info)
         .merge(qr)
         .merge(survey);
