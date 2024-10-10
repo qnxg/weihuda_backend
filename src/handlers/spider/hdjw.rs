@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::dtos::spider::hdjw::GetCourseInfoReq;
+use crate::entities::spider::course_detail::{CourseDetailRes, SpiderCourseDetail};
 use crate::{
     app_result::{AppResult, AppState},
     dtos::spider::hdjw::{
@@ -30,7 +32,44 @@ use crate::{
     },
 };
 use axum::extract::{Extension, State};
+use serde_json::json;
 use tokio::try_join;
+
+pub async fn get_course_info_handler(
+    Query(req): Query<GetCourseInfoReq>,
+    Extension(token): Extension<String>,
+) -> AppResult {
+    let stu_id = parse_stu_id(&token)?;
+    let data: SpiderCourseDetail = spider_data(
+        "/bks/courseinfo",
+        &[
+            ("xn", req.xn.to_string()),
+            ("xq", req.xq.to_string()),
+            ("stuid", stu_id),
+            ("prompt", req.keyword),
+        ],
+    )
+    .await?;
+    let mut res = Vec::new();
+    for item in data.items {
+        let temp = CourseDetailRes {
+            classID: item.kcbh,
+            serial: item.kclb_name,
+            name: item.kcmc_name,
+            examType: item.khfs_name,
+            className: item.ktmc_name,
+            teacher: item.skls_name,
+            people: item.xkrs,
+            credit: item.zxf,
+            school: item.zxs,
+            timePlace: "暂无数据".to_string(),
+        };
+        res.push(temp);
+    }
+    // 兼容前端接口
+    let res = json!({"data":{"hdjw": {"course": res}}});
+    Ok(res.into())
+}
 
 pub async fn get_class_table_handler(
     State(data): AppState,
@@ -186,7 +225,7 @@ pub async fn get_must_grade_handler(
 pub async fn get_grade_rank_handler(Extension(token): Extension<String>) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
     let params = [("stuid", stu_id), ("type", 1.to_string())];
-    let spider_res: SpiderGradeRank = spider("/bks/grade/analyze", &params).await?;
+    let spider_res: SpiderGradeRank = spider_data("/bks/grade/analyze", &params).await?;
     // res的total字段
     let res_total = GradeRankResTotal {
         arithmeticAvg: spider_res.report[0].ARITHMETIC_AVG,
@@ -383,7 +422,11 @@ pub async fn get_computer_exam_arrange_handler(
     Ok(res.into())
 }
 
-pub async fn get_empty_room_handler(Query(req): Query<GetEmptyRoomReq>) -> AppResult {
+pub async fn get_empty_room_handler(
+    Query(req): Query<GetEmptyRoomReq>,
+    Extension(token): Extension<String>,
+) -> AppResult {
+    let stu_id = parse_stu_id(&token)?;
     let params = [
         ("build_id", req.buildId),
         ("day", req.day.to_string()),
@@ -391,6 +434,7 @@ pub async fn get_empty_room_handler(Query(req): Query<GetEmptyRoomReq>) -> AppRe
         ("week", req.week.to_string()),
         ("xn", req.xn.to_string()),
         ("xq", req.xq.to_string()),
+        ("stuid", stu_id),
     ];
     let spider_res: SpiderEmptyRoom = spider_data("/freeroom/list", &params).await?;
 
