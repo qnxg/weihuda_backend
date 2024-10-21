@@ -2,12 +2,12 @@
 
 ///TODO 注意及时修改默认学年
 pub fn default_xn() -> u32 {
-    2023
+    2024
 }
 
 ///TODO 注意及时修改默认学期
 pub fn default_xq() -> u32 {
-    2
+    1
 }
 
 /// 默认反馈的页码
