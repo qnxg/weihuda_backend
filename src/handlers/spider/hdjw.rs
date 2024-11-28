@@ -28,12 +28,13 @@ use crate::{
     extractors::Query,
     utils::{
         jwt::{parse, parse_stu_id},
-        request::{spider, spider_data},
+        request::spider_data,
     },
 };
 use axum::extract::{Extension, State};
 use serde_json::json;
 use tokio::try_join;
+use tracing::error;
 
 pub async fn get_course_info_handler(
     Query(req): Query<GetCourseInfoReq>,
@@ -297,7 +298,10 @@ pub async fn get_raw_grade_handler(
     let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
     let spider_res: SpiderRawGrade = match spider_data("/bks/raw/grade", &params).await {
         Ok(x) => x,
-        Err(_) => return Ok(().into()), // 返回数据为空，直接返回空数据
+        Err(e) => {
+            error!("spider_data raw_grade: raw grade error: {}", e);
+            return Ok(().into());
+        } // 返回数据为空，直接返回空数据
     };
 
     let mut res: Vec<RawGradeRes> = Vec::with_capacity(spider_res.cjxmcj.rowCount as usize);
