@@ -58,7 +58,7 @@ pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
 }
 
 /// 直接返回爬虫返回的json数据
-#[deprecated(note = "请使用spider_data，新爬虫的返回格式完全与本后端的一致")]
+// #[deprecated(note = "请使用spider_data，新爬虫的返回格式完全与本后端的一致")]
 #[inline]
 pub async fn spider<T: Serialize, U: DeserializeOwned>(
     path: &str,
