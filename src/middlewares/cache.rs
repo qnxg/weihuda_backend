@@ -37,8 +37,8 @@ impl Cache {
         if let Some(last_request) = last_request {
             let now_request = Local::now().naive_local();
             let duration = now_request - last_request;
-            // 两次请求间隔小于3秒，不使用缓存
-            if duration < Duration::seconds(3) {
+            // 两次请求间隔小于1小时，不使用缓存
+            if duration < Duration::hours(1) {
                 self.last_source.insert(key.to_string(), now_request, &last_source_guard);
                 return None;
             }
