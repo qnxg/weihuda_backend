@@ -18,6 +18,7 @@ appid = "wxd285bdf58cb899f4"
 secret = "ea93f2019c75f5376ee048dc409885ab"
 
 [service]
+# 这里要在本地8002端口开一个爬虫服务
 verify_url = "http://127.0.0.1:8002/bks/auth"
 crypto_url = "http://202.197.99.118/api/crypto/v1/encrypt"
 spider_url = "http://127.0.0.1:8002" # 注意结尾一定不要带/，因为后续请求会拼接路径
