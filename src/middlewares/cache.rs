@@ -1,6 +1,7 @@
 use crate::utils::jwt::parse_stu_id;
 use axum::body::{to_bytes, Body};
 use axum::extract::{Request, State};
+use axum::http::header::CONTENT_TYPE;
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::Response;
@@ -145,7 +146,11 @@ pub async fn cache_middleware(
             // if counter >= 6 {
             //     cache.reset(&index);
             // }
-            Response::builder().status(StatusCode::OK).body(value.into()).unwrap()
+            Response::builder()
+                .status(StatusCode::OK)
+                .header(CONTENT_TYPE, "application/json")
+                .body(value.into())
+                .unwrap()
         } else {
             let response = next.run(request).await;
             if response.status().is_success() {
