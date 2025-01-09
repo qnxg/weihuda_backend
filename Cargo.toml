@@ -49,11 +49,11 @@ tower-http = { version = "0.5.2", features = [
 ] }
 tracing = "0.1.40"
 
-[dev-dependencies]
+#[dev-dependencies]
 
-[profile.release] # 优化发布release编译时的性能和体积，但会影响编译时间，完整编译大约两分钟多
-opt-level = 3
-debug = false
-codegen-units = 1       # 代码单元联合优化
-lto = "fat"             # 链接时优化，降低编译速度
-overflow-checks = false # 溢出检查
+#[profile.release] # 优化发布release编译时的性能和体积，但会影响编译时间，完整编译大约两分钟多
+#opt-level = 3
+#debug = false
+#codegen-units = 1       # 代码单元联合优化
+#lto = "fat"             # 链接时优化，降低编译速度
+#overflow-checks = false # 溢出检查
