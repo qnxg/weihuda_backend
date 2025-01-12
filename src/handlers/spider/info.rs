@@ -12,7 +12,7 @@ pub async fn get_semester_info_handler() -> AppResult {
         startDate: "2024-09-08".to_string(),
         term: 1,
         year: 2024,
-        vacation: "2025-01-11".to_string(),
+        vacation: "2025-01-19".to_string(),
         next: "2025-02-16".to_string(),
     };
     Ok(res.into())
