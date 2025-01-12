@@ -210,12 +210,12 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(qr_auth)
         .merge(course_info)
         .merge(empty_room)
-        .merge(class_start_date)
         .layer(auth_middleware());
 
     let without = Router::new()
         // .merge(test)
         .merge(ping)
+        .merge(class_start_date)
         // .merge(empty_room)
         .merge(semester_info)
         .merge(qr)
