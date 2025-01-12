@@ -41,6 +41,9 @@ pub async fn get_course_info_handler(
     Extension(token): Extension<String>,
 ) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
+    if req.keyword.is_empty() {
+        return Ok(().into());
+    }
     let data: SpiderCourseDetail = spider_data(
         "/bks/courseinfo",
         &[
@@ -228,6 +231,9 @@ pub async fn get_grade_rank_handler(Extension(token): Extension<String>) -> AppR
     let params = [("stuid", stu_id), ("type", 1.to_string())];
     let spider_res: SpiderGradeRank = spider_data("/bks/grade/analyze", &params).await?;
     // res的total字段
+    if spider_res.report.is_empty() {
+        return Err("汇总数据为空".into());
+    }
     let res_total = GradeRankResTotal {
         arithmeticAvg: spider_res.report[0].ARITHMETIC_AVG,
         arithmeticAvgRank: spider_res.report[0].ARITHMETIC_AVG_RANK,
