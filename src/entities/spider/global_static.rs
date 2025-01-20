@@ -38,7 +38,12 @@ lazy_static! {
     .into_iter()
     .collect();
     /// 学期开课时间
-    pub static ref ClassStartDateMap: HashMap<&'static str, &'static str> = [
+    pub static ref ClassStartDateTable: Vec<(String, String)> = class_start_date_table();
+}
+
+/// TODO: 处理硬编码的表
+fn class_start_date_table() -> Vec<(String, String)> {
+    let mut table: Vec<_> = [
         ("2024-3", "2025-06-22"),
         ("2024-2", "2025-02-16"),
         ("2024-1", "2024-09-08"),
@@ -74,5 +79,11 @@ lazy_static! {
         ("2014-1", "2014-09-21"),
     ]
     .into_iter()
+    .map(|(s1, s2)| (s1.to_string(), s2.to_string()))
     .collect();
+    // 按学年学期排序，便于二分查找
+    table.sort();
+    // 验证日期递增，这样两个字段都能二分查找
+    assert!(table.is_sorted_by_key(|(ref _xnxq, ref date)| date));
+    table
 }

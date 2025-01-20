@@ -4,3 +4,4 @@ pub mod jwt;
 pub mod request;
 pub mod serde;
 pub mod wrapper;
+pub mod semester;

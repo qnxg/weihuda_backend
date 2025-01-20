@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::dtos::spider::hdjw::GetCourseInfoReq;
 use crate::entities::spider::course_detail::{CourseDetailRes, SpiderCourseDetail};
+use crate::utils::semester::get_class_start_date_by_xnxq;
 use crate::{
     app_result::{AppResult, AppState},
     dtos::spider::hdjw::{
@@ -14,7 +15,7 @@ use crate::{
             class_table::{ClassTableRes, SpiderCourseInfo},
             empty_room::{EmptyRoomRes, SpiderEmptyRoom},
             exam::{ExamArrangeRes, SpiderComputerExamArrange, SpiderExamArrange},
-            global_static::{ClassStartDateMap, EndMap, StartMap},
+            global_static::{EndMap, StartMap},
             grade::{
                 F64OrString, GradeChartRes, GradeRankRes, GradeRankResSemesters,
                 GradeRankResSemestersItem, GradeRankResTotal, GradeRes, SpiderGrade,
@@ -144,11 +145,7 @@ pub async fn get_class_table_handler(
 }
 
 pub async fn get_class_start_date_handler(Query(req): Query<GetClassStartDateReq>) -> AppResult {
-    let key = format!("{}-{}", req.xn, req.xq);
-    match ClassStartDateMap.get(key.as_str()) {
-        Some(res) => Ok(res.to_string().into()),
-        None => Ok(().into()),
-    }
+    Ok(get_class_start_date_by_xnxq(req.xn, req.xq).unwrap_or_default().into())
 }
 
 pub async fn get_grade_handler(
