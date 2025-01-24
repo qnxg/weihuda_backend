@@ -14,11 +14,21 @@ const REDIS_START_DATE_TABLE_KEY: &str = "config:semester_start_table";
 
 const REDIS_NEXT_VACATION_DATE_KEY: &str = "config:next_vacation_date";
 
+/// 获取学期开始日期表
+///
+/// Redis中JSON格式为：
+/// `[["xxxx-n", "yyyy-mm-dd"], ...]`
+/// 每一项的前一项为`学年-学期`，后一项为学期开始日期。
+/// 数字位数要确认相同。
 async fn fetch_class_start_date_table() -> Vec<(String, String)> {
     let mut conn = get_redis_conn().await.unwrap();
     let table_json: String = conn.get(REDIS_START_DATE_TABLE_KEY).await.unwrap();
     let mut table: Vec<(String, String)> =
         serde_json::from_str(&table_json).expect("解析学期开始日期表JSON出错");
+    for (xnxq, date) in &table {
+        assert_eq!(xnxq.len(), 6);
+        assert_eq!(date.len(), 10);
+    }
     // 按学年学期排序，便于二分查找
     table.sort();
     // 验证日期递增，这样两个字段都能二分查找
@@ -112,6 +122,6 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_next_vacation() {
-        assert_eq!(get_next_vacation().await, "2025-01-19".to_string());        
+        assert_eq!(get_next_vacation().await, "2025-01-19".to_string());
     }
 }
