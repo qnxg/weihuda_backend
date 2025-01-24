@@ -11,7 +11,7 @@ pub async fn get_semester_info_handler() -> AppResult {
         startDate: get_this_semester_start_date(),
         term: get_now_xnxq().1,
         year: get_now_xnxq().0,
-        vacation: get_next_vacation(),
+        vacation: get_next_vacation().await,
         next: get_next_semester_start_date(),
     };
     Ok(res.into())
