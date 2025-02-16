@@ -7,7 +7,7 @@ pub fn default_xn() -> u32 {
 
 ///TODO 注意及时修改默认学期
 pub fn default_xq() -> u32 {
-    1
+    2
 }
 
 /// 默认反馈的页码
