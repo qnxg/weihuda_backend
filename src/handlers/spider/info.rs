@@ -9,7 +9,7 @@ use crate::{
 ///FIXME 每学期要手动更新数据
 pub async fn get_semester_info_handler() -> AppResult {
     let res = SemesterInfoRes {
-        startDate: "2024-02-16".to_string(),
+        startDate: "2025-02-16".to_string(),
         term: 2,
         year: 2024,
         vacation: "2025-06-22".to_string(),
