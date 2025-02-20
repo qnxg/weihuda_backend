@@ -8,9 +8,11 @@ mod handlers;
 mod middlewares;
 mod routers;
 mod utils;
+mod database;
 
 use crate::{config::CFG, routers::create_router};
-use sqlx::mysql::{MySqlPool, MySqlPoolOptions};
+use database::get_db_pool;
+use sqlx::mysql::MySqlPool;
 use std::sync::Arc;
 use tokio::signal;
 
@@ -38,25 +40,11 @@ async fn main() {
     tracing::info!("📓 Log level: {}", &CFG.log.filter_level);
 
     // Connect to MySQL
-    let pool = match MySqlPoolOptions::new()
-        .max_connections(CFG.database.max_connections)
-        .connect(&CFG.database.database_url)
-        .await
-    {
-        Ok(pool) => {
-            tracing::info!("🔥 Successfully connected to MySQL");
-            pool
-        }
-        Err(e) => {
-            tracing::error!("🪨 Failed to connect to MySQL: {:?}", e);
-            std::process::exit(1);
-        }
-    };
+    let pool = get_db_pool().await;
 
     // Build the final router combined with middleware layers
-    let app = create_router(Arc::new(DbPool { db: pool })); // 将AppState用原子化引用计数包装，使其可以在多个线程中共享
-
-    // Start the server
+    let app = create_router(Arc::new(DbPool { db: pool.clone() })); // 将AppState用原子化引用计数包装，使其可以在多个线程中共享
+                                                                    // Start the server
     tracing::info!("🚀 Server {} is starting", &CFG.server.name);
     tracing::info!("🔄 Listening on port: {}", &CFG.server.address);
     let listener = tokio::net::TcpListener::bind(&CFG.server.address).await.unwrap();
