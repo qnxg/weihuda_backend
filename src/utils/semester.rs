@@ -1,7 +1,9 @@
+use crate::database::get_db_pool;
+
 use super::lazy_cache_cell::{lazy_cache_cell, LazyCacheCell};
-use crate::utils::redis::get_redis_conn;
 use chrono::Datelike;
-use redis::AsyncCommands;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use std::time::Duration;
 
 // 每10分钟重新从Redis获得数组
@@ -10,9 +12,9 @@ const REFETCH_TIME: Duration = Duration::from_secs(10 * 60);
 static CLASS_START_DATE: LazyCacheCell<Vec<(String, String)>> =
     lazy_cache_cell!(REFETCH_TIME, fetch_class_start_date_table);
 
-const REDIS_START_DATE_TABLE_KEY: &str = "config:semester_start_table";
+const SQL_START_DATE_TABLE_KEY: &str = "classStartDateTable";
 
-const REDIS_NEXT_VACATION_DATE_KEY: &str = "config:next_vacation_date";
+const SQL_NEXT_VACATION_DATE_KEY: &str = "nextVacationDate";
 
 /// 获取学期开始日期表
 ///
@@ -21,13 +23,26 @@ const REDIS_NEXT_VACATION_DATE_KEY: &str = "config:next_vacation_date";
 /// 每一项的前一项为`学年-学期`，后一项为学期开始日期。
 /// 数字位数要确认相同。
 async fn fetch_class_start_date_table() -> Vec<(String, String)> {
-    let mut conn = get_redis_conn().await.unwrap();
-    let table_json: String = conn.get(REDIS_START_DATE_TABLE_KEY).await.unwrap();
+    let table_json: String = sqlx::query!(
+        r#"
+            SELECT
+                value
+            FROM
+                mini_configs
+            WHERE
+                `key` = ? AND enabled = 1
+            "#,
+        SQL_START_DATE_TABLE_KEY
+    )
+    .fetch_one(&get_db_pool().await)
+    .await
+    .expect("学期日期表不见了")
+    .value;
     let mut table: Vec<(String, String)> =
         serde_json::from_str(&table_json).expect("解析学期开始日期表JSON出错");
     for (xnxq, date) in &table {
-        assert_eq!(xnxq.len(), 6);
-        assert_eq!(date.len(), 10);
+        assert!(is_well_formed_xnxq(xnxq));
+        assert!(is_well_formed_date(date));
     }
     // 按学年学期排序，便于二分查找
     table.sort();
@@ -36,9 +51,35 @@ async fn fetch_class_start_date_table() -> Vec<(String, String)> {
     table
 }
 
+pub fn is_well_formed_date(date: &str) -> bool {
+    static PATTERN: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$").unwrap());
+    PATTERN.is_match(date)
+}
+
+pub fn is_well_formed_xnxq(xnxq: &str) -> bool {
+    static PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[0-9]{4}-[0-9]{1}$").unwrap());
+    PATTERN.is_match(xnxq)
+}
+
 pub async fn get_next_vacation() -> String {
-    let mut conn = get_redis_conn().await.unwrap();
-    conn.get(REDIS_NEXT_VACATION_DATE_KEY).await.unwrap()
+    let res = sqlx::query!(
+        r#"
+            SELECT
+                value
+            FROM
+                mini_configs
+            WHERE
+                `key` = ? AND enabled = 1
+            "#,
+        SQL_NEXT_VACATION_DATE_KEY
+    )
+    .fetch_one(&get_db_pool().await)
+    .await
+    .expect("下一假期时间数据不见了")
+    .value;
+    assert!(is_well_formed_date(&res));
+    res
 }
 
 pub fn date_today() -> (String, i32, u32, u32) {
@@ -96,28 +137,50 @@ pub fn get_next_semester_start_date() -> String {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_is_well_formed_date() {
+        assert!(is_well_formed_date("1145-14-19".into()));
+        assert!(is_well_formed_date("1919-81-00".into()));
+        assert!(!is_well_formed_date("1919-1-1".into()));
+        assert!(!is_well_formed_date("1919-1-100".into()));
+        assert!(!is_well_formed_date("919-100-1".into()));
+        assert_eq!(is_well_formed_date("2O25-O5-O9".into()), false);
+    }
+
+    #[test]
+    fn test_is_well_formed_xnxq() {
+        assert!(is_well_formed_xnxq("2077-1".into()));
+        assert!(is_well_formed_xnxq("7707-9".into()));
+        assert!(!is_well_formed_xnxq("7707-90".into()));
+        assert!(!is_well_formed_xnxq("707-90".into()));
+        assert!(!is_well_formed_xnxq("70799-9".into()));
+        assert_eq!(is_well_formed_xnxq("2O25-1".into()), false);
+    }
+
     #[test]
     fn test_date_today() {
         let (s, y, m, d) = date_today();
-        assert_eq!(s, "2025-01-24");
+        assert!(is_well_formed_date(&s));
+        assert_eq!(s, "2025-02-20");
         assert_eq!(y, 2025);
-        assert_eq!(m, 1);
-        assert_eq!(d, 24);
+        assert_eq!(m, 2);
+        assert_eq!(d, 20);
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_now_xnxq() {
-        assert_eq!(get_now_xnxq(), (2024, 1));
+        assert_eq!(get_now_xnxq(), (2024, 2));
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_this_semester_start_date() {
-        assert_eq!(get_this_semester_start_date(), "2024-09-08".to_string());
+        assert_eq!(get_this_semester_start_date(), "2025-02-16".to_string());
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_next_semester_start_date() {
-        assert_eq!(get_next_semester_start_date(), "2025-02-16".to_string());
+        assert_eq!(get_next_semester_start_date(), "2025-06-22".to_string());
     }
 
     #[tokio::test(flavor = "multi_thread")]

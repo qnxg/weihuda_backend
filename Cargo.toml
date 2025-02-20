@@ -24,7 +24,7 @@ rand = "0.8.5"
 redis = { version = "0.25.2", default-features = false, features = [
     "tokio-comp",
 ] }
-# regex = { version = "1.10.4", default-features = false }
+regex = { version = "1.11.1", default-features = false }
 reqwest = { version = "0.12.2", default-features = false, features = [
     "default-tls",
     # "rustls-tls",
