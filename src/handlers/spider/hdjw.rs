@@ -7,7 +7,7 @@ use crate::{
     app_result::{AppResult, AppState},
     dtos::spider::hdjw::{
         GetClassStartDateReq, GetClassTableReq, GetEmptyRoomReq, GetExamArrangeReq, GetGradeReq,
-        GetMustGradeReq, GetRawGradeReq,
+        GetRawGradeReq,
     },
     entities::{
         back::course::CourseInfo,
@@ -179,12 +179,11 @@ pub async fn get_grade_handler(
     Ok(res.into())
 }
 
-pub async fn get_compulsory_course_grade_in_prev_xn_handler(
-    Query(_req): Query<GetMustGradeReq>,
-    Extension(token): Extension<String>,
-) -> AppResult {
+pub async fn get_must_grade_handler(Extension(token): Extension<String>) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
-    let xn = (get_now_xnxq().0 - 1).to_string();
+    let (xn, xq) = get_now_xnxq();
+    let xn = if xq == 1 { xn - 1 } else { xn }; // 如果是秋季学期，学年减一
+    let xn = xn.to_string();
     let params_1 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "1".to_string())];
     let params_2 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "2".to_string())];
     let params_3 = [("stuid", stu_id), ("xn", xn), ("xq", "3".to_string())];
