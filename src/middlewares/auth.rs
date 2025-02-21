@@ -21,10 +21,13 @@ fn auth(req: &mut Request<Body>) -> Result<(), Response<Body>> {
     let jwt = req
         .headers()
         .get("Authorization")
-        .ok_or_else(|| (StatusCode::UNAUTHORIZED, error_json(401, "请携带token发送请求")).into_response())?
+        .ok_or_else(|| {
+            (StatusCode::UNAUTHORIZED, error_json(401, "请携带token发送请求")).into_response()
+        })?
         .to_str()
         .map_err(|_| {
-            (StatusCode::UNAUTHORIZED, error_json(401, "Authorization字段无法解析为文本")).into_response()
+            (StatusCode::UNAUTHORIZED, error_json(401, "Authorization字段无法解析为文本"))
+                .into_response()
         })?
         .to_string();
     req.extensions_mut().insert(jwt);

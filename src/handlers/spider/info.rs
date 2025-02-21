@@ -3,17 +3,23 @@ use axum::Extension;
 use crate::{
     app_result::AppResult,
     entities::spider::info::{SemesterInfoRes, SpiderUserInfo, UserInfoRes},
-    utils::{jwt::parse_stu_id, request::spider_data},
+    utils::{
+        jwt::parse_stu_id,
+        request::spider_data,
+        semester::{
+            get_next_semester_start_date, get_next_vacation, get_now_xnxq,
+            get_this_semester_start_date,
+        },
+    },
 };
 
-///FIXME 每学期要手动更新数据
 pub async fn get_semester_info_handler() -> AppResult {
     let res = SemesterInfoRes {
-        startDate: "2025-02-16".to_string(),
-        term: 2,
-        year: 2024,
-        vacation: "2025-06-22".to_string(),
-        next: "2025-06-22".to_string(),
+        startDate: get_this_semester_start_date(),
+        term: get_now_xnxq().1,
+        year: get_now_xnxq().0,
+        vacation: get_next_vacation().await,
+        next: get_next_semester_start_date(),
     };
     Ok(res.into())
 }

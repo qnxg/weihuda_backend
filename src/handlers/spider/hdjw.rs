@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::dtos::spider::hdjw::GetCourseInfoReq;
 use crate::entities::spider::course_detail::{CourseDetailRes, SpiderCourseDetail};
+use crate::utils::semester::{get_class_start_date_by_xnxq, get_now_xnxq};
 use crate::{
     app_result::{AppResult, AppState},
     dtos::spider::hdjw::{
@@ -14,7 +15,7 @@ use crate::{
             class_table::{ClassTableRes, SpiderCourseInfo},
             empty_room::{EmptyRoomRes, SpiderEmptyRoom},
             exam::{ExamArrangeRes, SpiderComputerExamArrange, SpiderExamArrange},
-            global_static::{ClassStartDateMap, EndMap, StartMap},
+            global_static::{EndMap, StartMap},
             grade::{
                 F64OrString, GradeChartRes, GradeRankRes, GradeRankResSemesters,
                 GradeRankResSemestersItem, GradeRankResTotal, GradeRes, SpiderGrade,
@@ -144,11 +145,7 @@ pub async fn get_class_table_handler(
 }
 
 pub async fn get_class_start_date_handler(Query(req): Query<GetClassStartDateReq>) -> AppResult {
-    let key = format!("{}-{}", req.xn, req.xq);
-    match ClassStartDateMap.get(key.as_str()) {
-        Some(res) => Ok(res.to_string().into()),
-        None => Ok(().into()),
-    }
+    Ok(get_class_start_date_by_xnxq(req.xn, req.xq).unwrap_or_default().into())
 }
 
 pub async fn get_grade_handler(
@@ -182,12 +179,12 @@ pub async fn get_grade_handler(
     Ok(res.into())
 }
 
-pub async fn get_must_grade_handler(
-    Query(req): Query<GetMustGradeReq>,
+pub async fn get_compulsory_course_grade_in_prev_xn_handler(
+    Query(_req): Query<GetMustGradeReq>,
     Extension(token): Extension<String>,
 ) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
-    let xn = req.xn.to_string();
+    let xn = (get_now_xnxq().0 - 1).to_string();
     let params_1 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "1".to_string())];
     let params_2 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "2".to_string())];
     let params_3 = [("stuid", stu_id), ("xn", xn), ("xq", "3".to_string())];

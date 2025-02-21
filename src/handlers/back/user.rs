@@ -1,7 +1,10 @@
 #![allow(non_snake_case)]
-use crate::{app_result::AppState, extractors::Json, utils::request::client};
+use crate::{
+    app_result::AppState,
+    extractors::Json,
+    utils::{redis::get_redis_conn, request::client},
+};
 use axum::{extract::State, Extension};
-use lazy_static::lazy_static;
 use redis::AsyncCommands as _;
 use tokio::try_join;
 
@@ -15,23 +18,11 @@ use crate::{
         wechat::get_openid,
     },
     utils::jwt::parse_id,
-    CFG,
 };
-
-// 定义Redis客户端
-lazy_static! {
-    pub static ref REDIS: redis::Client = {
-        let url = format!("redis://:{}@{}/", CFG.redis.redis_password, CFG.redis.redis_url);
-        redis::Client::open(url.as_str()).unwrap()
-    };
-}
 
 // 清除redis缓存
 async fn clear_redis_cache(stu_id: &str) -> Result<(), anyhow::Error> {
-    let mut con = REDIS
-        .get_multiplexed_async_connection()
-        .await
-        .map_err(|_| anyhow::anyhow!("Redis连接失败，请反馈给管理员"))?;
+    let mut con = get_redis_conn().await?;
     let keys: Vec<String> = con.keys(format!("*{}*", stu_id)).await?;
     for key in keys {
         let _: () = con.del(key).await?;
