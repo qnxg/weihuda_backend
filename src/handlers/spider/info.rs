@@ -3,7 +3,14 @@ use axum::Extension;
 use crate::{
     app_result::AppResult,
     entities::spider::info::{SemesterInfoRes, SpiderUserInfo, UserInfoRes},
-    utils::{jwt::parse_stu_id, request::spider_data, semester::{get_next_semester_start_date, get_next_vacation, get_now_xnxq, get_this_semester_start_date}},
+    utils::{
+        jwt::parse_stu_id,
+        request::spider_data,
+        semester::{
+            get_next_semester_start_date, get_next_vacation, get_now_xnxq,
+            get_this_semester_start_date,
+        },
+    },
 };
 
 pub async fn get_semester_info_handler() -> AppResult {

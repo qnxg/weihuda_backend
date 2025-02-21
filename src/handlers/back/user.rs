@@ -1,5 +1,9 @@
 #![allow(non_snake_case)]
-use crate::{app_result::AppState, extractors::Json, utils::{redis::get_redis_conn, request::client}};
+use crate::{
+    app_result::AppState,
+    extractors::Json,
+    utils::{redis::get_redis_conn, request::client},
+};
 use axum::{extract::State, Extension};
 use redis::AsyncCommands as _;
 use tokio::try_join;
