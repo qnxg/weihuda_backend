@@ -1,6 +1,7 @@
 mod app_error;
 mod app_result;
 mod config;
+mod database;
 mod dtos;
 mod entities;
 mod extractors;
@@ -8,7 +9,6 @@ mod handlers;
 mod middlewares;
 mod routers;
 mod utils;
-mod database;
 
 use crate::{config::CFG, routers::create_router};
 use database::get_db_pool;
