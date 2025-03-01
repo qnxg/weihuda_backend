@@ -35,7 +35,7 @@ use crate::{
 use axum::extract::{Extension, State};
 use serde_json::json;
 use tokio::try_join;
-use tracing::error;
+use tracing::{debug, error};
 
 pub async fn get_course_info_handler(
     Query(req): Query<GetCourseInfoReq>,
@@ -61,13 +61,14 @@ pub async fn get_course_info_handler(
             classID: item.kcbh,
             serial: item.kclb_name,
             name: item.kcmc_name,
-            examType: item.khfs_name,
+            examType: item.khfs_name.unwrap_or("暂无数据".to_string()),
             className: item.ktmc_name,
             teacher: item.skls_name,
             people: item.xkrs,
             credit: item.zxf,
             school: item.zxs,
-            timePlace: "暂无数据".to_string(),
+            place: item.xq_name,
+            academy: item.kkdw_name
         };
         res.push(temp);
     }
