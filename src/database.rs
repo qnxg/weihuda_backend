@@ -1,5 +1,6 @@
 use crate::config::CFG;
 use sqlx::mysql::{MySqlPool, MySqlPoolOptions};
+use std::time::Duration;
 use tokio::sync::OnceCell;
 
 pub static DB_POOL: OnceCell<MySqlPool> = OnceCell::const_new();
@@ -19,6 +20,7 @@ pub async fn get_db_pool() -> MySqlPool {
         .get_or_init(|| async {
             match MySqlPoolOptions::new()
                 .max_connections(CFG.database.max_connections)
+                .acquire_timeout(Duration::from_secs(3))
                 .connect(&CFG.database.database_url)
                 .await
             {

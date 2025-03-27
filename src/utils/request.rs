@@ -6,6 +6,7 @@ use reqwest::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
+use std::time::Duration;
 
 use crate::config::CFG;
 
@@ -13,7 +14,7 @@ use crate::config::CFG;
 pub static client: Lazy<Client> = Lazy::new(|| {
     Client::builder()
         .connection_verbose(false)
-        // .timeout(Duration::from_secs(6)) // timeout直接使用后端中间件的超时时间，不再单独设置
+        .timeout(Duration::from_secs(6))
         .default_headers({
             let mut headers = HeaderMap::new();
             headers.insert(
