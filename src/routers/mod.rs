@@ -1,3 +1,6 @@
+use crate::handlers::spider::electricity::{
+    get_dormitory_handler, get_electricity_handler, update_dormitory_handler,
+};
 use crate::handlers::spider::hdjw::get_course_info_handler;
 use crate::middlewares::cache::{cache_middleware, Cache};
 use crate::{
@@ -177,6 +180,12 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     // 问卷处理接口
     let survey = Router::new().route("/survey", post(post_query_result_handler));
 
+    // 电量查询信息
+    let electricity = Router::new()
+        .route("/electricity", get(get_electricity_handler))
+        .route("/dormitory/query", get(get_dormitory_handler))
+        .route("/dormitory/update", get(update_dormitory_handler));
+
     // Test 用来开发测试的接口路由
     // let test = Router::new().route("/test", post(test_option_naive_datetime_parsing));
 
@@ -190,6 +199,7 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .with_state(db_pool.clone());
 
     let with_db_auth = Router::new()
+        .merge(electricity)
         .merge(course)
         .merge(user_unbind)
         .merge(exam_num)
