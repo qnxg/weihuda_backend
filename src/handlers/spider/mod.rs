@@ -1,3 +1,4 @@
+pub mod electricity;
 pub mod hdjw;
 pub mod info;
 pub mod library;
