@@ -194,6 +194,15 @@ pub async fn update_dormitory_handler(
             .next()
             .unwrap_or("");
     }
+    if person_info.dormitory.contains("望麓桥") {
+        park = "望麓桥学生公寓";
+        let re = Regex::new(r"\d+栋").unwrap();
+        build = re
+            .find_iter(person_info.dormitory.as_str())
+            .map(|mat| mat.as_str())
+            .next()
+            .unwrap_or("");
+    }
     // 其他的后续再添加
     sqlx::query!(
         r#"
