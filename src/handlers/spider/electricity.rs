@@ -203,6 +203,26 @@ pub async fn update_dormitory_handler(
             .next()
             .unwrap_or("");
     }
+    if person_info.dormitory.contains("财院校区") {
+        park = "财院校区";
+        let re = Regex::new(r"[1-9AB]+栋").unwrap();
+        build = re
+            .find_iter(person_info.dormitory.as_str())
+            .map(|mat| mat.as_str())
+            .next()
+            .unwrap_or("");
+        // TODO 研楼目前还没有样本，不知道怎么搞
+    }
+    if person_info.dormitory.contains("南校区") {
+        park = "南校区";
+        let re = Regex::new(r"[1-9]+舍").unwrap();
+        build = re
+            .find_iter(person_info.dormitory.as_str())
+            .map(|mat| mat.as_str())
+            .next()
+            .unwrap_or("");
+        // TODO 19舍目前还没样本，不知道怎么搞
+    }
     // 其他的后续再添加
     sqlx::query!(
         r#"
