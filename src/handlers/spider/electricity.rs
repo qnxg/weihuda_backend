@@ -139,8 +139,7 @@ pub async fn get_electricity_handler(
     };
     let room = match (park, dormitory.build.as_str(), dormitory.room.as_str()) {
         // 南校区19舍附楼，请在房间号前加上F，看不懂思密达
-        // 财院校区A栋，请在房间号首位加上A、B、C，应该是只需要加A？加B是什么鬼
-        (2, "A栋", r) => format!("A{}", r),
+        // 财院校区A栋，请在房间号首位加上A、B、C
         // 德智园区，在房间号前加上楼栋号
         (4, "2栋", r) => format!("2{}", r),
         (4, "5栋", r) => format!("5{}", r),
