@@ -22,6 +22,10 @@ pub struct DbPool {
 
 #[tokio::main]
 async fn main() {
+    run().await;
+}
+
+async fn run() {
     // Config the tracing logger，专用于Linux服务器系统，Windows上跑无法获取正确TimeZone，不会报错，但日志记录时间为Utc，慢8小时
     let _guard = clia_tracing_config::build()
         .filter_level(&CFG.log.filter_level)

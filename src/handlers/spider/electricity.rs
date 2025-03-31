@@ -244,3 +244,30 @@ pub async fn get_dormitory_handler(
     let res = get_dormitory(stu_id.as_str(), &data.db).await?;
     Ok(res.into())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::run;
+    use crate::utils::jwt::auth;
+    use reqwest::Client;
+
+    #[tokio::test]
+    async fn test_get_elecricity() {
+        tokio::spawn(async {
+            let server = run().await;
+        });
+        // 生成jwt
+        let jwt = auth(0, "测试学号").unwrap();
+        // 发送网络请求
+        let url = "http://127.0.0.1:8000";
+        let res = Client::new()
+            .get(format!("{}/electricity", url))
+            .header("Authorization", jwt)
+            .query(&[("refresh", 1)])
+            .send()
+            .await
+            .unwrap();
+        println!("{:?}", res.text().await.unwrap());
+    }
+}
