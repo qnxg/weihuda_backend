@@ -4,6 +4,7 @@ pub mod config;
 pub mod course;
 pub mod exam_num;
 pub mod feedback;
+pub mod flex_time;
 pub mod message;
 pub mod notice;
 pub mod ping;

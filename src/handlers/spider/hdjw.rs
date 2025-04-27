@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::dtos::spider::hdjw::GetCourseInfoReq;
+use crate::entities::back::flex_time::FlexTime;
 use crate::entities::spider::course_detail::{CourseDetailRes, SpiderCourseDetail};
 use crate::utils::semester::{get_class_start_date_by_xnxq, get_now_xnxq};
 use crate::{
@@ -35,7 +36,7 @@ use crate::{
 use axum::extract::{Extension, State};
 use serde_json::json;
 use tokio::try_join;
-use tracing::{debug, error};
+use tracing::error;
 
 pub async fn get_course_info_handler(
     Query(req): Query<GetCourseInfoReq>,
@@ -68,7 +69,7 @@ pub async fn get_course_info_handler(
             credit: item.zxf,
             school: item.zxs,
             place: item.xq_name,
-            academy: item.kkdw_name
+            academy: item.kkdw_name,
         };
         res.push(temp);
     }
@@ -141,6 +142,65 @@ pub async fn get_class_table_handler(
     // 数据去重，根据id去重
     let mut seen = HashSet::new();
     res.retain(|item| seen.insert(item.id.clone()));
+
+    // 获取调休信息
+    let flex_time =
+        sqlx::query!("SELECT value FROM mini_configs WHERE `key` = ? AND enabled = 1", "flexTime")
+            .fetch_one(&data.db)
+            .await?
+            .value;
+    // 解析到json
+    let flex_time: Vec<FlexTime> = serde_json::from_str(&flex_time).map_err(|_| {
+        error!("解析调休信息失败");
+        anyhow::anyhow!("解析调休信息失败")
+    })?;
+    // 遍历调休信息，修改课程表
+    // if item.day.parse::<u8>().unwrap() == flex.to.day
+    //     && weeks.iter().any(|x| x.parse::<u8>().unwrap() == flex.to.week)
+    let old_res = res.clone();
+    for flex in flex_time {
+        // 共有代码，to那天的课程一定是要删掉的
+        let week = flex.to.week;
+        let day = flex.to.day;
+        // 遍历课程表，找到对应的课程，并修改其week字段，去掉不上课的week
+        for item in res.iter_mut() {
+            let weeks: Vec<&str> = item.week.split(',').collect();
+            if weeks.iter().any(|x| x.parse::<u8>().unwrap() == week)
+                && item.day.parse::<u8>().unwrap() == day
+            {
+                // 去掉对应的week
+                let new_weeks = weeks
+                    .iter()
+                    .filter(|x| x.parse::<u8>().unwrap() != week)
+                    .map(|x| x.to_string())
+                    .collect::<Vec<String>>();
+                item.week = new_weeks.join(",");
+            }
+        }
+        // 如果没有对应的课程，就不需要修改了
+        if flex.from.is_none() {
+            continue;
+        }
+        // 某天的课程上另外的一天的课程
+        let from = flex.from.as_ref().unwrap();
+        let to = &flex.to;
+        // 遍历课程表，如果找到的是from那天的课程，就创建一个新的课程项（只有to的那一天），因为会修改res，所以不能iter_mut
+        for item in old_res.iter() {
+            let weeks: Vec<&str> = item.week.split(',').collect();
+            if weeks.iter().any(|x| x.parse::<u8>().unwrap() == from.week)
+                && item.day.parse::<u8>().unwrap() == from.day
+            {
+                // 复制一份课程表
+                let mut new_item = item.clone();
+                // 修改课程表的week和day
+                new_item.week = to.week.to_string();
+                new_item.day = to.day.to_string();
+                // 修改课程表的id
+                new_item.id = format!("{}-{}-{}", item.id, to.week, to.day);
+                res.push(new_item);
+            }
+        }
+    }
     // 返回数据
     Ok(res.into())
 }

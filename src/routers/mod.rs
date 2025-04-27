@@ -1,3 +1,4 @@
+use crate::handlers::back::flex_time::get_flex_time_handler;
 use crate::handlers::spider::electricity::{
     get_dormitory_handler, get_electricity_handler, update_dormitory_handler,
 };
@@ -186,6 +187,9 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .route("/dormitory/query", get(get_dormitory_handler))
         .route("/dormitory/update", get(update_dormitory_handler));
 
+    // 调休信息
+    let flex_time = Router::new().route("/flex-time", get(get_flex_time_handler));
+
     // Test 用来开发测试的接口路由
     // let test = Router::new().route("/test", post(test_option_naive_datetime_parsing));
 
@@ -196,6 +200,7 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(message)
         .merge(feedback)
         .merge(config)
+        .merge(flex_time)
         .with_state(db_pool.clone());
 
     let with_db_auth = Router::new()
