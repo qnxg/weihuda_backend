@@ -16,7 +16,7 @@ pub struct SpiderCourseInfo {
     pub skqk: String,
 }
 
-#[derive(Serialize, Debug, Default)]
+#[derive(Serialize, Debug, Default, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ClassTableRes {
     pub id: String,
