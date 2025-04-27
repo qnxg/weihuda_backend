@@ -1,5 +1,3 @@
-use std::collections::{HashMap, HashSet};
-
 use crate::dtos::spider::hdjw::GetCourseInfoReq;
 use crate::entities::back::flex_time::FlexTime;
 use crate::entities::spider::course_detail::{CourseDetailRes, SpiderCourseDetail};
@@ -33,8 +31,10 @@ use crate::{
         request::spider_data,
     },
 };
+use anyhow::anyhow;
 use axum::extract::{Extension, State};
 use serde_json::json;
+use std::collections::{HashMap, HashSet};
 use tokio::try_join;
 use tracing::error;
 
@@ -166,7 +166,7 @@ pub async fn get_class_table_handler(
         for item in res.iter_mut() {
             let weeks: Vec<&str> = item.week.split(',').collect();
             if weeks.iter().any(|x| x.parse::<u8>().unwrap() == week)
-                && item.day.parse::<u8>().unwrap() == day
+                && item.day.parse::<u8>().map_err(anyhow!("星期解析失败"))? == day
             {
                 // 去掉对应的week
                 let new_weeks = weeks
@@ -188,7 +188,7 @@ pub async fn get_class_table_handler(
         for item in old_res.iter() {
             let weeks: Vec<&str> = item.week.split(',').collect();
             if weeks.iter().any(|x| x.parse::<u8>().unwrap() == from.week)
-                && item.day.parse::<u8>().unwrap() == from.day
+                && item.day.parse::<u8>().map_err(anyhow!("星期解析错误"))? == from.day
             {
                 // 复制一份课程表
                 let mut new_item = item.clone();
