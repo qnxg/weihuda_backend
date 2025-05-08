@@ -21,4 +21,4 @@ jobs:
       - uses: https://github.com/akkuman/gitea-release-action@v1
         with:
           files: |-
-            target/release/x86_64-unknown-linux-musl/back_2024
+            target/x86_64-unknown-linux-musl/release/back_2024
