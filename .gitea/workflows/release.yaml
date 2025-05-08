@@ -4,12 +4,7 @@ on:
 
 jobs:
   upload-assets:
-    strategy:
-      host:
-        include:
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-    runs-on: ${{ host.os }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: https://github.com/taiki-e/upload-rust-binary-action@v1
@@ -17,6 +12,6 @@ jobs:
           # (required) Comma-separated list of binary names (non-extension portion of filename) to build and upload.
           # Note that glob pattern is not supported yet.
           bin: back_2024
-          target: ${{ host.target }}
+          target: x86_64-unknown-linux-musl
           # (required) GitHub token for uploading assets to GitHub Releases.
           token: ${{ secrets.GITHUB_TOKEN }}
