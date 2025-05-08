@@ -8,8 +8,8 @@ jobs:
       host:
         include:
           - target: x86_64-unknown-linux-musl
-            os: ubuntu-24.04
-    runs-on: [host]
+            os: ubuntu-latest
+    runs-on: ${{ host.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: https://github.com/taiki-e/upload-rust-binary-action@v1
