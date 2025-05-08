@@ -4,9 +4,10 @@ on:
 
 jobs:
   upload-assets:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - uses: https://github.com/actions-rust-lang/setup-rust-toolchain@v1
       - uses: https://github.com/taiki-e/upload-rust-binary-action@v1
         with:
           # (required) Comma-separated list of binary names (non-extension portion of filename) to build and upload.
