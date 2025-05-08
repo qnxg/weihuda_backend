@@ -15,7 +15,10 @@ jobs:
           rustup target add x86_64-unknown-linux-musl
           sudo apt-get update
           sudo apt-get install -y musl-tools
-      - name: Build with cross
+      - name: Build
         run: |
-          # source $HOME/.cargo/env
           cargo build --release --bin back_2024 --target x86_64-unknown-linux-musl
+      - uses: https://github.com/akkuman/akkuman/gitea-release-action@v1
+        with:
+          files: |-
+            target/release/x86_64-unknown-linux-musl/back_2024
