@@ -4,7 +4,7 @@ on:
 
 jobs:
   upload-assets:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-22.04:host
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust via rustup
