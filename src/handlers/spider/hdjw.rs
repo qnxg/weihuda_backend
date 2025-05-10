@@ -165,7 +165,7 @@ pub async fn get_class_table_handler(
         // 遍历课程表，找到对应的课程，并修改其week字段，去掉不上课的week
         for item in res.iter_mut() {
             let weeks: Vec<&str> = item.week.split(',').collect();
-            if weeks[0] == "" {
+            if weeks[0].is_empty() {
                 // 只上一周的课程已经被删除了
                 continue;
             }
@@ -191,7 +191,7 @@ pub async fn get_class_table_handler(
         // 遍历课程表，如果找到的是from那天的课程，就创建一个新的课程项（只有to的那一天），因为会修改res，所以不能iter_mut
         for item in old_res.iter() {
             let weeks: Vec<&str> = item.week.split(',').collect();
-            if weeks[0] == "" {
+            if weeks[0].is_empty() {
                 continue;
             }
             if weeks.iter().any(|x| x.parse::<u8>().unwrap() == from.week)

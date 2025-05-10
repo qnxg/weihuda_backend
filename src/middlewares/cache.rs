@@ -163,8 +163,5 @@ pub async fn cache_middleware(
             response
         };
     }
-
-    let response = next.run(request).await;
-
-    response
+    next.run(request).await
 }

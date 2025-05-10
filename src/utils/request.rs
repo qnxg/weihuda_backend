@@ -49,7 +49,7 @@ pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
 
     let mut json_res: Value = serde_json::from_str(&res)?;
 
-    if json_res.get("data").map_or(true, |v| v.is_null()) {
+    if json_res.get("data").is_none_or(|v| v.is_null()) {
         return Err(anyhow::anyhow!("数据获取失败"));
     }
 
@@ -102,7 +102,7 @@ pub async fn spider_data_url<T: Serialize, U: DeserializeOwned>(
 
     let mut json_res: Value = serde_json::from_str(&res)?;
 
-    if json_res.get("data").map_or(true, |v| v.is_null()) {
+    if json_res.get("data").is_none_or(|v| v.is_null()) {
         return Err(anyhow::anyhow!("数据获取失败"));
     }
 

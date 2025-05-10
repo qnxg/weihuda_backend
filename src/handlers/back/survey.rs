@@ -27,6 +27,7 @@ pub async fn post_query_result_handler(Json(req): Json<PostQueryResultReq>) -> A
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
+        .truncate(true)
         .open(file_path)
         .map_err(|e| anyhow::anyhow!("打开文件失败, {e}"))?;
     file.write_all(merged_content.as_bytes())
