@@ -10,6 +10,7 @@ use regex::Regex;
 use serde::Deserialize;
 use sqlx::MySqlPool;
 
+#[allow(clippy::get_first)]
 async fn get_dormitory(stu_id: &str, db: &MySqlPool) -> Result<Option<Dormitory>> {
     let text = sqlx::query_scalar!("select room from mini_bind where stuID = ?", stu_id)
         .fetch_one(db)
@@ -150,7 +151,7 @@ pub async fn get_electricity_handler(
         (4, "10栋", r) => format!("10{}", r),
         (4, "11栋", r) => format!("11{}", r),
         (4, "13栋", r) => format!("13{}", r),
-        (_, _, r) => format!("{}", r),
+        (_, _, r) => r.to_string(),
     };
     let params = [
         ("park", park.to_string()),
@@ -246,7 +247,6 @@ pub async fn get_dormitory_handler(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::run;
     use crate::utils::jwt::auth;
     use reqwest::Client;
@@ -254,7 +254,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_elecricity() {
         tokio::spawn(async {
-            let server = run().await;
+            run().await;
         });
         // 生成jwt
         let jwt = auth(0, "测试学号").unwrap();
