@@ -1,4 +1,7 @@
 use crate::handlers::back::flex_time::get_flex_time_handler;
+use crate::handlers::back::user_settings::{
+    get_all_user_settings_handler, post_all_user_settings_handler,
+};
 use crate::handlers::spider::electricity::{
     get_dormitory_handler, get_electricity_handler, update_dormitory_handler,
 };
@@ -190,6 +193,10 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     // 调休信息
     let flex_time = Router::new().route("/flex-time", get(get_flex_time_handler));
 
+    let user_settings = Router::new()
+        .route("/user-settings/all", get(get_all_user_settings_handler))
+        .route("/user-settings/all", post(post_all_user_settings_handler));
+
     // Test 用来开发测试的接口路由
     // let test = Router::new().route("/test", post(test_option_naive_datetime_parsing));
 
@@ -212,6 +219,7 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(zhihu)
         .merge(record)
         .merge(notice)
+        .merge(user_settings)
         .layer(auth_middleware())
         .with_state(db_pool.clone());
 
