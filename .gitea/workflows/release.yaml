@@ -35,6 +35,7 @@ jobs:
           port: 22
           source: target/x86_64-unknown-linux-musl/release/${{ github.event.repository.name }}
           target: /root/project/rust-back-2024/
+          overwrite: true
       - name: Restart back service
         uses: https://github.com/appleboy/ssh-action@v1
         with:
