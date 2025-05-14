@@ -29,7 +29,7 @@ jobs:
             
       - name: Upload with sshpass + scp
         run: |
-          apt install -y sshpass
+          apt-get install -y sshpass
           sshpass -p "${{ secrets.PASSWORD }}" scp -o StrictHostKeyChecking=no \
             -P 22 target/x86_64-unknown-linux-musl/release/${{ github.event.repository.name }} \
             root@${{ secrets.HOST }}:/root/project/rust-back-2024/
