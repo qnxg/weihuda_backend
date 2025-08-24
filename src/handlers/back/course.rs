@@ -1,7 +1,7 @@
 use crate::{
     app_result::{AppResult, AppState},
     dtos::back::course::{AddCourseReq, DeleteCourseReq, GetCourseReq},
-    entities::back::course::CourseInfo,
+    entities::back::course::CustomizeCourseInfo,
     extractors::{Json, Query},
     utils::jwt::parse_id,
 };
@@ -16,7 +16,7 @@ pub async fn get_course_handler(
     let mini_bind_id = parse_id(&token)?;
 
     let res = sqlx::query_as!(
-        CourseInfo,
+        CustomizeCourseInfo,
         r#"
         SELECT id, classname, location, teachers, week, day, section FROM mini_course WHERE xn = ? AND xq = ? AND mini_bind_id = ? AND deleted_at IS NULL
         "#,
