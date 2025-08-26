@@ -3,6 +3,7 @@ use crate::dtos::spider::hdjw::GetCourseInfoReq;
 use crate::entities::back::course::CourseInfo;
 use crate::entities::back::flex_time::{self, FlexTime};
 use crate::entities::spider::course_detail::{CourseDetailRes, SpiderCourseDetail};
+use crate::entities::spider::grade::{GradeInfo, SpiderGradeInfo};
 use crate::utils::semester::{get_class_start_date_by_xnxq, get_now_xnxq};
 use crate::{
     app_result::{AppResult, AppState},
@@ -19,8 +20,8 @@ use crate::{
             global_static::{EndMap, StartMap},
             grade::{
                 F64OrString, GradeChartRes, GradeRankRes, GradeRankResSemesters,
-                GradeRankResSemestersItem, GradeRankResTotal, GradeRes, SpiderGrade,
-                SpiderGradeChart, SpiderGradeRank, U32OrString,
+                GradeRankResSemestersItem, GradeRankResTotal, SpiderGradeChart, SpiderGradeRank,
+                U32OrString,
             },
             raw_grade::{
                 raw_grade_item_struct_to_map, RawGradeRes, RawGradeResItem, SpiderRawGrade,
@@ -279,73 +280,74 @@ pub async fn get_grade_handler(
 ) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
     let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
-    let spider_res: SpiderGrade = spider_data("/bks/grade", &params).await?;
+    let spider_res: Vec<SpiderGradeInfo> = spider_data("/bks/grade", &params).await?;
 
-    if spider_res.rowCount == 0 {
+    if spider_res.is_empty() {
         return Ok(().into()); // 返回数据为空，直接返回空数据
     }
 
-    let mut res = Vec::with_capacity(spider_res.rowCount as usize);
+    let mut res = Vec::new();
 
-    for item in spider_res.items.into_iter().rev()
+    // 新的教务系统的成绩出现顺序并不是按成绩公布时间排序的了，所以正着遍历和倒着遍历没什么区别
+    for item in spider_res.into_iter().rev()
     // 参照原有中间件代码，将数据反转
     {
-        let temp = GradeRes {
-            number: item.kcbh,
-            serial: format!("{}/{}", item.kcxzname, item.kclbname),
-            name: item.kcname,
-            college: item.kkdwname,
-            examType: item.ksxzname,
+        let tmp = GradeInfo {
+            course_id: item.kch,
+            course_name: item.kc_mc,
             credit: item.xf,
-            grade: item.zcj,
+            course_type1: item.kcsx,
+            course_type2: item.kcxzmc,
+            gpa: item.jd,
+            score: item.zcj,
         };
-        res.push(temp);
+        res.push(tmp);
     }
     Ok(res.into())
 }
 
-pub async fn get_must_grade_handler(Extension(token): Extension<String>) -> AppResult {
-    let stu_id = parse_stu_id(&token)?;
-    let (xn, xq) = get_now_xnxq();
-    let xn = if xq == 1 { xn - 1 } else { xn }; // 如果是秋季学期，学年减一
-    let xn = xn.to_string();
-    let params_1 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "1".to_string())];
-    let params_2 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "2".to_string())];
-    let params_3 = [("stuid", stu_id), ("xn", xn), ("xq", "3".to_string())];
-    let (spider_1, spider_2, spider_3): (SpiderGrade, SpiderGrade, SpiderGrade) = try_join!(
-        spider_data("/bks/grade", &params_1),
-        spider_data("/bks/grade", &params_2),
-        spider_data("/bks/grade", &params_3)
-    )?;
-    let mut scores = 0.0;
-    let mut credits = 0.0;
-    let mut count = 0;
-    for item in spider_1
-        .items
-        .iter()
-        .chain(spider_2.items.iter())
-        .chain(spider_3.items.iter())
-    {
-        // 如果遇到了缓考导致成绩为0
-        if item.zcj == 0 {
-            continue;
-        }
-        // 如果kcxzname是必修才加入计算
-        if item.kcxzname == "必修" {
-            scores += item.zcj as f64 * item.xf;
-            credits += item.xf;
-            count += 1;
-        }
-    }
-    if credits == 0.0 {
-        return Ok(().into()); // 返回的data为null值
-    }
-    let weighted_avg = scores / credits;
-    // 转换成String，只保留两位小数
-    let weighted_avg = format!("{:.2}", weighted_avg);
-    let res = [weighted_avg, count.to_string()];
-    Ok(res.into())
-}
+// pub async fn get_must_grade_handler(Extension(token): Extension<String>) -> AppResult {
+//     let stu_id = parse_stu_id(&token)?;
+//     let (xn, xq) = get_now_xnxq();
+//     let xn = if xq == 1 { xn - 1 } else { xn }; // 如果是秋季学期，学年减一
+//     let xn = xn.to_string();
+//     let params_1 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "1".to_string())];
+//     let params_2 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "2".to_string())];
+//     let params_3 = [("stuid", stu_id), ("xn", xn), ("xq", "3".to_string())];
+//     let (spider_1, spider_2, spider_3): (SpiderGrade, SpiderGrade, SpiderGrade) = try_join!(
+//         spider_data("/bks/grade", &params_1),
+//         spider_data("/bks/grade", &params_2),
+//         spider_data("/bks/grade", &params_3)
+//     )?;
+//     let mut scores = 0.0;
+//     let mut credits = 0.0;
+//     let mut count = 0;
+//     for item in spider_1
+//         .items
+//         .iter()
+//         .chain(spider_2.items.iter())
+//         .chain(spider_3.items.iter())
+//     {
+//         // 如果遇到了缓考导致成绩为0
+//         if item.zcj == 0 {
+//             continue;
+//         }
+//         // 如果kcxzname是必修才加入计算
+//         if item.kcxzname == "必修" {
+//             scores += item.zcj as f64 * item.xf;
+//             credits += item.xf;
+//             count += 1;
+//         }
+//     }
+//     if credits == 0.0 {
+//         return Ok(().into()); // 返回的data为null值
+//     }
+//     let weighted_avg = scores / credits;
+//     // 转换成String，只保留两位小数
+//     let weighted_avg = format!("{:.2}", weighted_avg);
+//     let res = [weighted_avg, count.to_string()];
+//     Ok(res.into())
+// }
 
 pub async fn get_grade_rank_handler(Extension(token): Extension<String>) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
@@ -417,60 +419,60 @@ pub async fn get_grade_rank_handler(Extension(token): Extension<String>) -> AppR
     Ok(res.into())
 }
 
-pub async fn get_raw_grade_handler(
-    Query(req): Query<GetRawGradeReq>,
-    Extension(token): Extension<String>,
-) -> AppResult {
-    let stu_id = parse_stu_id(&token)?;
-    let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
-    let spider_res: SpiderRawGrade = match spider_data("/bks/raw/grade", &params).await {
-        Ok(x) => x,
-        Err(e) => {
-            error!("spider_data raw_grade: raw grade error: {}", e);
-            return Ok(().into());
-        } // 返回数据为空，直接返回空数据
-    };
+// pub async fn get_raw_grade_handler(
+//     Query(req): Query<GetRawGradeReq>,
+//     Extension(token): Extension<String>,
+// ) -> AppResult {
+//     let stu_id = parse_stu_id(&token)?;
+//     let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
+//     let spider_res: SpiderRawGrade = match spider_data("/bks/raw/grade", &params).await {
+//         Ok(x) => x,
+//         Err(e) => {
+//             error!("spider_data raw_grade: raw grade error: {}", e);
+//             return Ok(().into());
+//         } // 返回数据为空，直接返回空数据
+//     };
 
-    let mut res: Vec<RawGradeRes> = Vec::with_capacity(spider_res.cjxmcj.rowCount as usize);
+//     let mut res: Vec<RawGradeRes> = Vec::with_capacity(spider_res.cjxmcj.rowCount as usize);
 
-    for item in spider_res.cjxmcj.items.into_iter().rev()
-    // 参照原有中间件代码，将数据反转
-    {
-        let mut temp = vec![];
-        // 构建HashMap方便后续程序逻辑处理
-        let map = raw_grade_item_struct_to_map(&item);
-        map.into_iter().for_each(|(k, v)| {
-            temp.push(RawGradeResItem {
-                name: spider_res
-                    .cjxmInfo
-                    .iter()
-                    .find(|&item| item.xmbh == k)
-                    .unwrap() // 不可能找不到，不用担心会panic
-                    .xmmc
-                    .to_string(),
-                grade: v,
-            });
-            // 对temp按照k值大小升序排列
-            temp.sort_by(|a, b| a.name.cmp(&b.name));
-        });
-        // cjxm1的特例，留下方便以后理解，为了避免重复代码，所以利用HashMap来复用代码
-        // if let Some(x) = item.cjxm1 {
-        //     temp.push(RawGradeResItem {
-        //         name: spider_res
-        //             .cjxmInfo
-        //             .iter()
-        //             .find(|&item| item.xmbh == "1")
-        //             .unwrap() // 不可能找不到
-        //             .xmmc
-        //             .to_string(),
-        //         grade: x,
-        //     });
-        // }
-        res.push(RawGradeRes { name: item.kc_name, item: temp })
-    }
+//     for item in spider_res.cjxmcj.items.into_iter().rev()
+//     // 参照原有中间件代码，将数据反转
+//     {
+//         let mut temp = vec![];
+//         // 构建HashMap方便后续程序逻辑处理
+//         let map = raw_grade_item_struct_to_map(&item);
+//         map.into_iter().for_each(|(k, v)| {
+//             temp.push(RawGradeResItem {
+//                 name: spider_res
+//                     .cjxmInfo
+//                     .iter()
+//                     .find(|&item| item.xmbh == k)
+//                     .unwrap() // 不可能找不到，不用担心会panic
+//                     .xmmc
+//                     .to_string(),
+//                 grade: v,
+//             });
+//             // 对temp按照k值大小升序排列
+//             temp.sort_by(|a, b| a.name.cmp(&b.name));
+//         });
+//         // cjxm1的特例，留下方便以后理解，为了避免重复代码，所以利用HashMap来复用代码
+//         // if let Some(x) = item.cjxm1 {
+//         //     temp.push(RawGradeResItem {
+//         //         name: spider_res
+//         //             .cjxmInfo
+//         //             .iter()
+//         //             .find(|&item| item.xmbh == "1")
+//         //             .unwrap() // 不可能找不到
+//         //             .xmmc
+//         //             .to_string(),
+//         //         grade: x,
+//         //     });
+//         // }
+//         res.push(RawGradeRes { name: item.kc_name, item: temp })
+//     }
 
-    Ok(res.into())
-}
+//     Ok(res.into())
+// }
 
 pub async fn get_grade_chart_handler(Extension(token): Extension<String>) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
