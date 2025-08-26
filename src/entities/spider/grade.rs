@@ -5,34 +5,39 @@ use crate::utils::serde::serialize_f64;
 
 //=============成绩
 #[derive(Deserialize, Debug)]
-pub struct SpiderGrade {
-    pub rowCount: u32,
-    pub items: Vec<SpiderGradeInfo>,
-}
-
-#[derive(Deserialize, Debug)]
 pub struct SpiderGradeInfo {
-    pub kcbh: String,
-    pub kclbname: String,
-    pub kcname: String,
-    pub kcxzname: String,
-    pub kkdwname: String,
-    pub ksxzname: String,
-    pub xf: f64,
-    pub zcj: u32,
-    pub zxs: u32,
+    pub cj0708id: String, // 未知字段
+    pub xnxqid: String,   // 学年学期信息（暂时不用）
+    pub kch: String,      // 课程代码
+    pub kc_mc: String,    // 课程名称
+    pub ksdw: String,     // 开课学院（暂时不用）
+    pub xqmc: String,     // 似乎和 xnxqid 重复
+    pub xf: f32,          // 学分
+    pub zxs: u32,         // 总学时（暂时不用）
+    pub ksfs: String,     // 考试方式（暂时不用）
+    pub kcsx: String,     // 课程属性（必修/选修等）
+    pub xqstr: String,    // 似乎又和 xnxqid 重复
+    pub zcj: u8,          // 总成绩
+    pub zcjstr: String,   // 总成绩字符串形式（暂时不用）
+    pub kz: u8,           // 未知字段
+    pub kcxzmc: String,   // 课程性质（通识必修/专业核心等）
+    pub xs0101id: String, // 未知字段
+    pub jx0404id: String, // 似乎和 kch 重复
+    pub jd: f32,          // 绩点
+    pub ksxz: String,     // 考试性质（暂时不用）
+    pub falb: String,     // 主修还是辅修（暂时不用）
 }
 
 #[derive(Serialize, Debug)]
-pub struct GradeRes {
-    pub number: String,
-    pub serial: String,
-    pub name: String,
-    pub college: String,
-    pub examType: String,
-    #[serde(serialize_with = "serialize_f64")]
-    pub credit: f64,
-    pub grade: u32,
+#[serde(rename_all = "camelCase")]
+pub struct GradeInfo {
+    pub course_id: String,    // 课程代码
+    pub course_name: String,  // 课程名称
+    pub credit: f32,          // 学分
+    pub course_type1: String, // 课程性质1（必修还是选修）
+    pub course_type2: String, // 课程性质2（通识必修/专业核心等）
+    pub gpa: f32,             // 绩点
+    pub score: u8,            // 成绩
 }
 
 //=============成绩排名
