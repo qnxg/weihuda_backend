@@ -1,6 +1,9 @@
+use crate::app_error::AppError;
 use crate::dtos::spider::hdjw::GetCourseInfoReq;
-use crate::entities::back::flex_time::FlexTime;
+use crate::entities::back::course::CourseInfo;
+use crate::entities::back::flex_time::{self, FlexTime};
 use crate::entities::spider::course_detail::{CourseDetailRes, SpiderCourseDetail};
+use crate::entities::spider::grade::{GradeInfo, SpiderGradeInfo};
 use crate::utils::semester::{get_class_start_date_by_xnxq, get_now_xnxq};
 use crate::{
     app_result::{AppResult, AppState},
@@ -9,16 +12,16 @@ use crate::{
         GetRawGradeReq,
     },
     entities::{
-        back::course::CourseInfo,
+        back::course::CustomizeCourseInfo,
         spider::{
-            class_table::{ClassTableRes, SpiderCourseInfo},
+            class_table::SpiderCourseInfo,
             empty_room::{EmptyRoomRes, SpiderEmptyRoom},
             exam::{ExamArrangeRes, SpiderComputerExamArrange, SpiderExamArrange},
             global_static::{EndMap, StartMap},
             grade::{
                 F64OrString, GradeChartRes, GradeRankRes, GradeRankResSemesters,
-                GradeRankResSemestersItem, GradeRankResTotal, GradeRes, SpiderGrade,
-                SpiderGradeChart, SpiderGradeRank, U32OrString,
+                GradeRankResSemestersItem, GradeRankResTotal, SpiderGradeChart, SpiderGradeRank,
+                U32OrString,
             },
             raw_grade::{
                 raw_grade_item_struct_to_map, RawGradeRes, RawGradeResItem, SpiderRawGrade,
@@ -33,8 +36,10 @@ use crate::{
 };
 use anyhow::anyhow;
 use axum::extract::{Extension, State};
+use regex::Regex;
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
+use std::vec;
 use tokio::try_join;
 use tracing::error;
 
@@ -86,7 +91,7 @@ pub async fn get_class_table_handler(
     let (mini_bind_id, stu_id) = parse(&token)?;
     // 后端返回自定义课程
     let back_res = sqlx::query_as!(
-        CourseInfo,
+        CustomizeCourseInfo,
         r#"
         SELECT id, classname, location, teachers, week, day, section FROM mini_course WHERE xn = ? AND xq = ? AND mini_bind_id = ? AND deleted_at IS NULL
         "#,
@@ -95,120 +100,173 @@ pub async fn get_class_table_handler(
         mini_bind_id,
     )
     .fetch_all(&data.db)
-    .await?; // the type of back_res is Vec<CourseInfo>
-             // 爬虫返回教务课程
+    .await?;
+    // 爬虫返回教务课程
     let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
     let spider_res: Vec<SpiderCourseInfo> = spider_data("/bks/classtable", &params).await?;
     // 合并两个数据源
-    let mut res = Vec::with_capacity(back_res.len() + spider_res.len());
+    // 注意 res 里的每个元素都对应课程表中的一个格子，至于格子之间的合并什么的交给前端
+    let mut res = Vec::new();
     for item in back_res {
-        let section: Vec<&str> = item.section.split(',').collect();
-        let temp = ClassTableRes {
-            id: item.id.to_string(),
-            class_id: "自定义课程".to_string(),
-            classname: item.classname,
-            location: item.location.unwrap_or("".to_string()),
-            teachers: item.teachers.unwrap_or("".to_string()),
-            week: item.week,
-            day: item.day,
-            start_time: StartMap.get(&section[0].parse::<u32>().unwrap()).unwrap().to_string(),
-            section: item.section.clone(), // 由于存在不可变借用，所以不能直接将所有权move到vec中，只能clone
-            end_time: EndMap
-                .get(&section[section.len() - 1].parse::<u32>().unwrap())
-                .unwrap()
-                .to_string(),
-            _type: 2,
-            skqk: "".to_string(),
-        };
-        res.push(temp);
+        let times: Vec<&str> = item.section.split(',').collect();
+        let weeks_from_str: Vec<&str> = item.week.split(',').collect();
+        let mut weeks = Vec::new();
+        for week in weeks_from_str {
+            let week = week.trim().parse::<u8>().map_err(|e| anyhow!("课程周次解析失败 {}", e))?;
+            weeks.push(week);
+        }
+        let day = item.day.parse::<u8>().map_err(|e| anyhow!("课程星期解析失败 {}", e))?;
+        for time in &times {
+            let time = time.trim().parse::<u8>().map_err(|e| anyhow!("课程节次解析失败 {}", e))?;
+            let tmp = CourseInfo {
+                course_name: item.classname.clone(),
+                course_id: None,
+                _type: "自定义课程".to_string(),
+                class_name: None,
+                place: item.location.clone(),
+                area: None,
+                teacher: item.teachers.clone(),
+                weeks: weeks.clone(),
+                credit: None,
+                extra: None,
+                customize_id: item.id as i32,
+                day,
+                time,
+            };
+            res.push(tmp);
+        }
     }
     for item in spider_res {
-        let temp = ClassTableRes {
-            id: item.id,
-            class_id: item.ktmc_name,
-            classname: item.kc_name,
-            location: item.js_name.unwrap_or_default(),
-            teachers: item.teachernames.unwrap_or_default(),
-            week: item.pkzcmx,
-            day: std::str::from_utf8(&item.pksj.as_bytes()[..1]).unwrap().to_string(), // 考虑性能不采用迭代器写法，选取字符串第一个字节，转换为utf8编码，再转换为字符串
-            section: item.jczy01501ids,
-            start_time: item.djkssj,
-            end_time: item.djjssj,
-            _type: 1,
-            skqk: item.skqk,
-        };
-        res.push(temp);
+        // 这里主要处理上课时间，每个时间同时对应一个地点。
+        // 考虑以 周几+节次+地点作为 key，周数作为 value，用 set 存储。这样做是为了合并一些可以合并的时间（hdjw 可能分开写），并且区分不同地点的课程
+        let places = item.skddmc.split(';').collect::<Vec<_>>();
+        let mut record = HashMap::new();
+        let detail_times = item.sktime.split(';');
+        for (i, time) in detail_times.into_iter().enumerate() {
+            let re = Regex::new(r"周(.)第([\d、]+)节.*第(.*)周").unwrap();
+            let caps = re.captures(time).ok_or(anyhow!("解析课程时间失败"))?;
+            let day = caps
+                .get(1)
+                .ok_or(anyhow!("解析课程时间失败"))?
+                .as_str()
+                .chars()
+                .next()
+                .unwrap();
+            let day = match day {
+                '一' => 1,
+                '二' => 2,
+                '三' => 3,
+                '四' => 4,
+                '五' => 5,
+                '六' => 6,
+                '日' | '七' => 7,
+                _ => return Err(AppError::AnyHow(anyhow!("未知的星期字符：{}", day))),
+            };
+            let times = caps
+                .get(2)
+                .ok_or("解析课程时间失败")?
+                .as_str()
+                .split('、')
+                .collect::<Vec<_>>();
+            let weeks = caps.get(3).ok_or("解析课程时间失败")?.as_str();
+            let place = places.get(i).ok_or(anyhow!("解析课程地点失败"))?;
+            for week_range in weeks.split(',') {
+                let parts = week_range.split('-').collect::<Vec<_>>();
+                let l = parts
+                    .get(0)
+                    .ok_or(anyhow!("解析课程周次失败"))?
+                    .parse::<u8>()
+                    .map_err(|e| anyhow!("解析课程周次失败 {}", e))?;
+                let r = if parts.len() == 1 {
+                    l
+                } else {
+                    parts
+                        .get(1)
+                        .ok_or(anyhow!("解析课程周次失败"))?
+                        .parse::<u8>()
+                        .map_err(|e| anyhow!("解析课程周次失败 {}", e))?
+                };
+                for time in times.iter() {
+                    let time =
+                        time.parse::<u8>().map_err(|e| anyhow!("解析课程时间失败 {}", e))?;
+                    let set = record.entry((day, time, *place)).or_insert(HashSet::new());
+                    for week in l..=r {
+                        set.insert(week);
+                    }
+                }
+            }
+        }
+        // record 里的一个元素就对应于课程表中的一个格子
+        for ((day, time, place), weeks) in record {
+            let tmp = CourseInfo {
+                course_name: item.kc_mc.clone(),
+                course_id: Some(item.kch.clone()),
+                _type: item.kcxz.clone(),
+                class_name: Some(item.kt_mc.clone()),
+                place: match place {
+                    "无" => None,
+                    _ => Some(place.to_string()),
+                },
+                area: Some(item.skxqmc.clone()),
+                teacher: Some(item.jg0101mc.clone()),
+                weeks: weeks.into_iter().collect(),
+                credit: Some(item.xf),
+                extra: item.fzmc.clone(),
+                customize_id: -1,
+                day,
+                time,
+            };
+            res.push(tmp);
+        }
     }
-    // 数据去重，根据id去重
-    let mut seen = HashSet::new();
-    res.retain(|item| seen.insert(item.id.clone()));
-
-    // 获取调休信息
+    // 处理调休。目前的设计也会调休自定义课程，可能不是一个好做法？
     let flex_time =
         sqlx::query!("SELECT value FROM mini_configs WHERE `key` = ? AND enabled = 1", "flexTime")
             .fetch_one(&data.db)
             .await?
             .value;
-    // 解析到json
-    let flex_time: Vec<FlexTime> = serde_json::from_str(&flex_time).map_err(|_| {
+    let mut flex_time: Vec<FlexTime> = serde_json::from_str(&flex_time).map_err(|_| {
         error!("解析调休信息失败");
         anyhow::anyhow!("解析调休信息失败")
     })?;
-    // 遍历调休信息，修改课程表
-    // if item.day.parse::<u8>().unwrap() == flex.to.day
-    //     && weeks.iter().any(|x| x.parse::<u8>().unwrap() == flex.to.week)
-    let old_res = res.clone();
+    // 只选择当前学年/学期的调休
+    flex_time.retain(|x| x.time.xn == req.xn && x.time.xq == req.xq);
     for flex in flex_time {
-        // 共有代码，to那天的课程一定是要删掉的
-        let week = flex.to.week;
-        let day = flex.to.day;
-        // 遍历课程表，找到对应的课程，并修改其week字段，去掉不上课的week
+        // 先把 to 那天的课程全部毙掉
         for item in res.iter_mut() {
-            let weeks: Vec<&str> = item.week.split(',').collect();
-            if weeks[0].is_empty() {
-                // 只上一周的课程已经被删除了
+            if item.day != flex.to.day {
                 continue;
             }
-            if weeks.iter().any(|x| x.parse::<u8>().unwrap() == week)
-                && item.day.parse::<u8>().map_err(|_| anyhow!("星期解析失败"))? == day
-            {
-                // 去掉对应的week
-                let new_weeks = weeks
-                    .iter()
-                    .filter(|x| x.parse::<u8>().unwrap() != week)
-                    .map(|x| x.to_string())
-                    .collect::<Vec<String>>();
-                item.week = new_weeks.join(",");
-            }
+            item.weeks.retain(|&x| x != flex.to.week);
         }
-        // 如果没有对应的课程，就不需要修改了
-        if flex.from.is_none() {
-            continue;
-        }
-        // 某天的课程上另外的一天的课程
-        let from = flex.from.as_ref().unwrap();
-        let to = &flex.to;
-        // 遍历课程表，如果找到的是from那天的课程，就创建一个新的课程项（只有to的那一天），因为会修改res，所以不能iter_mut
-        for item in old_res.iter() {
-            let weeks: Vec<&str> = item.week.split(',').collect();
-            if weeks[0].is_empty() {
+        // 然后找 from 那天的课，全部加入到 to 那天的课程中
+        // 加入到 to 的时候直接创建一个新的课程，和原来的课程做一个区分，这样前端显示起来会好一点
+        let mut new_items = Vec::new();
+        for item in res.iter_mut() {
+            if item.day != flex.from.day || !item.weeks.contains(&flex.from.week) {
                 continue;
             }
-            if weeks.iter().any(|x| x.parse::<u8>().unwrap() == from.week)
-                && item.day.parse::<u8>().map_err(|_| anyhow!("星期解析错误"))? == from.day
-            {
-                // 复制一份课程表
-                let mut new_item = item.clone();
-                // 修改课程表的week和day
-                new_item.week = to.week.to_string();
-                new_item.day = to.day.to_string();
-                // 修改课程表的id
-                new_item.id = format!("{}-{}-{}", item.id, to.week, to.day);
-                res.push(new_item);
-            }
+            let mut new_item = item.clone();
+            new_item.day = flex.to.day;
+            new_item.weeks = vec![flex.to.week];
+            new_item.extra = Some(flex.desc.clone());
+            new_items.push(new_item);
         }
+        // 再把 from 那天的课程也全部毙掉。注意这三个步骤是有顺序的，不能乱。
+        for item in res.iter_mut() {
+            if item.day != flex.from.day {
+                continue;
+            }
+            item.weeks.retain(|&x| x != flex.from.week);
+        }
+        res.extend(new_items);
     }
-    // 返回数据
+    // 由于调休那里的操作，会使得某些课程的周次变成空的，所以需要清理一下
+    res.retain(|item| !item.weeks.is_empty());
+    // 再给 weeks 排个序
+    for item in res.iter_mut() {
+        item.weeks.sort_unstable();
+    }
     Ok(res.into())
 }
 
@@ -222,73 +280,74 @@ pub async fn get_grade_handler(
 ) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
     let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
-    let spider_res: SpiderGrade = spider_data("/bks/grade", &params).await?;
+    let spider_res: Vec<SpiderGradeInfo> = spider_data("/bks/grade", &params).await?;
 
-    if spider_res.rowCount == 0 {
+    if spider_res.is_empty() {
         return Ok(().into()); // 返回数据为空，直接返回空数据
     }
 
-    let mut res = Vec::with_capacity(spider_res.rowCount as usize);
+    let mut res = Vec::new();
 
-    for item in spider_res.items.into_iter().rev()
+    // 新的教务系统的成绩出现顺序并不是按成绩公布时间排序的了，所以正着遍历和倒着遍历没什么区别
+    for item in spider_res.into_iter().rev()
     // 参照原有中间件代码，将数据反转
     {
-        let temp = GradeRes {
-            number: item.kcbh,
-            serial: format!("{}/{}", item.kcxzname, item.kclbname),
-            name: item.kcname,
-            college: item.kkdwname,
-            examType: item.ksxzname,
+        let tmp = GradeInfo {
+            course_id: item.kch,
+            course_name: item.kc_mc,
             credit: item.xf,
-            grade: item.zcj,
+            course_type1: item.kcsx,
+            course_type2: item.kcxzmc,
+            gpa: item.jd,
+            score: item.zcj,
         };
-        res.push(temp);
+        res.push(tmp);
     }
     Ok(res.into())
 }
 
-pub async fn get_must_grade_handler(Extension(token): Extension<String>) -> AppResult {
-    let stu_id = parse_stu_id(&token)?;
-    let (xn, xq) = get_now_xnxq();
-    let xn = if xq == 1 { xn - 1 } else { xn }; // 如果是秋季学期，学年减一
-    let xn = xn.to_string();
-    let params_1 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "1".to_string())];
-    let params_2 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "2".to_string())];
-    let params_3 = [("stuid", stu_id), ("xn", xn), ("xq", "3".to_string())];
-    let (spider_1, spider_2, spider_3): (SpiderGrade, SpiderGrade, SpiderGrade) = try_join!(
-        spider_data("/bks/grade", &params_1),
-        spider_data("/bks/grade", &params_2),
-        spider_data("/bks/grade", &params_3)
-    )?;
-    let mut scores = 0.0;
-    let mut credits = 0.0;
-    let mut count = 0;
-    for item in spider_1
-        .items
-        .iter()
-        .chain(spider_2.items.iter())
-        .chain(spider_3.items.iter())
-    {
-        // 如果遇到了缓考导致成绩为0
-        if item.zcj == 0 {
-            continue;
-        }
-        // 如果kcxzname是必修才加入计算
-        if item.kcxzname == "必修" {
-            scores += item.zcj as f64 * item.xf;
-            credits += item.xf;
-            count += 1;
-        }
-    }
-    if credits == 0.0 {
-        return Ok(().into()); // 返回的data为null值
-    }
-    let weighted_avg = scores / credits;
-    // 转换成String，只保留两位小数
-    let weighted_avg = format!("{:.2}", weighted_avg);
-    let res = [weighted_avg, count.to_string()];
-    Ok(res.into())
-}
+// pub async fn get_must_grade_handler(Extension(token): Extension<String>) -> AppResult {
+//     let stu_id = parse_stu_id(&token)?;
+//     let (xn, xq) = get_now_xnxq();
+//     let xn = if xq == 1 { xn - 1 } else { xn }; // 如果是秋季学期，学年减一
+//     let xn = xn.to_string();
+//     let params_1 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "1".to_string())];
+//     let params_2 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "2".to_string())];
+//     let params_3 = [("stuid", stu_id), ("xn", xn), ("xq", "3".to_string())];
+//     let (spider_1, spider_2, spider_3): (SpiderGrade, SpiderGrade, SpiderGrade) = try_join!(
+//         spider_data("/bks/grade", &params_1),
+//         spider_data("/bks/grade", &params_2),
+//         spider_data("/bks/grade", &params_3)
+//     )?;
+//     let mut scores = 0.0;
+//     let mut credits = 0.0;
+//     let mut count = 0;
+//     for item in spider_1
+//         .items
+//         .iter()
+//         .chain(spider_2.items.iter())
+//         .chain(spider_3.items.iter())
+//     {
+//         // 如果遇到了缓考导致成绩为0
+//         if item.zcj == 0 {
+//             continue;
+//         }
+//         // 如果kcxzname是必修才加入计算
+//         if item.kcxzname == "必修" {
+//             scores += item.zcj as f64 * item.xf;
+//             credits += item.xf;
+//             count += 1;
+//         }
+//     }
+//     if credits == 0.0 {
+//         return Ok(().into()); // 返回的data为null值
+//     }
+//     let weighted_avg = scores / credits;
+//     // 转换成String，只保留两位小数
+//     let weighted_avg = format!("{:.2}", weighted_avg);
+//     let res = [weighted_avg, count.to_string()];
+//     Ok(res.into())
+// }
 
 pub async fn get_grade_rank_handler(Extension(token): Extension<String>) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
@@ -360,60 +419,60 @@ pub async fn get_grade_rank_handler(Extension(token): Extension<String>) -> AppR
     Ok(res.into())
 }
 
-pub async fn get_raw_grade_handler(
-    Query(req): Query<GetRawGradeReq>,
-    Extension(token): Extension<String>,
-) -> AppResult {
-    let stu_id = parse_stu_id(&token)?;
-    let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
-    let spider_res: SpiderRawGrade = match spider_data("/bks/raw/grade", &params).await {
-        Ok(x) => x,
-        Err(e) => {
-            error!("spider_data raw_grade: raw grade error: {}", e);
-            return Ok(().into());
-        } // 返回数据为空，直接返回空数据
-    };
+// pub async fn get_raw_grade_handler(
+//     Query(req): Query<GetRawGradeReq>,
+//     Extension(token): Extension<String>,
+// ) -> AppResult {
+//     let stu_id = parse_stu_id(&token)?;
+//     let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
+//     let spider_res: SpiderRawGrade = match spider_data("/bks/raw/grade", &params).await {
+//         Ok(x) => x,
+//         Err(e) => {
+//             error!("spider_data raw_grade: raw grade error: {}", e);
+//             return Ok(().into());
+//         } // 返回数据为空，直接返回空数据
+//     };
 
-    let mut res: Vec<RawGradeRes> = Vec::with_capacity(spider_res.cjxmcj.rowCount as usize);
+//     let mut res: Vec<RawGradeRes> = Vec::with_capacity(spider_res.cjxmcj.rowCount as usize);
 
-    for item in spider_res.cjxmcj.items.into_iter().rev()
-    // 参照原有中间件代码，将数据反转
-    {
-        let mut temp = vec![];
-        // 构建HashMap方便后续程序逻辑处理
-        let map = raw_grade_item_struct_to_map(&item);
-        map.into_iter().for_each(|(k, v)| {
-            temp.push(RawGradeResItem {
-                name: spider_res
-                    .cjxmInfo
-                    .iter()
-                    .find(|&item| item.xmbh == k)
-                    .unwrap() // 不可能找不到，不用担心会panic
-                    .xmmc
-                    .to_string(),
-                grade: v,
-            });
-            // 对temp按照k值大小升序排列
-            temp.sort_by(|a, b| a.name.cmp(&b.name));
-        });
-        // cjxm1的特例，留下方便以后理解，为了避免重复代码，所以利用HashMap来复用代码
-        // if let Some(x) = item.cjxm1 {
-        //     temp.push(RawGradeResItem {
-        //         name: spider_res
-        //             .cjxmInfo
-        //             .iter()
-        //             .find(|&item| item.xmbh == "1")
-        //             .unwrap() // 不可能找不到
-        //             .xmmc
-        //             .to_string(),
-        //         grade: x,
-        //     });
-        // }
-        res.push(RawGradeRes { name: item.kc_name, item: temp })
-    }
+//     for item in spider_res.cjxmcj.items.into_iter().rev()
+//     // 参照原有中间件代码，将数据反转
+//     {
+//         let mut temp = vec![];
+//         // 构建HashMap方便后续程序逻辑处理
+//         let map = raw_grade_item_struct_to_map(&item);
+//         map.into_iter().for_each(|(k, v)| {
+//             temp.push(RawGradeResItem {
+//                 name: spider_res
+//                     .cjxmInfo
+//                     .iter()
+//                     .find(|&item| item.xmbh == k)
+//                     .unwrap() // 不可能找不到，不用担心会panic
+//                     .xmmc
+//                     .to_string(),
+//                 grade: v,
+//             });
+//             // 对temp按照k值大小升序排列
+//             temp.sort_by(|a, b| a.name.cmp(&b.name));
+//         });
+//         // cjxm1的特例，留下方便以后理解，为了避免重复代码，所以利用HashMap来复用代码
+//         // if let Some(x) = item.cjxm1 {
+//         //     temp.push(RawGradeResItem {
+//         //         name: spider_res
+//         //             .cjxmInfo
+//         //             .iter()
+//         //             .find(|&item| item.xmbh == "1")
+//         //             .unwrap() // 不可能找不到
+//         //             .xmmc
+//         //             .to_string(),
+//         //         grade: x,
+//         //     });
+//         // }
+//         res.push(RawGradeRes { name: item.kc_name, item: temp })
+//     }
 
-    Ok(res.into())
-}
+//     Ok(res.into())
+// }
 
 pub async fn get_grade_chart_handler(Extension(token): Extension<String>) -> AppResult {
     let stu_id = parse_stu_id(&token)?;

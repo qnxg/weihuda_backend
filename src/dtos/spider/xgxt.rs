@@ -17,6 +17,9 @@ pub struct PersonInfo {
     pub wechat: String,    // 微信号
     pub qq: String,        // qq号
     pub email: String,     // 电子邮箱
+    pub enter_year: u16,   // 年级（入学年份应该与年级相等）
+    pub xz: u8,            // 学制
+    pub stu_id: String,    // 学号
 }
 
 #[derive(Serialize, Deserialize, Debug)]
