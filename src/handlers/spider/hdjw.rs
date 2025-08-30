@@ -1,15 +1,13 @@
 use crate::app_error::AppError;
-use crate::dtos::spider::hdjw::GetCourseInfoReq;
+use crate::dtos::spider::hdjw::HdjwGradeRankReq;
 use crate::entities::back::course::CourseInfo;
-use crate::entities::back::flex_time::{self, FlexTime};
-use crate::entities::spider::course_detail::{CourseDetailRes, SpiderCourseDetail};
-use crate::entities::spider::grade::{GradeInfo, SpiderGradeInfo};
-use crate::utils::semester::{get_class_start_date_by_xnxq, get_now_xnxq};
+use crate::entities::back::flex_time::FlexTime;
+use crate::entities::spider::grade::{CaGradeRank, GradeInfo, HdjwGradeRank, SpiderGradeInfo};
+use crate::utils::semester::get_class_start_date_by_xnxq;
 use crate::{
     app_result::{AppResult, AppState},
     dtos::spider::hdjw::{
         GetClassStartDateReq, GetClassTableReq, GetEmptyRoomReq, GetExamArrangeReq, GetGradeReq,
-        GetRawGradeReq,
     },
     entities::{
         back::course::CustomizeCourseInfo,
@@ -17,15 +15,7 @@ use crate::{
             class_table::SpiderCourseInfo,
             empty_room::{EmptyRoomRes, SpiderEmptyRoom},
             exam::{ExamArrangeRes, SpiderComputerExamArrange, SpiderExamArrange},
-            global_static::{EndMap, StartMap},
-            grade::{
-                F64OrString, GradeChartRes, GradeRankRes, GradeRankResSemesters,
-                GradeRankResSemestersItem, GradeRankResTotal, SpiderGradeChart, SpiderGradeRank,
-                U32OrString,
-            },
-            raw_grade::{
-                raw_grade_item_struct_to_map, RawGradeRes, RawGradeResItem, SpiderRawGrade,
-            },
+            grade::{F64OrString, GradeChartRes, SpiderGradeChart, U32OrString},
         },
     },
     extractors::Query,
@@ -36,52 +26,10 @@ use crate::{
 };
 use anyhow::anyhow;
 use axum::extract::{Extension, State};
-use regex::Regex;
-use serde_json::json;
+use regex::{Regex, RegexBuilder};
 use std::collections::{HashMap, HashSet};
 use std::vec;
-use tokio::try_join;
-use tracing::error;
-
-pub async fn get_course_info_handler(
-    Query(req): Query<GetCourseInfoReq>,
-    Extension(token): Extension<String>,
-) -> AppResult {
-    let stu_id = parse_stu_id(&token)?;
-    if req.keyword.is_empty() {
-        return Ok(().into());
-    }
-    let data: SpiderCourseDetail = spider_data(
-        "/bks/courseinfo",
-        &[
-            ("xn", req.xn.to_string()),
-            ("xq", req.xq.to_string()),
-            ("stuid", stu_id),
-            ("prompt", req.keyword),
-        ],
-    )
-    .await?;
-    let mut res = Vec::new();
-    for item in data.items {
-        let temp = CourseDetailRes {
-            classID: item.kcbh,
-            serial: item.kclb_name,
-            name: item.kcmc_name,
-            examType: item.khfs_name.unwrap_or("暂无数据".to_string()),
-            className: item.ktmc_name,
-            teacher: item.skls_name,
-            people: item.xkrs,
-            credit: item.zxf,
-            school: item.zxs,
-            place: item.xq_name,
-            academy: item.kkdw_name,
-        };
-        res.push(temp);
-    }
-    // 兼容前端接口
-    let res = json!({"data":{"hdjw": {"course": res}}});
-    Ok(res.into())
-}
+use tracing::debug;
 
 pub async fn get_class_table_handler(
     State(data): AppState,
@@ -225,10 +173,8 @@ pub async fn get_class_table_handler(
             .fetch_one(&data.db)
             .await?
             .value;
-    let mut flex_time: Vec<FlexTime> = serde_json::from_str(&flex_time).map_err(|_| {
-        error!("解析调休信息失败");
-        anyhow::anyhow!("解析调休信息失败")
-    })?;
+    let mut flex_time: Vec<FlexTime> =
+        serde_json::from_str(&flex_time).map_err(|_| anyhow::anyhow!("解析调休信息失败"))?;
     // 只选择当前学年/学期的调休
     flex_time.retain(|x| x.time.xn == req.xn && x.time.xq == req.xq);
     for flex in flex_time {
@@ -306,171 +252,128 @@ pub async fn get_grade_handler(
     Ok(res.into())
 }
 
-// pub async fn get_must_grade_handler(Extension(token): Extension<String>) -> AppResult {
-//     let stu_id = parse_stu_id(&token)?;
-//     let (xn, xq) = get_now_xnxq();
-//     let xn = if xq == 1 { xn - 1 } else { xn }; // 如果是秋季学期，学年减一
-//     let xn = xn.to_string();
-//     let params_1 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "1".to_string())];
-//     let params_2 = [("stuid", stu_id.clone()), ("xn", xn.clone()), ("xq", "2".to_string())];
-//     let params_3 = [("stuid", stu_id), ("xn", xn), ("xq", "3".to_string())];
-//     let (spider_1, spider_2, spider_3): (SpiderGrade, SpiderGrade, SpiderGrade) = try_join!(
-//         spider_data("/bks/grade", &params_1),
-//         spider_data("/bks/grade", &params_2),
-//         spider_data("/bks/grade", &params_3)
-//     )?;
-//     let mut scores = 0.0;
-//     let mut credits = 0.0;
-//     let mut count = 0;
-//     for item in spider_1
-//         .items
-//         .iter()
-//         .chain(spider_2.items.iter())
-//         .chain(spider_3.items.iter())
-//     {
-//         // 如果遇到了缓考导致成绩为0
-//         if item.zcj == 0 {
-//             continue;
-//         }
-//         // 如果kcxzname是必修才加入计算
-//         if item.kcxzname == "必修" {
-//             scores += item.zcj as f64 * item.xf;
-//             credits += item.xf;
-//             count += 1;
-//         }
-//     }
-//     if credits == 0.0 {
-//         return Ok(().into()); // 返回的data为null值
-//     }
-//     let weighted_avg = scores / credits;
-//     // 转换成String，只保留两位小数
-//     let weighted_avg = format!("{:.2}", weighted_avg);
-//     let res = [weighted_avg, count.to_string()];
-//     Ok(res.into())
-// }
-
-pub async fn get_grade_rank_handler(Extension(token): Extension<String>) -> AppResult {
+pub async fn get_grade_rank_from_ca_handler(Extension(token): Extension<String>) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
-    let params = [("stuid", stu_id), ("type", 1.to_string())];
-    let spider_res: SpiderGradeRank = spider_data("/bks/grade/analyze", &params).await?;
-    // res的total字段
-    if spider_res.report.is_empty() {
-        return Err("汇总数据为空".into());
+    let params = [("stuid", stu_id)];
+    let spider_res: String = spider_data("/bks/grade-from-ca", &params).await?;
+    let regex = RegexBuilder::new(r"平均学分绩点排名 ([0-9/]+).*平均学分绩点 ([0-9.]+).*核心课程平均学分绩点排名 ([0-9/]+).*必修课平均学分绩点 ([0-9.]+).*课程算术平均成绩排名 ([0-9/]+).*算术平均分 ([0-9.]+).*核心课程算术平均成绩排名 ([0-9/]+).*必修课算术平均分 ([0-9.]+).*学分加权平均成绩排名 ([0-9/]+).*加权平均分 ([0-9.]+).*核心课程学分加权平均成绩排名 ([0-9/]+).*必修课加权平均分 ([0-9.]+)")
+        .dot_matches_new_line(true)
+        .build()
+        .unwrap();
+    let caps = regex.captures(&spider_res).ok_or(anyhow!("解析可信电子凭证失败"))?;
+    // 12 个捕获组，caps[0] 是完整匹配，共 13 个
+    if caps.len() != 13 {
+        return Err(AppError::AnyHow(anyhow!("解析可信电子凭证失败a1")));
     }
-    let res_total = GradeRankResTotal {
-        arithmeticAvg: spider_res.report[0].ARITHMETIC_AVG,
-        arithmeticAvgRank: spider_res.report[0].ARITHMETIC_AVG_RANK,
-        coreArithmeticAvg: spider_res.report[0].CORE_ARITHMETIC_AVG,
-        coreArithmeticAvgRank: spider_res.report[0].CORE_ARITHMETIC_AVG_RANK,
-        coreWeightAvg: spider_res.report[0].CORE_WEIGHTED_AVG,
-        coreWeightAvgRank: spider_res.report[0].CORE_WEIGHTED_AVG_RANK,
-        GPA: spider_res.report[0].GPA,
-        GPARank: spider_res.report[0].GPA_RANK,
-        weightAvg: spider_res.report[0].WEIGHTED_AVG,
-        weightAvgRank: spider_res.report[0].WEIGHTED_AVG_RANK,
+    let mut res = Vec::new();
+    for i in 1..=12 {
+        res.push(caps.get(i).unwrap().as_str());
+    }
+    let res = CaGradeRank {
+        all_gpa: res[1].to_string(),
+        all_gpa_rank: res[0].to_string(),
+        all_weighted: res[9].to_string(),
+        all_weighted_rank: res[8].to_string(),
+        all_arithmetic: res[5].to_string(),
+        all_arithmetic_rank: res[4].to_string(),
+        must_gpa: res[3].to_string(),
+        must_weighted: res[11].to_string(),
+        must_arithmetic: res[7].to_string(),
+        core_gpa_rank: res[2].to_string(),
+        core_arithmetic_rank: res[6].to_string(),
+        core_weighted_rank: res[10].to_string(),
     };
-    // res的semesters字段
-    let mut res_semesters = Vec::with_capacity(spider_res.semesters.len()); // 返回结果的semesters字段
-    let mut year_map: HashMap<u32, Vec<GradeRankResSemestersItem>> = HashMap::new(); // 用年份来组织数据
-    for item in spider_res.semesters.into_iter().rev()
-    // 参照原有中间件代码，将数据反转
-    {
-        let xn = item.XN.parse::<u32>().unwrap();
-        let name = match item.XQ {
-            Some(xq) => match xq.parse::<u32>().unwrap() {
-                1 => "秋季学期",
-                2 => "春季学期",
-                3 => "夏季学期",
-                _ => "未知学期", // 不会出现，只是为了穷举所有情况，使编译通过
-            },
-            None => "全部学期",
-        };
-        let temp = GradeRankResSemestersItem {
-            coreWeightAvg: match item.CORE_WEIGHTED_AVG {
-                F64OrString::F64(x) => x.to_string(),
-                F64OrString::String(x) => x,
-            },
-            coreWeightAvgRank: match item.CORE_WEIGHTED_AVG_RANK {
-                U32OrString::U32(x) => x.to_string(),
-                U32OrString::String(x) => x,
-            },
-            GPA: item.GPA,
-            GPARank: item.GPA_RANK,
-            weightAvg: item.WEIGHTED_AVG,
-            weightAvgRank: item.WEIGHTED_AVG_RANK,
-            name: name.to_string(),
-        };
-        // 如果用年份索引year_map没有找到对应的数据，则新建一个，否则将temp插入到对应的vec中
-        match year_map.get_mut(&xn) {
-            Some(x) => x.push(temp),
-            None => {
-                year_map.insert(xn, vec![temp]);
-            }
-        }
-    }
-    year_map.into_iter().for_each(|(k, v)| {
-        let temp = GradeRankResSemesters { items: v, year: format!("{}-{}", k, k + 1) };
-        res_semesters.push(temp);
-    });
-
-    res_semesters.sort_by(|a, b| b.year.cmp(&a.year)); // 按年份降序排列
-
-    let res = GradeRankRes { total: res_total, semesters: res_semesters };
     Ok(res.into())
 }
 
-// pub async fn get_raw_grade_handler(
-//     Query(req): Query<GetRawGradeReq>,
-//     Extension(token): Extension<String>,
-// ) -> AppResult {
+pub async fn get_grade_rank_handler(
+    Query(req): Query<HdjwGradeRankReq>,
+    Extension(token): Extension<String>,
+) -> AppResult {
+    let stu_id = parse_stu_id(&token)?;
+    let mut params = vec![
+        ("stuid", stu_id),
+        ("course", req.course.to_string()),
+        ("rank", req.rank.to_string()),
+    ];
+    if let Some(year) = req.year {
+        params.push(("year", year.to_string()));
+    }
+    if let Some(term) = req.term {
+        params.push(("term", term.to_string()));
+    }
+    let spider_res: HdjwGradeRank = spider_data("/bks/rank", &params).await?;
+    Ok(spider_res.into())
+}
+
+// 暂时用新的
+// pub async fn get_grade_rank_handler(Extension(token): Extension<String>) -> AppResult {
 //     let stu_id = parse_stu_id(&token)?;
-//     let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
-//     let spider_res: SpiderRawGrade = match spider_data("/bks/raw/grade", &params).await {
-//         Ok(x) => x,
-//         Err(e) => {
-//             error!("spider_data raw_grade: raw grade error: {}", e);
-//             return Ok(().into());
-//         } // 返回数据为空，直接返回空数据
+//     let params = [("stuid", stu_id), ("type", 1.to_string())];
+//     let spider_res: SpiderGradeRank = spider_data("/bks/grade/analyze", &params).await?;
+//     // res的total字段
+//     if spider_res.report.is_empty() {
+//         return Err("汇总数据为空".into());
+//     }
+//     let res_total = GradeRankResTotal {
+//         arithmeticAvg: spider_res.report[0].ARITHMETIC_AVG,
+//         arithmeticAvgRank: spider_res.report[0].ARITHMETIC_AVG_RANK,
+//         coreArithmeticAvg: spider_res.report[0].CORE_ARITHMETIC_AVG,
+//         coreArithmeticAvgRank: spider_res.report[0].CORE_ARITHMETIC_AVG_RANK,
+//         coreWeightAvg: spider_res.report[0].CORE_WEIGHTED_AVG,
+//         coreWeightAvgRank: spider_res.report[0].CORE_WEIGHTED_AVG_RANK,
+//         GPA: spider_res.report[0].GPA,
+//         GPARank: spider_res.report[0].GPA_RANK,
+//         weightAvg: spider_res.report[0].WEIGHTED_AVG,
+//         weightAvgRank: spider_res.report[0].WEIGHTED_AVG_RANK,
 //     };
-
-//     let mut res: Vec<RawGradeRes> = Vec::with_capacity(spider_res.cjxmcj.rowCount as usize);
-
-//     for item in spider_res.cjxmcj.items.into_iter().rev()
+//     // res的semesters字段
+//     let mut res_semesters = Vec::with_capacity(spider_res.semesters.len()); // 返回结果的semesters字段
+//     let mut year_map: HashMap<u32, Vec<GradeRankResSemestersItem>> = HashMap::new(); // 用年份来组织数据
+//     for item in spider_res.semesters.into_iter().rev()
 //     // 参照原有中间件代码，将数据反转
 //     {
-//         let mut temp = vec![];
-//         // 构建HashMap方便后续程序逻辑处理
-//         let map = raw_grade_item_struct_to_map(&item);
-//         map.into_iter().for_each(|(k, v)| {
-//             temp.push(RawGradeResItem {
-//                 name: spider_res
-//                     .cjxmInfo
-//                     .iter()
-//                     .find(|&item| item.xmbh == k)
-//                     .unwrap() // 不可能找不到，不用担心会panic
-//                     .xmmc
-//                     .to_string(),
-//                 grade: v,
-//             });
-//             // 对temp按照k值大小升序排列
-//             temp.sort_by(|a, b| a.name.cmp(&b.name));
-//         });
-//         // cjxm1的特例，留下方便以后理解，为了避免重复代码，所以利用HashMap来复用代码
-//         // if let Some(x) = item.cjxm1 {
-//         //     temp.push(RawGradeResItem {
-//         //         name: spider_res
-//         //             .cjxmInfo
-//         //             .iter()
-//         //             .find(|&item| item.xmbh == "1")
-//         //             .unwrap() // 不可能找不到
-//         //             .xmmc
-//         //             .to_string(),
-//         //         grade: x,
-//         //     });
-//         // }
-//         res.push(RawGradeRes { name: item.kc_name, item: temp })
+//         let xn = item.XN.parse::<u32>().unwrap();
+//         let name = match item.XQ {
+//             Some(xq) => match xq.parse::<u32>().unwrap() {
+//                 1 => "秋季学期",
+//                 2 => "春季学期",
+//                 3 => "夏季学期",
+//                 _ => "未知学期", // 不会出现，只是为了穷举所有情况，使编译通过
+//             },
+//             None => "全部学期",
+//         };
+//         let temp = GradeRankResSemestersItem {
+//             coreWeightAvg: match item.CORE_WEIGHTED_AVG {
+//                 F64OrString::F64(x) => x.to_string(),
+//                 F64OrString::String(x) => x,
+//             },
+//             coreWeightAvgRank: match item.CORE_WEIGHTED_AVG_RANK {
+//                 U32OrString::U32(x) => x.to_string(),
+//                 U32OrString::String(x) => x,
+//             },
+//             GPA: item.GPA,
+//             GPARank: item.GPA_RANK,
+//             weightAvg: item.WEIGHTED_AVG,
+//             weightAvgRank: item.WEIGHTED_AVG_RANK,
+//             name: name.to_string(),
+//         };
+//         // 如果用年份索引year_map没有找到对应的数据，则新建一个，否则将temp插入到对应的vec中
+//         match year_map.get_mut(&xn) {
+//             Some(x) => x.push(temp),
+//             None => {
+//                 year_map.insert(xn, vec![temp]);
+//             }
+//         }
 //     }
+//     year_map.into_iter().for_each(|(k, v)| {
+//         let temp = GradeRankResSemesters { items: v, year: format!("{}-{}", k, k + 1) };
+//         res_semesters.push(temp);
+//     });
 
+//     res_semesters.sort_by(|a, b| b.year.cmp(&a.year)); // 按年份降序排列
+
+//     let res = GradeRankRes { total: res_total, semesters: res_semesters };
 //     Ok(res.into())
 // }
 
