@@ -13,7 +13,7 @@ use crate::{
         back::course::CustomizeCourseInfo,
         spider::{
             class_table::SpiderCourseInfo,
-            empty_room::{EmptyRoomRes, SpiderEmptyRoom},
+            empty_room::EmptyRoomRes,
             exam::{ExamArrangeRes, SpiderComputerExamArrange, SpiderExamArrange},
             grade::{F64OrString, GradeChartRes, SpiderGradeChart, U32OrString},
         },
@@ -27,6 +27,7 @@ use crate::{
 use anyhow::anyhow;
 use axum::extract::{Extension, State};
 use regex::{Regex, RegexBuilder};
+use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::vec;
 
@@ -471,19 +472,57 @@ pub async fn get_empty_room_handler(
         ("xq", req.xq.to_string()),
         ("stuid", stu_id),
     ];
-    let spider_res: SpiderEmptyRoom = spider_data("/freeroom/list", &params).await?;
-
-    let mut res = Vec::with_capacity(spider_res.rowCount as usize);
-
-    for item in spider_res.items {
+    let spider_res: Value = spider_data("/freeroom/list", &params).await?;
+    let data = spider_res
+        .as_array()
+        .ok_or(anyhow!("解析空教室数据失败"))?
+        .get(4)
+        .ok_or(anyhow!("解析空教室数据失败"))?
+        .as_array()
+        .ok_or(anyhow!("解析空教室数据失败"))?;
+    let mut res = Vec::new();
+    for item in data {
+        let item = item.as_array().ok_or(anyhow!("解析空教室数据失败"))?;
+        let is_free = item.get(1).ok_or(anyhow!("解析空教室数据失败"))?.is_null();
+        if !is_free {
+            continue;
+        }
+        let name = item
+            .get(0)
+            .ok_or(anyhow!("解析空教室数据失败"))?
+            .as_str()
+            .ok_or(anyhow!("解析空教室数据失败"))?;
+        let capacity = item
+            .get(3)
+            .ok_or(anyhow!("解析空教室数据失败"))?
+            .as_str()
+            .ok_or(anyhow!("解析空教室数据失败"))?;
+        if capacity.len() < 3 || !capacity.starts_with('(') || !capacity.ends_with(')') {
+            return Err(anyhow!("解析空教室数据失败").into());
+        }
+        let _type = item
+            .get(4)
+            .ok_or(anyhow!("解析空教室数据失败"))?
+            .as_str()
+            .ok_or(anyhow!("解析空教室数据失败"))?;
+        let mut capacity = capacity[1..capacity.len() - 1].split('/');
+        let seat = capacity
+            .next()
+            .ok_or(anyhow!("解析空教室数据失败"))?
+            .parse::<u32>()
+            .map_err(|e| anyhow!("解析空教室数据失败 {}", e))?;
+        let exam_seat = capacity
+            .next()
+            .ok_or(anyhow!("解析空教室数据失败"))?
+            .parse::<u32>()
+            .map_err(|e| anyhow!("解析空教室数据失败 {}", e))?;
         let temp = EmptyRoomRes {
-            name: item.js_name,
-            _type: item.classroomtypename,
-            seat: item.yxzw,
-            examSeat: item.kszw,
+            name: name.to_string(),
+            seat,
+            examSeat: exam_seat,
+            _type: _type.to_string(),
         };
         res.push(temp);
     }
-
     Ok(res.into())
 }
