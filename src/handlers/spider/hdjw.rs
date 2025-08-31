@@ -29,7 +29,6 @@ use axum::extract::{Extension, State};
 use regex::{Regex, RegexBuilder};
 use std::collections::{HashMap, HashSet};
 use std::vec;
-use tracing::debug;
 
 pub async fn get_class_table_handler(
     State(data): AppState,

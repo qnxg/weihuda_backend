@@ -67,7 +67,7 @@ pub struct HdjwGradeRankReq {
     pub year: Option<u16>,
     pub term: Option<u8>,
     pub course: u8,
-    pub rank: u8
+    pub rank: u8,
 }
 
 // 解决参数为空字符串时候的解析问题
