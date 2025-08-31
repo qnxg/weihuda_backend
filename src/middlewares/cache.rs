@@ -103,10 +103,11 @@ impl Cache {
     }
 }
 
-const CACHE_PATHS: [&str; 7] = [
+const CACHE_PATHS: [&str; 8] = [
     "/hdjw/grade",
     // "/hdjw/grade-rank",
     "/hdjw/raw-grade",
+    "/hdjw/grade-rank-from-ca",
     "/hdjw/must-grade",
     "/hdjw/chart",
     "/hdjw/class-table",
