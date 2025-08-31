@@ -26,6 +26,14 @@ jobs:
         with:
           files: |-
             target/x86_64-unknown-linux-musl/release/back_2024
+      - name: Stop back service
+        uses: https://github.com/appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HOST }}
+          username: root
+          password: ${{ secrets.PASSWORD }}
+          port: 22
+          script: systemctl stop back
             
       - name: Upload with sshpass + scp
         run: |
