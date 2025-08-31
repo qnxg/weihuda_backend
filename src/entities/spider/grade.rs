@@ -1,8 +1,6 @@
 #![allow(non_snake_case)]
 use serde::{Deserialize, Serialize};
 
-use crate::utils::serde::serialize_f64;
-
 //=============成绩
 #[derive(Deserialize, Debug)]
 pub struct SpiderGradeInfo {
@@ -87,6 +85,28 @@ pub struct SpiderGradeRankSemestersInfo {
     pub WEIGHTED_AVG_RANK: u32,
     pub XN: String,
     pub XQ: Option<String>, // 后续逻辑中要处理XQ为None的情况，即json返回值没有XQ字段
+}
+
+#[derive(Serialize, Debug, Deserialize)]
+pub struct HdjwGradeRank {
+    pub score: String,
+    pub rank: String,
+}
+
+#[derive(Serialize, Debug)]
+pub struct CaGradeRank {
+    pub all_gpa: String,
+    pub all_gpa_rank: String,
+    pub all_weighted: String,
+    pub all_weighted_rank: String,
+    pub all_arithmetic: String,
+    pub all_arithmetic_rank: String,
+    pub must_gpa: String,
+    pub must_weighted: String,
+    pub must_arithmetic: String,
+    pub core_gpa_rank: String,
+    pub core_weighted_rank: String,
+    pub core_arithmetic_rank: String,
 }
 
 #[derive(Serialize, Debug)]

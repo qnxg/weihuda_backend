@@ -1,5 +1,5 @@
 #![allow(non_snake_case)]
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 #[derive(Serialize, Debug)]
 pub struct SemesterInfoRes {
@@ -9,18 +9,6 @@ pub struct SemesterInfoRes {
     pub vacation: String,
     pub next: String,
 }
-
-// #[derive(Deserialize, Debug)]
-// pub struct SpiderUserInfo {
-//     pub bj_name: Option<String>,
-//     pub name: String,
-//     pub ndzy_name: String,
-//     pub rxnf: String,
-//     pub skdw_name: String,
-//     pub xb: String,
-//     pub xz: String,
-//     pub xh: String,
-// }
 
 #[derive(Serialize, Debug)]
 pub struct UserInfoRes {
