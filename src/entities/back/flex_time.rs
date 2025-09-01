@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 /// 将会将 from 的课程全部转移到 to 上去，且 to 的课程全部毙掉
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FlexTime {
-    pub from: FlexDay,
+    // 如果这里是 None，表示仅 to 那天的课停上，不会有课程转移
+    pub from: Option<FlexDay>,
     pub to: FlexDay,
     pub desc: String, // 描述，将会返回给前端用作展示
     pub time: XnXq,   // 学年学期
