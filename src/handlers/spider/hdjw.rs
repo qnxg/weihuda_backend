@@ -91,7 +91,7 @@ pub async fn get_class_table_handler(
         let mut record = HashMap::new();
         let detail_times = item.sktime.split(';');
         for (i, time) in detail_times.into_iter().enumerate() {
-            let re = Regex::new(r"周(.)第([\d、]+)节.*第(.*)周").unwrap();
+            let re = Regex::new(r"周(.)第(.*)节.*第(.*)周").unwrap();
             let caps = re.captures(time).ok_or(anyhow!("解析课程时间失败"))?;
             let day = caps
                 .get(1)
@@ -119,14 +119,15 @@ pub async fn get_class_table_handler(
             let weeks = caps.get(3).ok_or("解析课程时间失败")?.as_str();
             let place = places.get(i).ok_or(anyhow!("解析课程地点失败"))?;
             for week_range in weeks.split(',') {
+                // week 这里可能是单个数字，也可能是一个范围，用 ',' 分割
                 let parts = week_range.split('-').collect::<Vec<_>>();
-                let l = parts
+                let week_l = parts
                     .get(0)
                     .ok_or(anyhow!("解析课程周次失败"))?
                     .parse::<u8>()
                     .map_err(|e| anyhow!("解析课程周次失败 {}", e))?;
-                let r = if parts.len() == 1 {
-                    l
+                let week_r = if parts.len() == 1 {
+                    week_l
                 } else {
                     parts
                         .get(1)
@@ -135,11 +136,28 @@ pub async fn get_class_table_handler(
                         .map_err(|e| anyhow!("解析课程周次失败 {}", e))?
                 };
                 for time in times.iter() {
-                    let time =
-                        time.parse::<u8>().map_err(|e| anyhow!("解析课程时间失败 {}", e))?;
-                    let set = record.entry((day, time, *place)).or_insert(HashSet::new());
-                    for week in l..=r {
-                        set.insert(week);
+                    // time 可能是单个数字，也可能是一个范围，用 '、' 分割
+                    let parts = time.split('-').collect::<Vec<_>>();
+                    let time_l = parts
+                        .get(0)
+                        .ok_or(anyhow!("解析课程时间失败"))?
+                        .parse::<u8>()
+                        .map_err(|e| anyhow!("解析课程时间失败 {}", e))?;
+                    let time_r = if parts.len() == 1 {
+                        time_l
+                    } else {
+                        parts
+                            .get(1)
+                            .ok_or(anyhow!("解析课程时间失败"))?
+                            .parse::<u8>()
+                            .map_err(|e| anyhow!("解析课程时间失败 {}", e))?
+                    };
+                    for time in time_l..=time_r {
+                        let key = (day, time, *place);
+                        let set = record.entry(key).or_insert_with(HashSet::new);
+                        for week in week_l..=week_r {
+                            set.insert(week);
+                        }
                     }
                 }
             }
