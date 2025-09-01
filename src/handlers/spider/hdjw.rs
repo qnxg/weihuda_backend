@@ -185,11 +185,16 @@ pub async fn get_class_table_handler(
             }
             item.weeks.retain(|&x| x != flex.to.week);
         }
+        // 调休存在一个场景，就是简单的某天课程停上，此时 from 为 None
+        if flex.from.is_none() {
+            continue;
+        }
+        let from = flex.from.unwrap();
         // 然后找 from 那天的课，全部加入到 to 那天的课程中
         // 加入到 to 的时候直接创建一个新的课程，和原来的课程做一个区分，这样前端显示起来会好一点
         let mut new_items = Vec::new();
         for item in res.iter_mut() {
-            if item.day != flex.from.day || !item.weeks.contains(&flex.from.week) {
+            if item.day != from.day || !item.weeks.contains(&from.week) {
                 continue;
             }
             let mut new_item = item.clone();
@@ -200,10 +205,10 @@ pub async fn get_class_table_handler(
         }
         // 再把 from 那天的课程也全部毙掉。注意这三个步骤是有顺序的，不能乱。
         for item in res.iter_mut() {
-            if item.day != flex.from.day {
+            if item.day != from.day {
                 continue;
             }
-            item.weeks.retain(|&x| x != flex.from.week);
+            item.weeks.retain(|&x| x != from.week);
         }
         res.extend(new_items);
     }
