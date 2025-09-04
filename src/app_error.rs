@@ -26,6 +26,10 @@ pub enum AppError {
     /// 时间解析错误
     #[error("时间解析错误: {0}")]
     ParseError(#[from] chrono::ParseError),
+    #[error("密码错误")]
+    PasswordError,
+    #[error("{0}")]
+    SpiderRequestError(String),
     // Axum框架错误
     // #[error("Axum error: {0}")]
     // AxumError(#[from] axum::Error),
@@ -70,6 +74,14 @@ impl IntoResponse for AppError {
             AppError::ParseError(e) => {
                 tracing::error!("时间解析错误 {}", e);
                 (StatusCode::BAD_REQUEST, error_json(400, "时间解析错误")).into_response()
+            }
+            AppError::PasswordError => {
+                // 密码错误信息交给爬虫打印
+                (StatusCode::UNAUTHORIZED, error_json(401, "密码错误")).into_response()
+            }
+            AppError::SpiderRequestError(e) => {
+                // 爬虫请求的错误信息在爬虫请求时打印，这里拿到的 e 是简单信息
+                (StatusCode::INTERNAL_SERVER_ERROR, error_json(500, &e)).into_response()
             }
         }
     }
