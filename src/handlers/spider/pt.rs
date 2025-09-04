@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use axum::Extension;
 
 use crate::{
@@ -13,7 +14,6 @@ use crate::{
             FitnessResReport, FitnessResStudent, FitnessResTotal, SpiderFitness,
             SpiderFitnessAppoint, SpiderFitnessRaw,
         },
-        lab::{LabArrangeRes, LabGradeRes, LabGradeResTotal, SpiderLabArrange, SpiderLabGrade},
     },
     extractors::Query,
     utils::{
@@ -85,49 +85,51 @@ pub async fn get_email_handler(Extension(token): Extension<String>) -> AppResult
 
 /// 获取实验成绩
 pub async fn get_lab_grade_handler(
-    Query(req): Query<GetLabGradeReq>,
-    Extension(token): Extension<String>,
+    Query(_req): Query<GetLabGradeReq>,
+    Extension(_token): Extension<String>,
 ) -> AppResult {
-    let stu_id = parse_stu_id(&token)?;
-    let params = [("stuid", stu_id), ("labid", req.labId)];
-    let spider_res: Result<SpiderLabGrade, anyhow::Error> =
-        spider_data("/lab/grade", &params).await; // 由于即使数据为空也不能返回错误，所以这里不使用?操作符
+    // let stu_id = parse_stu_id(&token)?;
+    // let params = [("stuid", stu_id), ("labid", req.labId)];
+    // let spider_res: Result<SpiderLabGrade, anyhow::Error> =
+    //     spider_data("/lab/grade", &params).await; // 由于即使数据为空也不能返回错误，所以这里不使用?操作符
 
-    let mut res = LabGradeRes {
-        items: Vec::new(),
-        total: LabGradeResTotal { cj: "0".to_string(), xs: "0".to_string() },
-    };
-    if let Ok(spider_res) = spider_res {
-        res.total.cj = spider_res.zcj;
-        res.total.xs = spider_res.zxs;
-        res.items = spider_res.items;
-    }
-    Ok(res.into())
+    // let mut res = LabGradeRes {
+    //     items: Vec::new(),
+    //     total: LabGradeResTotal { cj: "0".to_string(), xs: "0".to_string() },
+    // };
+    // if let Ok(spider_res) = spider_res {
+    //     res.total.cj = spider_res.zcj;
+    //     res.total.xs = spider_res.zxs;
+    //     res.items = spider_res.items;
+    // }
+    // Ok(res.into())
+    Err(anyhow!("实验成绩功能维护中").into())
 }
 
 /// 获取实验安排
-pub async fn get_lab_arrange_handler(Extension(token): Extension<String>) -> AppResult {
-    let stu_id = parse_stu_id(&token)?;
-    let params = [("stuid", stu_id)];
-    let spider_res: Result<Vec<SpiderLabArrange>, anyhow::Error> =
-        spider_data("/lab/arrange", &params).await; // 由于即使数据为空也不能返回错误，所以这里不使用?操作符
+pub async fn get_lab_arrange_handler(Extension(_token): Extension<String>) -> AppResult {
+    // let stu_id = parse_stu_id(&token)?;
+    // let params = [("stuid", stu_id)];
+    // let spider_res: Result<Vec<SpiderLabArrange>, anyhow::Error> =
+    //     spider_data("/lab/arrange", &params).await; // 由于即使数据为空也不能返回错误，所以这里不使用?操作符
 
-    let mut res = Vec::new();
-    if let Ok(spider_res_items) = spider_res {
-        for item in spider_res_items {
-            let temp = LabArrangeRes {
-                classname: item.classname,
-                classtype: item.classtype,
-                date: item.labdate,
-                time: item.labtime,
-                week: item.labweek,
-                name: item.labname,
-                place: item.labplace,
-            };
-            res.push(temp);
-        }
-    }
-    Ok(res.into())
+    // let mut res = Vec::new();
+    // if let Ok(spider_res_items) = spider_res {
+    //     for item in spider_res_items {
+    //         let temp = LabArrangeRes {
+    //             classname: item.classname,
+    //             classtype: item.classtype,
+    //             date: item.labdate,
+    //             time: item.labtime,
+    //             week: item.labweek,
+    //             name: item.labname,
+    //             place: item.labplace,
+    //         };
+    //         res.push(temp);
+    //     }
+    // }
+    // Ok(res.into())
+    Err(anyhow!("实验安排功能维护中").into())
 }
 
 /// 获取体测成绩
