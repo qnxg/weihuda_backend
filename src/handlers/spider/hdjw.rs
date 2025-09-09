@@ -24,74 +24,24 @@ use crate::{
         request::spider_data,
     },
 };
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use axum::extract::{Extension, State};
 use regex::{Regex, RegexBuilder};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::vec;
 
-pub async fn get_class_table_handler(
-    State(data): AppState,
-    Query(req): Query<GetClassTableReq>,
-    Extension(token): Extension<String>,
-) -> AppResult {
-    let (mini_bind_id, stu_id) = parse(&token)?;
-    // 后端返回自定义课程
-    let back_res = sqlx::query_as!(
-        CustomizeCourseInfo,
-        r#"
-        SELECT id, classname, location, teachers, week, day, section FROM mini_course WHERE xn = ? AND xq = ? AND mini_bind_id = ? AND deleted_at IS NULL
-        "#,
-        req.xn,
-        req.xq - 1,
-        mini_bind_id,
-    )
-    .fetch_all(&data.db)
-    .await?;
-    // 爬虫返回教务课程
-    let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
-    let spider_res: Vec<SpiderCourseInfo> = spider_data("/bks/classtable", &params).await?;
-    // 合并两个数据源
-    // 注意 res 里的每个元素都对应课程表中的一个格子，至于格子之间的合并什么的交给前端
+// 课表解析的代码还不太稳定，并且逻辑比较长，所以考虑单独提出来
+async fn parse_class_table(data: Vec<SpiderCourseInfo>) -> Result<Vec<CourseInfo>> {
     let mut res = Vec::new();
-    for item in back_res {
-        let times: Vec<&str> = item.section.split(',').collect();
-        let weeks_from_str: Vec<&str> = item.week.split(',').collect();
-        let mut weeks = Vec::new();
-        for week in weeks_from_str {
-            let week = week.trim().parse::<u8>().map_err(|e| anyhow!("课程周次解析失败 {}", e))?;
-            weeks.push(week);
-        }
-        let day = item.day.parse::<u8>().map_err(|e| anyhow!("课程星期解析失败 {}", e))?;
-        for time in &times {
-            let time = time.trim().parse::<u8>().map_err(|e| anyhow!("课程节次解析失败 {}", e))?;
-            let tmp = CourseInfo {
-                course_name: item.classname.clone(),
-                course_id: None,
-                _type: "自定义课程".to_string(),
-                class_name: None,
-                place: item.location.clone(),
-                area: None,
-                teacher: item.teachers.clone(),
-                weeks: weeks.clone(),
-                credit: None,
-                extra: None,
-                customize_id: item.id as i32,
-                day,
-                time,
-            };
-            res.push(tmp);
-        }
-    }
-    for item in spider_res {
+    for item in data {
         // 这里主要处理上课时间，每个时间同时对应一个地点。
         // 考虑以 周几+节次+地点作为 key，周数作为 value，用 set 存储。这样做是为了合并一些可以合并的时间（hdjw 可能分开写），并且区分不同地点的课程
         let places = item.skddmc.split(';').collect::<Vec<_>>();
         let mut record = HashMap::new();
         let detail_times = item.sktime.split(';');
         for (i, time) in detail_times.into_iter().enumerate() {
-            let re = Regex::new(r"周(.)第(.*)节.*第(.*)周").unwrap();
+            let re = Regex::new(r"周(.)第(.*)节.*\{第(.*)周\}").unwrap();
             let caps = re.captures(time).ok_or(anyhow!("解析课程时间失败"))?;
             let day = caps
                 .get(1)
@@ -108,15 +58,15 @@ pub async fn get_class_table_handler(
                 '五' => 5,
                 '六' => 6,
                 '日' | '七' => 7,
-                _ => return Err(AppError::AnyHow(anyhow!("未知的星期字符：{}", day))),
+                _ => return Err(anyhow!("未知的星期字符：{}", day)),
             };
             let times = caps
                 .get(2)
-                .ok_or("解析课程时间失败")?
+                .ok_or(anyhow!("解析课程时间失败"))?
                 .as_str()
                 .split('、')
                 .collect::<Vec<_>>();
-            let weeks = caps.get(3).ok_or("解析课程时间失败")?.as_str();
+            let weeks = caps.get(3).ok_or(anyhow!("解析课程时间失败"))?.as_str();
             let place = places.get(i).ok_or(anyhow!("解析课程地点失败"))?;
             for week_range in weeks.split(',') {
                 // week 这里可能是单个数字，也可能是一个范围，用 ',' 分割
@@ -179,6 +129,62 @@ pub async fn get_class_table_handler(
                 credit: Some(item.xf),
                 extra: item.fzmc.clone(),
                 customize_id: -1,
+                day,
+                time,
+            };
+            res.push(tmp);
+        }
+    }
+    Ok(res)
+}
+
+pub async fn get_class_table_handler(
+    State(data): AppState,
+    Query(req): Query<GetClassTableReq>,
+    Extension(token): Extension<String>,
+) -> AppResult {
+    let (mini_bind_id, stu_id) = parse(&token)?;
+    // 后端返回自定义课程
+    let back_res = sqlx::query_as!(
+        CustomizeCourseInfo,
+        r#"
+        SELECT id, classname, location, teachers, week, day, section FROM mini_course WHERE xn = ? AND xq = ? AND mini_bind_id = ? AND deleted_at IS NULL
+        "#,
+        req.xn,
+        req.xq - 1,
+        mini_bind_id,
+    )
+    .fetch_all(&data.db)
+    .await?;
+    // 爬虫返回教务课程
+    let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
+    let spider_res: Vec<SpiderCourseInfo> = spider_data("/bks/classtable", &params).await?;
+    // 合并两个数据源
+    // 注意 res 里的每个元素都对应课程表中的一个格子，至于格子之间的合并什么的交给前端
+    let mut res = parse_class_table(spider_res).await?;
+    for item in back_res {
+        let times: Vec<&str> = item.section.split(',').collect();
+        let weeks_from_str: Vec<&str> = item.week.split(',').collect();
+        let mut weeks = Vec::new();
+        for week in weeks_from_str {
+            let week = week.trim().parse::<u8>().map_err(|e| anyhow!("课程周次解析失败 {}", e))?;
+            weeks.push(week);
+        }
+        let day = item.day.parse::<u8>().map_err(|e| anyhow!("课程星期解析失败 {}", e))?;
+        for time in &times {
+            let time = time.trim().parse::<u8>().map_err(|e| anyhow!("课程节次解析失败 {}", e))?;
+            let tmp = CourseInfo {
+                course_name: item.classname.clone(),
+                course_id: None,
+                _type: "自定义课程".to_string(),
+                class_name: None,
+                place: item.location.clone(),
+                area: None,
+                teacher: item.teachers.clone(),
+                weeks: weeks.clone(),
+                credit: None,
+                extra: None,
+                customize_id: item.id as i32,
                 day,
                 time,
             };
@@ -548,4 +554,18 @@ pub async fn get_empty_room_handler(
         res.push(temp);
     }
     Ok(res.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_parse_class_table() {
+        let params = [("xn", "2025"), ("xq", "1"), ("stuid", "")];
+        let spider_res: Vec<SpiderCourseInfo> =
+            spider_data("/bks/classtable", &params).await.unwrap();
+        let res = parse_class_table(spider_res).await.unwrap();
+        println!("{:#?}", res);
+    }
 }
