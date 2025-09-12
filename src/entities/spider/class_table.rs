@@ -1,38 +1,25 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct SpiderCourseInfo {
-    pub djkssj: String,
-    pub djjssj: String,
-    pub jczy013id: String,
-    pub js_name: Option<String>,
-    pub kc_name: String,
-    pub ktmc_name: String,
-    pub pkzcmx: String,
-    pub jczy01501ids: String,
-    pub teachernames: Option<String>,
-    pub pksj: String,
-    pub id: String,
-    pub skqk: String,
-}
-
-#[derive(Serialize, Debug, Default, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ClassTableRes {
-    pub id: String,
-    // #[serde(rename = "classId")]
-    pub class_id: String,
-    pub classname: String,
-    pub location: String,
-    pub teachers: String,
-    pub week: String,
-    pub day: String,
-    pub section: String,
-    // #[serde(rename = "startTime")]
-    pub start_time: String,
-    // #[serde(rename = "endTime")]
-    pub end_time: String,
-    #[serde(rename = "type")]
-    pub _type: u32,
-    pub skqk: String,
+    pub kch: String,          // 课程代码
+    pub kc_mc: String,        // 课程名称
+    pub jg0101mc: String,     // 教师名称
+    pub jsgh: String,         // 教师工号（暂时不用）
+    pub kt_mc: String,        // 上课班级
+    pub pkrs: u16,            // 课堂容量（暂时不用）
+    pub xkrs: u16,            // 上课人数（暂时不用）
+    pub kcxz: String,         // 课程性质（通识必修/专业核心等）
+    pub kclb: String,         // 课程类别（必修/选修等）
+    pub jx0404id: String,     // 通知单编号（暂时不用）
+    pub fzmc: Option<String>, // 分组名称，这里当作课程的备注信息
+    pub sktime: String,       // 上课时间
+    pub skddmc: String,       // 上课地点
+    pub skxqmc: String,       // 上课校区
+    pub kkyx: String,         // 开课院系（暂时不用）
+    pub zhouxs: String,       // 周学时（暂时不用）
+    pub xf: f32,              // 学分
+    pub zxs: u16,             // 总学时（暂时不用）
+    pub khfs: String,         // 考核方式（暂时不用）
+                              // 还有其他一些具体学时信息的字段，懒得搞了
 }

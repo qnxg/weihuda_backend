@@ -11,5 +11,5 @@ pub mod ping;
 pub mod record;
 pub mod survey;
 pub mod user;
-pub mod zhihu;
 pub mod user_settings;
+pub mod zhihu;
