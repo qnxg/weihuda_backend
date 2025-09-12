@@ -5,7 +5,7 @@ use crate::handlers::back::user_settings::{
 use crate::handlers::spider::electricity::{
     get_dormitory_handler, get_electricity_handler, update_dormitory_handler,
 };
-use crate::handlers::spider::hdjw::get_course_info_handler;
+use crate::handlers::spider::hdjw::get_grade_rank_from_ca_handler;
 use crate::middlewares::cache::{cache_middleware, Cache};
 use crate::{
     handlers::{
@@ -39,7 +39,7 @@ use crate::{
                 get_class_start_date_handler, get_class_table_handler,
                 get_computer_exam_arrange_handler, get_empty_room_handler,
                 get_exam_arrange_handler, get_grade_chart_handler, get_grade_handler,
-                get_grade_rank_handler, get_must_grade_handler, get_raw_grade_handler,
+                get_grade_rank_handler,
             },
             info::{get_semester_info_handler, get_user_info_handler},
             library::get_library_handler,
@@ -110,8 +110,9 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     let grade = Router::new()
         .route("/hdjw/grade", get(get_grade_handler)) // 获取成绩
         .route("/hdjw/grade-rank", get(get_grade_rank_handler)) // 获取成绩排名
-        .route("/hdjw/raw-grade", get(get_raw_grade_handler)) // 获取项目成绩
-        .route("/hdjw/must-grade", get(get_must_grade_handler)) // 获取上一个学年的必修课程加权平均成绩和课程个数，主要用来衡量奖学金
+        // .route("/hdjw/raw-grade", get(get_raw_grade_handler)) // 获取项目成绩
+        // .route("/hdjw/must-grade", get(get_must_grade_handler)) // 获取上一个学年的必修课程加权平均成绩和课程个数，主要用来衡量奖学金
+        .route("/hdjw/grade-rank-from-ca", get(get_grade_rank_from_ca_handler)) // 获取成绩排名，来自成绩查询助手;
         .route("/hdjw/chart", get(get_grade_chart_handler)); // 获取成绩趋势
 
     let exam = Router::new()
@@ -180,7 +181,7 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         Router::new().route("/auth-qrcode/status/:code", put(put_auth_qrcode_status_handler)); // put请求需要获取jwt，所以需要加入到with_auth的路由组
 
     // 查询全校课表
-    let course_info = Router::new().route("/hdjw/course", get(get_course_info_handler));
+    // let course_info = Router::new().route("/hdjw/course", get(get_course_info_handler));
     // 问卷处理接口
     let survey = Router::new().route("/survey", post(post_query_result_handler));
 
@@ -231,7 +232,7 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(pt)
         .merge(library)
         .merge(qr_auth)
-        .merge(course_info)
+        // .merge(course_info)
         .merge(empty_room)
         .layer(auth_middleware());
 

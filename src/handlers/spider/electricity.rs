@@ -2,10 +2,12 @@ use crate::app_result::{AppResult, AppState};
 use crate::dtos::spider::xgxt::{Dormitory, PersonInfo};
 use crate::extractors::Query;
 use crate::utils::jwt::parse_stu_id;
+use crate::utils::redis::get_redis_conn;
 use crate::utils::request::spider_data;
 use anyhow::{anyhow, Result};
 use axum::extract::State;
 use axum::Extension;
+use redis::AsyncCommands;
 use regex::Regex;
 use serde::Deserialize;
 use sqlx::MySqlPool;
@@ -169,6 +171,12 @@ pub async fn update_dormitory_handler(
     Extension(token): Extension<String>,
 ) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
+    // 先删掉 redis 中的缓存
+    let _: () = get_redis_conn()
+        .await?
+        .del(format!("person_info-{}", stu_id))
+        .await
+        .map_err(|e| anyhow!("删除 Redis 缓存失败：{}", e))?;
     let person_info: PersonInfo =
         spider_data("/xgxt/person_info", &[("stuid", stu_id.clone())]).await?;
     // 将学工系统里的住宿信息解析

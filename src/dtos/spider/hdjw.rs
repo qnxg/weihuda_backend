@@ -62,6 +62,14 @@ pub struct GetEmptyRoomReq {
     pub xq: u32,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct HdjwGradeRankReq {
+    pub year: Option<u16>,
+    pub term: Option<u8>,
+    pub course: u8,
+    pub rank: u8,
+}
+
 // 解决参数为空字符串时候的解析问题
 fn xn_default<'de, D>(deserializer: D) -> Result<u32, D::Error>
 where

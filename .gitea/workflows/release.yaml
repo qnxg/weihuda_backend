@@ -9,14 +9,53 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - uses: https://github.com/rust-kotlin/setup-rust@v1
+      - run: echo "/root/.cargo/bin" >> $GITHUB_PATH
+      - uses: actions/cache@v4
         with:
-          targets: 'x86_64-unknown-linux-musl'
-          cache-target: ''  # 留空表示整个target目录
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build
         run: |
-          cargo build --release --bin back_2024 --target x86_64-unknown-linux-musl
+          cargo build --release --bin ${{ github.event.repository.name }} --target x86_64-unknown-linux-musl
       - uses: https://github.com/akkuman/gitea-release-action@v1
         with:
           files: |-
             target/x86_64-unknown-linux-musl/release/back_2024
+      - name: Stop back service
+        uses: https://github.com/appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HOST }}
+          username: root
+          password: ${{ secrets.PASSWORD }}
+          port: 22
+          script: systemctl stop back
+            
+      - name: Upload with sshpass + scp
+        run: |
+          apt-get install -y sshpass
+          sshpass -p "${{ secrets.PASSWORD }}" scp -o StrictHostKeyChecking=no \
+            -P 22 target/x86_64-unknown-linux-musl/release/${{ github.event.repository.name }} \
+            root@${{ secrets.HOST }}:/root/project/rust-back-2024/
+      # - name: Upload release file to server
+      #   uses: https://github.com/appleboy/scp-action@v1
+      #   with:
+      #     host: ${{ secrets.HOST }}
+      #     username: root
+      #     password: ${{ secrets.PASSWORD }}
+      #     port: 22
+      #     source: ./target/x86_64-unknown-linux-musl/release/${{ github.event.repository.name }}
+      #     target: /root/project/rust-back-2024/
+      #     overwrite: true
+      - name: Restart back service
+        uses: https://github.com/appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HOST }}
+          username: root
+          password: ${{ secrets.PASSWORD }}
+          port: 22
+          script: chmod +x /root/project/rust-back-2024/${{ github.event.repository.name }} && systemctl restart back
