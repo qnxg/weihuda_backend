@@ -3,12 +3,12 @@ use serde::Deserialize;
 
 use crate::utils::serde::deserialize_option_naive_datetime;
 
-/// 获取月流量明细
+/// 获取知湖页列表
 #[allow(non_snake_case)]
 #[derive(Deserialize, Debug)]
 pub struct GetZhihuPageReq {
-    pub page: Option<u32>,
-    pub pageSize: Option<u32>,
+    pub offset: u32,
+    pub req_count: u32,
     pub title: Option<String>,
     #[serde(rename = "type")]
     pub _type: Option<String>,
