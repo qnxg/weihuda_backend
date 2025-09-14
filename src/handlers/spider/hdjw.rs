@@ -34,6 +34,7 @@ use std::vec;
 // 课表解析的代码还不太稳定，并且逻辑比较长，所以考虑单独提出来
 async fn parse_class_table(data: Vec<SpiderCourseInfo>) -> Result<Vec<CourseInfo>> {
     let mut res = Vec::new();
+    let re = Regex::new(r"周(.)第(.*)节.*\{第(.*)周\}").unwrap();
     for item in data {
         // 这里主要处理上课时间，每个时间同时对应一个地点。
         // 考虑以 周几+节次+地点作为 key，周数作为 value，用 set 存储。这样做是为了合并一些可以合并的时间（hdjw 可能分开写），并且区分不同地点的课程
@@ -41,7 +42,6 @@ async fn parse_class_table(data: Vec<SpiderCourseInfo>) -> Result<Vec<CourseInfo
         let mut record = HashMap::new();
         let detail_times = item.sktime.split(';');
         for (i, time) in detail_times.into_iter().enumerate() {
-            let re = Regex::new(r"周(.)第(.*)节.*\{第(.*)周\}").unwrap();
             let caps = re.captures(time).ok_or(anyhow!("解析课程时间失败"))?;
             let day = caps
                 .get(1)
@@ -72,7 +72,7 @@ async fn parse_class_table(data: Vec<SpiderCourseInfo>) -> Result<Vec<CourseInfo
                 // week 这里可能是单个数字，也可能是一个范围，用 ',' 分割
                 let parts = week_range.split('-').collect::<Vec<_>>();
                 let week_l = parts
-                    .get(0)
+                    .first()
                     .ok_or(anyhow!("解析课程周次失败"))?
                     .parse::<u8>()
                     .map_err(|e| anyhow!("解析课程周次失败 {}", e))?;
@@ -89,7 +89,7 @@ async fn parse_class_table(data: Vec<SpiderCourseInfo>) -> Result<Vec<CourseInfo
                     // time 可能是单个数字，也可能是一个范围，用 '、' 分割
                     let parts = time.split('-').collect::<Vec<_>>();
                     let time_l = parts
-                        .get(0)
+                        .first()
                         .ok_or(anyhow!("解析课程时间失败"))?
                         .parse::<u8>()
                         .map_err(|e| anyhow!("解析课程时间失败 {}", e))?;
@@ -517,7 +517,7 @@ pub async fn get_empty_room_handler(
             continue;
         }
         let name = item
-            .get(0)
+            .first()
             .ok_or(anyhow!("解析空教室数据失败"))?
             .as_str()
             .ok_or(anyhow!("解析空教室数据失败"))?;
