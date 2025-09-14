@@ -8,7 +8,7 @@ use crate::{
         jwt::parse_stu_id,
         request::spider_data,
         semester::{
-            get_next_semester_start_date, get_next_vacation, get_now_xnxq,
+            get_next_semester_start_date, get_vacation_date, get_now_xnxq,
             get_this_semester_start_date,
         },
     },
@@ -19,7 +19,7 @@ pub async fn get_semester_info_handler() -> AppResult {
         startDate: get_this_semester_start_date(),
         term: get_now_xnxq().1,
         year: get_now_xnxq().0,
-        vacation: get_next_vacation().await,
+        vacation: get_vacation_date().await,
         next: get_next_semester_start_date(),
     };
     Ok(res.into())

@@ -17,6 +17,7 @@ pub fn auth_middleware() -> ValidateRequestHeaderLayer<FnAuth> {
 
 // 中间件逻辑为错误时直接返回Response，正确时不返回，但是保留对Response的修改
 #[inline]
+#[expect(clippy::result_large_err, reason = "TODO")]
 fn auth(req: &mut Request<Body>) -> Result<(), Response<Body>> {
     let jwt = req
         .headers()
