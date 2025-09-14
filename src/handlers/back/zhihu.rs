@@ -12,44 +12,23 @@ use crate::{
 };
 
 /// 获取知湖文章列表
-// #[allow(unused_variables, unreachable_code)]
 #[allow(non_snake_case)]
 pub async fn get_zhihu_page_handler(
     State(data): AppState,
     Query(req): Query<GetZhihuPageReq>,
     Extension(token): Extension<String>,
 ) -> AppResult {
-    if req.pageSize.is_some() && req.pageSize.unwrap() > 100 {
-        return Err("pageSize不能大于100".into());
+    let offset = req.offset;
+    let req_count = req.req_count;
+
+    if req_count > 100 {
+        return Err("count不能大于100".into());
     }
-    let page = req.page.unwrap_or(1);
-    let pageSize = req.pageSize.unwrap_or(10);
-    let offset = (page - 1) * pageSize;
 
     let title = format!("%{}%", req.title.unwrap_or_default());
     let _type = format!("%{}%", req._type.unwrap_or_default());
     let tags = format!("%{}%", req.tags.unwrap_or_default());
     let stu_id = parse_stu_id(&token)?;
-
-    let count = sqlx::query!(
-        r#"
-        SELECT 
-            COUNT(*) AS count
-        FROM 
-            zhihus 
-        WHERE 
-            (title LIKE ? AND type LIKE ? AND tags LIKE ?) 
-            AND (status = 1 OR stuId = ?)
-            AND deletedAt IS NULL
-        "#,
-        title,
-        _type,
-        tags,
-        stu_id
-    )
-    .fetch_one(&data.db)
-    .await?
-    .count;
 
     let res: Vec<ZhihuListItem> = sqlx::query_as!(
         ZhihuListItem,
@@ -80,10 +59,30 @@ pub async fn get_zhihu_page_handler(
         tags,
         stu_id,
         offset,
-        pageSize
+        req_count
     )
     .fetch_all(&data.db)
     .await?;
+
+    let count = sqlx::query!(
+        r#"
+        SELECT 
+            COUNT(*) AS count
+        FROM 
+            zhihus 
+        WHERE 
+            (title LIKE ? AND type LIKE ? AND tags LIKE ?) 
+            AND (status = 1 OR stuId = ?)
+            AND deletedAt IS NULL
+        "#,
+        title,
+        _type,
+        tags,
+        stu_id
+    )
+    .fetch_one(&data.db)
+    .await?
+    .count;
 
     let res: ZhihuPage = ZhihuPage { count: count as u32, rows: res };
 
