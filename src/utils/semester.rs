@@ -14,7 +14,7 @@ static CLASS_START_DATE: LazyCacheCell<Vec<(String, String)>> =
 
 const SQL_START_DATE_TABLE_KEY: &str = "classStartDateTable";
 
-const SQL_NEXT_VACATION_DATE_KEY: &str = "nextVacationDate";
+const SQL_VACATION_DATE_KEY: &str = "nextVacationDate";
 
 /// 获取学期开始日期表
 ///
@@ -62,7 +62,7 @@ pub fn is_well_formed_xnxq(xnxq: &str) -> bool {
     PATTERN.is_match(xnxq)
 }
 
-pub async fn get_next_vacation() -> String {
+pub async fn get_vacation_date() -> String {
     let res = sqlx::query!(
         r#"
             SELECT
@@ -72,11 +72,11 @@ pub async fn get_next_vacation() -> String {
             WHERE
                 `key` = ? AND enabled = 1
             "#,
-        SQL_NEXT_VACATION_DATE_KEY
+        SQL_VACATION_DATE_KEY
     )
     .fetch_one(&get_db_pool().await)
     .await
-    .expect("下一假期时间数据不见了")
+    .expect("假期时间数据不见了")
     .value;
     assert!(is_well_formed_date(&res));
     res
@@ -184,7 +184,7 @@ mod test {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_get_next_vacation() {
-        assert_eq!(get_next_vacation().await, "2025-01-19".to_string());
+    async fn test_get_vacation() {
+        assert_eq!(get_vacation_date().await, "2025-01-19".to_string());
     }
 }
