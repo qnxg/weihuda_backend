@@ -267,6 +267,13 @@ pub async fn get_grade_handler(
     for item in spider_res.into_iter().rev()
     // 参照原有中间件代码，将数据反转
     {
+        let mut tags = Vec::new();
+        if item.falb != "主修" {
+            tags.push(item.falb);
+        }
+        if let Some(cjbs) = item.cjbs {
+            tags.push(cjbs);
+        }
         let tmp = GradeInfo {
             course_id: item.kch,
             course_name: item.kc_mc,
@@ -275,6 +282,7 @@ pub async fn get_grade_handler(
             course_type2: item.kcxzmc,
             gpa: item.jd,
             score: item.zcj,
+            tags,
         };
         res.push(tmp);
     }

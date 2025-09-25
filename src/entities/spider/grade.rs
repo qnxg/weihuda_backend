@@ -4,26 +4,27 @@ use serde::{Deserialize, Serialize};
 //=============成绩
 #[derive(Deserialize, Debug)]
 pub struct SpiderGradeInfo {
-    pub cj0708id: String, // 未知字段
-    pub xnxqid: String,   // 学年学期信息（暂时不用）
-    pub kch: String,      // 课程代码
-    pub kc_mc: String,    // 课程名称
-    pub ksdw: String,     // 开课学院（暂时不用）
-    pub xqmc: String,     // 似乎和 xnxqid 重复
-    pub xf: f32,          // 学分
-    pub zxs: u32,         // 总学时（暂时不用）
-    pub ksfs: String,     // 考试方式（暂时不用）
-    pub kcsx: String,     // 课程属性（必修/选修等）
-    pub xqstr: String,    // 似乎又和 xnxqid 重复
-    pub zcj: u8,          // 总成绩
-    pub zcjstr: String,   // 总成绩字符串形式（暂时不用）
-    pub kz: u8,           // 未知字段
-    pub kcxzmc: String,   // 课程性质（通识必修/专业核心等）
-    pub xs0101id: String, // 未知字段
-    pub jx0404id: String, // 似乎和 kch 重复
-    pub jd: f32,          // 绩点
-    pub ksxz: String,     // 考试性质（暂时不用）
-    pub falb: String,     // 主修还是辅修（暂时不用）
+    pub cj0708id: String,     // 未知字段
+    pub xnxqid: String,       // 学年学期信息（暂时不用）
+    pub kch: String,          // 课程代码
+    pub kc_mc: String,        // 课程名称
+    pub ksdw: String,         // 开课学院（暂时不用）
+    pub xqmc: String,         // 似乎和 xnxqid 重复
+    pub xf: f32,              // 学分
+    pub zxs: u32,             // 总学时（暂时不用）
+    pub ksfs: String,         // 考试方式（暂时不用）
+    pub kcsx: String,         // 课程属性（必修/选修等）
+    pub xqstr: String,        // 似乎又和 xnxqid 重复
+    pub zcj: u8,              // 总成绩
+    pub zcjstr: String,       // 总成绩字符串形式（暂时不用）
+    pub kz: u8,               // 未知字段
+    pub kcxzmc: String,       // 课程性质（通识必修/专业核心等）
+    pub xs0101id: String,     // 未知字段
+    pub jx0404id: String,     // 似乎和 kch 重复
+    pub jd: f32,              // 绩点
+    pub ksxz: String,         // 考试性质（暂时不用）
+    pub falb: String,         // 主修还是辅修
+    pub cjbs: Option<String>, // 成绩标识（缓考/重修等，注意这个标识是挂在为 0 分的那个成绩 item 上）
 }
 
 #[derive(Serialize, Debug)]
@@ -36,6 +37,7 @@ pub struct GradeInfo {
     pub course_type2: String, // 课程性质2（通识必修/专业核心等）
     pub gpa: f32,             // 绩点
     pub score: u8,            // 成绩
+    pub tags: Vec<String>, // 其他标签，如缓考还是什么（参考 SpiderGradeInfo 的 cjbs 说明），或者辅修等
 }
 
 //=============成绩排名
