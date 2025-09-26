@@ -32,4 +32,5 @@ pub struct CourseInfo {
     pub credit: Option<f32>,       // 学分
     pub extra: Option<String>,     // 额外备注信息
     pub customize_id: i32,         // 自定义课程id，如果不是自定义课程则为 -1
+    pub people: u16,               // 上课人数
 }

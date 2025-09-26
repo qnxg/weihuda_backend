@@ -131,6 +131,7 @@ async fn parse_class_table(data: Vec<SpiderCourseInfo>) -> Result<Vec<CourseInfo
                 customize_id: -1,
                 day,
                 time,
+                people: item.xkrs,
             };
             res.push(tmp);
         }
@@ -187,6 +188,7 @@ pub async fn get_class_table_handler(
                 customize_id: item.id as i32,
                 day,
                 time,
+                people: 0,
             };
             res.push(tmp);
         }
@@ -198,7 +200,7 @@ pub async fn get_class_table_handler(
             .await?
             .value;
     let mut flex_time: Vec<FlexTime> =
-        serde_json::from_str(&flex_time).map_err(|_| anyhow::anyhow!("解析调休信息失败"))?;
+        serde_json::from_str(&flex_time).map_err(|e| anyhow::anyhow!("解析调休信息失败 {}", e))?;
     // 只选择当前学年/学期的调休
     flex_time.retain(|x| x.time.xn == req.xn && x.time.xq == req.xq);
     for flex in flex_time {
