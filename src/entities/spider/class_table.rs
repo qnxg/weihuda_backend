@@ -8,7 +8,7 @@ pub struct SpiderCourseInfo {
     pub jsgh: String,         // 教师工号（暂时不用）
     pub kt_mc: String,        // 上课班级
     pub pkrs: u16,            // 课堂容量（暂时不用）
-    pub xkrs: u16,            // 上课人数（暂时不用）
+    pub xkrs: u16,            // 上课人数
     pub kcxz: String,         // 课程性质（通识必修/专业核心等）
     pub kclb: String,         // 课程类别（必修/选修等）
     pub jx0404id: String,     // 通知单编号（暂时不用）
