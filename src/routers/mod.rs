@@ -2,11 +2,16 @@ use crate::handlers::back::flex_time::get_flex_time_handler;
 use crate::handlers::back::user_settings::{
     get_all_user_settings_handler, post_all_user_settings_handler,
 };
+use crate::handlers::semesters::{
+    get_class_start_date_handler, get_semester_info_handler,
+};
 use crate::handlers::spider::electricity::{
     get_dormitory_handler, get_electricity_handler,
     update_dormitory_handler,
 };
-use crate::handlers::spider::hdjw::get_grade_rank_from_ca_handler;
+use crate::handlers::spider::hdjw::{
+    get_class_table_handler, get_grade_rank_from_ca_handler,
+};
 use crate::handlers::spider::lab::{
     get_lab_grade_handler, get_lab_list_handler,
     get_lab_sem_info_handler, get_lab_virtual_grade_handler,
@@ -55,16 +60,12 @@ use crate::{
         },
         spider::{
             hdjw::{
-                get_class_start_date_handler,
-                get_class_table_handler,
                 get_computer_exam_arrange_handler,
                 get_empty_room_handler, get_exam_arrange_handler,
                 get_grade_chart_handler, get_grade_handler,
                 get_grade_rank_handler,
             },
-            info::{
-                get_semester_info_handler, get_user_info_handler,
-            },
+            info::get_user_info_handler,
             library::get_library_handler,
             netflow::{
                 get_netflow_day_detail_handler, get_netflow_handler,
@@ -136,6 +137,7 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     let class_table = Router::new()
         .route("/hdjw/class-table", get(get_class_table_handler)); // 获取课表
 
+    // 这个信息完全来自小程序配置，根本就不应该在hdjw的路由里
     let class_start_date = Router::new().route(
         "/hdjw/class-start-date",
         get(get_class_start_date_handler),
@@ -163,8 +165,11 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .route("/hdjw/empty-room", get(get_empty_room_handler)); // 获取空教室
 
     // 获取信息 info
+
+    // 这个信息完全来自小程序配置，根本就不应该在hdjw的路由里
     let semester_info = Router::new()
         .route("/info/smester", get(get_semester_info_handler)); // 获取学期信息
+
     let user_info =
         Router::new().route("/info/user", get(get_user_info_handler)); // 获取用户信息
 

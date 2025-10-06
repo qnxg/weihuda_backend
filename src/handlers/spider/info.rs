@@ -3,27 +3,9 @@ use axum::Extension;
 use crate::{
     app_result::AppResult,
     dtos::spider::xgxt::PersonInfo,
-    entities::spider::info::{SemesterInfoRes, UserInfoRes},
-    utils::{
-        jwt::parse_stu_id,
-        request::spider_data,
-        semester::{
-            get_next_semester_start_date, get_now_xnxq,
-            get_this_semester_start_date, get_vacation_date,
-        },
-    },
+    entities::spider::info::UserInfoRes,
+    utils::{jwt::parse_stu_id, request::spider_data},
 };
-
-pub async fn get_semester_info_handler() -> AppResult {
-    let res = SemesterInfoRes {
-        startDate: get_this_semester_start_date(),
-        term: get_now_xnxq().1,
-        year: get_now_xnxq().0,
-        vacation: get_vacation_date().await,
-        next: get_next_semester_start_date(),
-    };
-    Ok(res.into())
-}
 
 pub async fn get_user_info_handler(
     Extension(token): Extension<String>,
