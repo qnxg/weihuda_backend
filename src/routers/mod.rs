@@ -198,10 +198,6 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
             "/pt/fitness-appoint",
             get(get_fitness_appoint_handler),
         ) // 获取体测预约
-        .route(
-            "/pt/fitness-appoint",
-            get(get_fitness_appoint_handler),
-        ) // 获取体测预约
         .route("/pt/fitness", get(get_fitness_handler)); // 获取体测信息
 
     // 图书馆 library
