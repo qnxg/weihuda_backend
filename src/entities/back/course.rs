@@ -23,14 +23,14 @@ pub struct CourseInfo {
     #[serde(rename = "type")]
     pub _type: String, // 课程类型
     pub class_name: Option<String>, // 上课班级
-    pub place: Option<String>,     // 上课地点。有时候 hdjw 也不提供上课地点
-    pub area: Option<String>,      // 上课校区
-    pub teacher: Option<String>,   // 授课教师
-    pub weeks: Vec<u8>,            // 上课周次
-    pub day: u8,                   // 周几
-    pub time: u8,                  // 上课的节次
-    pub credit: Option<f32>,       // 学分
-    pub extra: Option<String>,     // 额外备注信息
-    pub customize_id: i32,         // 自定义课程id，如果不是自定义课程则为 -1
-    pub people: u16,               // 上课人数
+    pub place: Option<String>, // 上课地点。有时候 hdjw 也不提供上课地点
+    pub area: Option<String>,  // 上课校区
+    pub teacher: Option<String>, // 授课教师
+    pub weeks: Vec<u8>,        // 上课周次
+    pub day: u8,               // 周几
+    pub time: u8,              // 上课的节次
+    pub credit: Option<f32>,   // 学分
+    pub extra: Option<String>, // 额外备注信息
+    pub customize_id: i32, // 自定义课程id，如果不是自定义课程则为 -1
+    pub people: u16,       // 上课人数
 }

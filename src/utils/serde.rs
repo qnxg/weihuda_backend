@@ -1,7 +1,9 @@
 use chrono::{Duration, NaiveDateTime};
 use serde::{Deserialize, Deserializer};
 
-pub fn deserialize_naive_datetime<'de, D>(deserializer: D) -> Result<NaiveDateTime, D::Error>
+pub fn deserialize_naive_datetime<'de, D>(
+    deserializer: D,
+) -> Result<NaiveDateTime, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -20,10 +22,12 @@ where
     let s = Option::<String>::deserialize(deserializer)?;
 
     match s {
-        Some(s) => NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S")
-            .map(|dt| dt - Duration::hours(8))
-            .map(Some)
-            .map_err(serde::de::Error::custom),
+        Some(s) => {
+            NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S")
+                .map(|dt| dt - Duration::hours(8))
+                .map(Some)
+                .map_err(serde::de::Error::custom)
+        }
         None => Ok(None),
     }
 }

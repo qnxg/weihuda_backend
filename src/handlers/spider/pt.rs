@@ -3,15 +3,19 @@ use axum::Extension;
 
 use crate::{
     app_result::AppResult,
-    dtos::spider::pt::{GetCardHistoryReq, GetFitnessReq, GetLabGradeReq},
+    dtos::spider::pt::{
+        GetCardHistoryReq, GetFitnessReq, GetLabGradeReq,
+    },
     entities::spider::{
         card::{
-            CardHistoryRes, CardHistoryResItem, CardInfoRes, SpiderCardHistory, SpiderCardInfo,
+            CardHistoryRes, CardHistoryResItem, CardInfoRes,
+            SpiderCardHistory, SpiderCardInfo,
         },
         email::SpiderEmail,
         fitness::{
-            get_class_color, FitnessAppointRes, FitnessRes, FitnessResEye, FitnessResItem,
-            FitnessResReport, FitnessResStudent, FitnessResTotal, SpiderFitness,
+            get_class_color, FitnessAppointRes, FitnessRes,
+            FitnessResEye, FitnessResItem, FitnessResReport,
+            FitnessResStudent, FitnessResTotal, SpiderFitness,
             SpiderFitnessAppoint, SpiderFitnessRaw,
         },
     },
@@ -23,10 +27,13 @@ use crate::{
 };
 
 /// 获取校园一卡通信息
-pub async fn get_card_info_handler(Extension(token): Extension<String>) -> AppResult {
+pub async fn get_card_info_handler(
+    Extension(token): Extension<String>,
+) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
     let params = [("stuid", stu_id)];
-    let spider_res: SpiderCardInfo = spider_data("/pt/card/info", &params).await?;
+    let spider_res: SpiderCardInfo =
+        spider_data("/pt/card/info", &params).await?;
 
     let res = CardInfoRes {
         account: spider_res.account,
@@ -42,9 +49,14 @@ pub async fn get_card_history_handler(
     Extension(token): Extension<String>,
 ) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
-    let params =
-        [("stuid", stu_id), ("year", req.year), ("month", req.month), ("type", req._type)];
-    let spider_res: SpiderCardHistory = spider_data("/pt/card/history", &params).await?;
+    let params = [
+        ("stuid", stu_id),
+        ("year", req.year),
+        ("month", req.month),
+        ("type", req._type),
+    ];
+    let spider_res: SpiderCardHistory =
+        spider_data("/pt/card/history", &params).await?;
 
     let mut res_items = Vec::with_capacity(spider_res.items.len());
     for item in spider_res.items {
@@ -69,13 +81,16 @@ pub async fn get_card_history_handler(
 }
 
 /// 获取校园邮箱未读邮件数
-pub async fn get_email_handler(Extension(token): Extension<String>) -> AppResult {
+pub async fn get_email_handler(
+    Extension(token): Extension<String>,
+) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
     let params = [("stuid", stu_id)];
-    let spider_res: SpiderEmail = match spider_data("/pt/email", &params).await {
-        Ok(res) => res,
-        Err(_) => return Ok(serde_json::Value::Null.into()),
-    };
+    let spider_res: SpiderEmail =
+        match spider_data("/pt/email", &params).await {
+            Ok(res) => res,
+            Err(_) => return Ok(serde_json::Value::Null.into()),
+        };
 
     match spider_res.unReadCount {
         Some(count) => Ok(count.into()),
@@ -107,7 +122,9 @@ pub async fn get_lab_grade_handler(
 }
 
 /// 获取实验安排
-pub async fn get_lab_arrange_handler(Extension(_token): Extension<String>) -> AppResult {
+pub async fn get_lab_arrange_handler(
+    Extension(_token): Extension<String>,
+) -> AppResult {
     // let stu_id = parse_stu_id(&token)?;
     // let params = [("stuid", stu_id)];
     // let spider_res: Result<Vec<SpiderLabArrange>, anyhow::Error> =
@@ -133,6 +150,7 @@ pub async fn get_lab_arrange_handler(Extension(_token): Extension<String>) -> Ap
 }
 
 /// 获取体测成绩
+#[expect(clippy::too_many_lines, reason = "REFACTOR ME")]
 pub async fn get_fitness_handler(
     Query(req): Query<GetFitnessReq>,
     Extension(token): Extension<String>,
@@ -140,24 +158,46 @@ pub async fn get_fitness_handler(
     let stu_id = parse_stu_id(&token)?;
     let params = [("stuid", stu_id), ("xn", req.xn)];
     let data: SpiderFitness = spider("/gymos/grade", &params).await?;
-    let raw: SpiderFitnessRaw = spider_data("/gymos/raw_grade", &params).await?;
+    let raw: SpiderFitnessRaw =
+        spider_data("/gymos/raw_grade", &params).await?;
 
     let mut res = FitnessRes {
-        student: FitnessResStudent { name: raw.student_name, number: raw.student_num },
-        total: FitnessResTotal { score: raw.total_score, grade: raw.total_grade },
+        student: FitnessResStudent {
+            name: raw.student_name,
+            number: raw.student_num,
+        },
+        total: FitnessResTotal {
+            score: raw.total_score,
+            grade: raw.total_grade,
+        },
         report: FitnessResReport {
             desc: raw.report_desc,
-            status: data.report_status.unwrap_or(raw.status.to_string()),
+            status: data
+                .report_status
+                .unwrap_or(raw.status.to_string()),
             _type: raw.report_type.to_string(),
         },
         eye: FitnessResEye {
-            eyesight_right: format!("{} {}", raw.eyesight_right, raw.eyesight_right_detail),
-            eyesight_left: format!("{} {}", raw.eyesight_left, raw.eyesight_left_detail),
-            eye_mirror_right: format!("{} {}", raw.eye_mirror_right, raw.eye_mirror_right_detail),
-            eye_mirror_left: format!("{} {}", raw.eye_mirror_left, raw.eye_mirror_left_detail),
+            eyesight_right: format!(
+                "{} {}",
+                raw.eyesight_right, raw.eyesight_right_detail
+            ),
+            eyesight_left: format!(
+                "{} {}",
+                raw.eyesight_left, raw.eyesight_left_detail
+            ),
+            eye_mirror_right: format!(
+                "{} {}",
+                raw.eye_mirror_right, raw.eye_mirror_right_detail
+            ),
+            eye_mirror_left: format!(
+                "{} {}",
+                raw.eye_mirror_left, raw.eye_mirror_left_detail
+            ),
             eye_ametropia_right: format!(
                 "{} {}",
-                raw.eye_ametropia_right, raw.eye_ametropia_right_detail
+                raw.eye_ametropia_right,
+                raw.eye_ametropia_right_detail
             ),
             eye_ametropia_left: format!(
                 "{} {}",
@@ -168,24 +208,36 @@ pub async fn get_fitness_handler(
     };
     res.items.push(FitnessResItem {
         name: "50m".to_string(),
-        class: data.data.short_run_class.unwrap_or(get_class_color(&raw.short_run_grade)),
-        score: data.data.short_run_score.unwrap_or(raw.short_run + "秒"),
+        class: data
+            .data
+            .short_run_class
+            .unwrap_or(get_class_color(&raw.short_run_grade)),
+        score: data
+            .data
+            .short_run_score
+            .unwrap_or(raw.short_run + "秒"),
         rank: raw.short_run_grade,
         grade: raw.short_run_score,
     });
     res.items.push(FitnessResItem {
         name: "BMI".to_string(),
-        class: data.data.bmi_class.unwrap_or(get_class_color(&raw.bmi_grade)),
-        score: data
+        class: data
             .data
-            .bmi_score
-            .unwrap_or(format!("{}厘米/{}千克", raw.height, raw.weight)),
+            .bmi_class
+            .unwrap_or(get_class_color(&raw.bmi_grade)),
+        score: data.data.bmi_score.unwrap_or(format!(
+            "{}厘米/{}千克",
+            raw.height, raw.weight
+        )),
         rank: raw.bmi_grade,
         grade: raw.bmi_score,
     });
     res.items.push(FitnessResItem {
         name: "跳远".to_string(),
-        class: data.data.jump_class.unwrap_or(get_class_color(&raw.jump_grade)),
+        class: data
+            .data
+            .jump_class
+            .unwrap_or(get_class_color(&raw.jump_grade)),
         score: data.data.jump_score.unwrap_or(raw.jump + "厘米"),
         rank: raw.jump_grade,
         grade: raw.jump_score,
@@ -196,13 +248,20 @@ pub async fn get_fitness_handler(
             .data
             .pull_and_sit_class
             .unwrap_or(get_class_color(&raw.pull_and_sit_grade)),
-        score: data.data.pull_and_sit_score.unwrap_or(raw.pull_and_sit.to_string()),
+        score: data
+            .data
+            .pull_and_sit_score
+            .unwrap_or(raw.pull_and_sit.to_string()),
         rank: raw.pull_and_sit_grade,
-        grade: raw.pull_and_sit_score + raw.extra_score_pull_or_sit_up,
+        grade: raw.pull_and_sit_score
+            + raw.extra_score_pull_or_sit_up,
     });
     res.items.push(FitnessResItem {
         name: "长跑".to_string(),
-        class: data.data.run_class.unwrap_or(get_class_color(&raw.run_grade)),
+        class: data
+            .data
+            .run_class
+            .unwrap_or(get_class_color(&raw.run_grade)),
         score: data.data.run_score.unwrap_or({
             let total_seconds: u32 = raw.run.parse().unwrap_or(0);
             let minutes = total_seconds / 60;
@@ -222,24 +281,36 @@ pub async fn get_fitness_handler(
             .data
             .sit_and_reach_class
             .unwrap_or(get_class_color(&raw.sit_and_reach_grade)),
-        score: data.data.sit_and_reach_score.unwrap_or(raw.sit_and_reach + "厘米"),
+        score: data
+            .data
+            .sit_and_reach_score
+            .unwrap_or(raw.sit_and_reach + "厘米"),
         rank: raw.sit_and_reach_grade,
         grade: raw.sit_and_reach_score,
     });
     res.items.push(FitnessResItem {
         name: "肺活量".to_string(),
-        class: data.data.vc_class.unwrap_or(get_class_color(&raw.vc_grade)),
-        score: data.data.vc_score.unwrap_or(raw.vc.to_string() + "毫升"),
+        class: data
+            .data
+            .vc_class
+            .unwrap_or(get_class_color(&raw.vc_grade)),
+        score: data
+            .data
+            .vc_score
+            .unwrap_or(raw.vc.to_string() + "毫升"),
         rank: raw.vc_grade,
         grade: raw.vc_score,
     });
     Ok(res.into())
 }
 
-pub async fn get_fitness_appoint_handler(Extension(token): Extension<String>) -> AppResult {
+pub async fn get_fitness_appoint_handler(
+    Extension(token): Extension<String>,
+) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
     let params = [("stuid", stu_id)];
-    let spider_res: Vec<SpiderFitnessAppoint> = spider_data("/gymos/appoint", &params).await?;
+    let spider_res: Vec<SpiderFitnessAppoint> =
+        spider_data("/gymos/appoint", &params).await?;
 
     let mut res = Vec::with_capacity(spider_res.len());
     for item in spider_res {

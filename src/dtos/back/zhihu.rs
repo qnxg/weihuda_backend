@@ -4,7 +4,6 @@ use serde::Deserialize;
 use crate::utils::serde::deserialize_option_naive_datetime;
 
 /// 获取知湖页列表
-#[allow(non_snake_case)]
 #[derive(Deserialize, Debug)]
 pub struct GetZhihuPageReq {
     pub offset: u32,
@@ -20,7 +19,7 @@ pub struct CrudZhihuByIdReq {
     pub id: u32,
 }
 
-#[allow(non_snake_case)]
+#[expect(non_snake_case)]
 #[derive(Deserialize, Debug)]
 pub struct UpdateZhihuBody {
     pub title: String,

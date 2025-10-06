@@ -58,7 +58,9 @@ pub struct SpiderRawGradeInfoItem {
     // pub xsgl001id: String,
 }
 
-pub fn raw_grade_item_struct_to_map(item: &SpiderRawGradeInfoItem) -> HashMap<String, f64> {
+pub fn raw_grade_item_struct_to_map(
+    item: &SpiderRawGradeInfoItem,
+) -> HashMap<String, f64> {
     // 构建HashMap方便后续程序逻辑处理
     let mut map = HashMap::new();
     if let Some(value) = item.cjxm1 {

@@ -1,12 +1,17 @@
 # Rust Full Back
+
 将原有的中间件和后端合并，用Rust语言重写，提高性能。Web框架采用axum，异步运行时采用Tokio，数据库采用Sqlx，json和yaml的解析采用serde。
+
 ## 运行
+
 1. 前往[Rust官网](https://www.rust-lang.org/tools/install)按指示安装好Rust工具链
 2. VSCode安装rust-analyzer插件，用来提供代码提示
 3. `cargo run`即可运行
 4. 发布时候运行`cargo build --release`生成可执行文件，Linux客户端最好在WSL环境编译。
 5. 注意：不是湖南大学校园网环境需要开启**湖南大学VPN**，这样才能连接到数据库完成sql语句的静态结构检查，否则无法成功编译。DATABATE_URL在.env文件中配置，也可以创建一个相同结构的本地数据库用来供结构静态检查。
+
 ## 项目结构
+
 ```shell
 |-- Cargo.toml      // 项目依赖配置
 |-- Makefile        // 暂时没有用到
@@ -18,7 +23,9 @@
 |-- .env            // 环境变量配置，编译时候sqlx会根据这个文件连接数据库进行静态结构检查   
 `-- target          // 编译文件
 ```
+
 ## 代码结构
+
 ```shell
 |-- app_error.rs    // 自定义的错误类型，统一处理，逻辑层只负责传递错误
 |-- app_result.rs   // 自定义的结果类型，统一处理，逻辑层只负责传递结果
@@ -50,9 +57,13 @@
     `-- wrapper.rs  // 返回数据的包装
 ```
 ## 逻辑层代码示例(以get_course_handler为例)
+
 这个函数闲置了，因为获取自定义课程直接在获取class_table中一起实现了，这里只是一个示例
+
 ### 1. 首先定义请求参数
+
 在schema/back/course.rs中定义请求参数的结构，获取课程请求需要xn和xq两个Query参数
+
 ```rust
 use serde::Deserialize;
 
@@ -63,13 +74,18 @@ pub struct GetCourseReq {
 }
 ```
 其中展开了Deserialize宏，使得结构体能够从请求数据反序列化解析出来，继承Debug为了方便打印出结构方便调试。
+
 ### 2. 书写逻辑层代码
+
 在handler/back/course.rs中书写逻辑层代码。
+
 * 首先思考函数需要哪些参数：
 1. 由于需要鉴权，所以需要获取jwt请求头。
 2. 由于需要获取数据库连接，所以需要获取数据库连接池。
 3. 由于需要获取请求参数且为Query参数，所以需要使用Query解析请求参数。
+
 注意：排列顺序无特别要求，但是当需要解析Json参数时候，Json必须排列在最后一个，因为解析Json会消耗掉整个Request。
+
 * 其次书写逻辑层代码
 1. 逻辑层需要获取数据库返回值或者爬虫返回值需要在model中定义返回值的结构（需要derive Deserialize的宏用来反序列化为结构体）。函数的返回值也要定义返回值的结构（需要derive Serialize的宏用来序列化结构体为json数据）。
 2. 逻辑层通用逻辑为：获取mini_bind_id或stu_id，然后根据请求参数查询数据库或者爬虫获取数据，最后返回数据。

@@ -1,13 +1,15 @@
 use crate::{
     app_result::{AppResult, AppState},
-    dtos::back::course::{AddCourseReq, DeleteCourseReq, GetCourseReq},
+    dtos::back::course::{
+        AddCourseReq, DeleteCourseReq, GetCourseReq,
+    },
     entities::back::course::CustomizeCourseInfo,
     extractors::{Json, Query},
     utils::jwt::parse_id,
 };
 use axum::{extract::State, Extension};
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 pub async fn get_course_handler(
     State(data): AppState,
     Query(req): Query<GetCourseReq>,

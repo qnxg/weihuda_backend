@@ -22,7 +22,9 @@ impl Count {
         Self {
             count: AtomicUsize::new(0),
             err_count: AtomicUsize::new(0),
-            last_update: RwLock::new(Local::now().naive_local().date()),
+            last_update: RwLock::new(
+                Local::now().naive_local().date(),
+            ),
         }
     }
 }
@@ -43,7 +45,8 @@ pub async fn count_middleware(
             state.count.store(1, Ordering::Relaxed);
         }
         let err_count = state.err_count.load(Ordering::Relaxed);
-        let _res = update_count_file(count, err_count, &last_update).await; // 不去处理这个错误
+        let _res =
+            update_count_file(count, err_count, &last_update).await; // 不去处理这个错误
         if _res.is_err() {
             tracing::error!("更新计数文件失败");
         }

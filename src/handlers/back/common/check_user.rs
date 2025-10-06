@@ -4,8 +4,10 @@ use crate::{
 };
 use std::sync::Arc;
 
-#[allow(non_snake_case)]
-pub async fn check_by_code(data: Arc<DbPool>, code: &str) -> Result<MiniBind, AppError> {
+pub async fn check_by_code(
+    data: Arc<DbPool>,
+    code: &str,
+) -> Result<MiniBind, AppError> {
     let openid = get_openid(code).await?;
     let res = sqlx::query_as!(
         MiniBind,
@@ -17,8 +19,10 @@ pub async fn check_by_code(data: Arc<DbPool>, code: &str) -> Result<MiniBind, Ap
     Ok(res)
 }
 
-#[allow(non_snake_case)]
-pub async fn check_by_stu_id(data: Arc<DbPool>, stu_id: &str) -> Result<MiniBind, AppError> {
+pub async fn check_by_stu_id(
+    data: Arc<DbPool>,
+    stu_id: &str,
+) -> Result<MiniBind, AppError> {
     let res = sqlx::query_as!(
         MiniBind,
         r#"
@@ -29,9 +33,10 @@ pub async fn check_by_stu_id(data: Arc<DbPool>, stu_id: &str) -> Result<MiniBind
     Ok(res)
 }
 
-#[allow(dead_code)]
-#[allow(non_snake_case)]
-pub async fn check_by_openid(data: Arc<DbPool>, openid: &str) -> Result<MiniBind, AppError> {
+pub async fn check_by_openid(
+    data: Arc<DbPool>,
+    openid: &str,
+) -> Result<MiniBind, AppError> {
     let res = sqlx::query_as!(
         MiniBind,
         r#"
@@ -42,9 +47,11 @@ pub async fn check_by_openid(data: Arc<DbPool>, openid: &str) -> Result<MiniBind
     Ok(res)
 }
 
-#[allow(dead_code)]
-#[allow(non_snake_case)]
-pub async fn check_by_id(data: Arc<DbPool>, id: u32) -> Result<MiniBind, AppError> {
+#[expect(dead_code)]
+pub async fn check_by_id(
+    data: Arc<DbPool>,
+    id: u32,
+) -> Result<MiniBind, AppError> {
     let res = sqlx::query_as!(
         MiniBind,
         r#"

@@ -13,7 +13,7 @@ pub struct ConfigRes {
     pub rows: Vec<Config>,
 }
 
-#[allow(non_snake_case)]
+#[expect(non_snake_case)]
 #[derive(Serialize, Debug)]
 pub struct Config {
     pub id: u32,
@@ -24,7 +24,7 @@ pub struct Config {
     pub enabled: Option<i8>,
 }
 
-#[allow(non_snake_case)]
+#[expect(non_snake_case)]
 pub async fn get_config_handler(
     State(data): AppState,
     Query(req): Query<GetConfigReq>,
@@ -60,7 +60,10 @@ pub async fn get_config_handler(
     .fetch_all(&data.db)
     .await?;
 
-    let res = ConfigRes { count: res.len(), rows: res };
+    let res = ConfigRes {
+        count: res.len(),
+        rows: res,
+    };
 
     Ok(res.into())
 }

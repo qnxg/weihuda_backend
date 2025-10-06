@@ -14,7 +14,10 @@ use sqlx::MySqlPool;
 
 /// 解析宿舍信息，返回 (park, build, room)
 /// 这个函数目前来说还容易漏情况，所以单独拿出来便于测试
-fn parse_dormitory(dormitory: Dormitory) -> Result<(String, String, String)> {
+#[expect(clippy::too_many_lines, reason = "REFACTOR ME")]
+fn parse_dormitory(
+    dormitory: Dormitory,
+) -> Result<(String, String, String)> {
     let park = match dormitory.park.as_str() {
         "南校区" => 1,
         "财院校区" => 2,
@@ -39,17 +42,21 @@ fn parse_dormitory(dormitory: Dormitory) -> Result<(String, String, String)> {
         (1, "18舍") => "25",
         // 19舍比较特殊，常见情况：南校区/19舍/1-附204，南校区/19舍/2-320
         (1, "19舍") => {
-            let no = dormitory
-                .room
-                .chars()
-                .next()
-                .ok_or(anyhow!("解析宿舍信息失败：{}", dormitory.room))?;
+            let no = dormitory.room.chars().next().ok_or(anyhow!(
+                "解析宿舍信息失败：{}",
+                dormitory.room
+            ))?;
             match no {
                 '1' => "25-1",
                 '2' => "25-2",
                 '3' => "25-3",
                 '4' => "25-4",
-                _ => return Err(anyhow!("解析宿舍信息失败：{}", dormitory.room)),
+                _ => {
+                    return Err(anyhow!(
+                        "解析宿舍信息失败：{}",
+                        dormitory.room
+                    ))
+                }
             }
         }
         (1, "南楼") => "26",
@@ -119,7 +126,11 @@ fn parse_dormitory(dormitory: Dormitory) -> Result<(String, String, String)> {
         (7, "7栋") => "65",
         _ => return Err(anyhow!("解析宿舍信息失败，未知园区")),
     };
-    let room = match (park, dormitory.build.as_str(), dormitory.room.as_str()) {
+    let room = match (
+        park,
+        dormitory.build.as_str(),
+        dormitory.room.as_str(),
+    ) {
         // 财院校区A栋，请在房间号首位加上A、B、C，暂时不知道怎么处理
         // 德智园区，在房间号前加上楼栋号：
         (4, "2栋", r) => format!("2{}", r),
@@ -138,7 +149,10 @@ fn parse_dormitory(dormitory: Dormitory) -> Result<(String, String, String)> {
         (1, "19舍", r) => {
             let parts = r.split('-').collect::<Vec<&str>>();
             if parts.len() != 2 {
-                return Err(anyhow!("解析宿舍信息失败：{}", dormitory.room));
+                return Err(anyhow!(
+                    "解析宿舍信息失败：{}",
+                    dormitory.room
+                ));
             }
             if parts[1].starts_with('附') {
                 format!("F{}", parts[1].replace('附', ""))
@@ -151,11 +165,17 @@ fn parse_dormitory(dormitory: Dormitory) -> Result<(String, String, String)> {
     Ok((park.to_string(), build.to_string(), room))
 }
 
-#[allow(clippy::get_first)]
-async fn get_dormitory(stu_id: &str, db: &MySqlPool) -> Result<Option<Dormitory>> {
-    let text = sqlx::query_scalar!("select room from mini_bind where stuID = ?", stu_id)
-        .fetch_one(db)
-        .await?;
+#[expect(clippy::get_first)]
+async fn get_dormitory(
+    stu_id: &str,
+    db: &MySqlPool,
+) -> Result<Option<Dormitory>> {
+    let text = sqlx::query_scalar!(
+        "select room from mini_bind where stuID = ?",
+        stu_id
+    )
+    .fetch_one(db)
+    .await?;
     if text == "0" || text.is_empty() {
         return Ok(None);
     }
@@ -188,9 +208,14 @@ pub async fn get_electricity_handler(
 ) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
     // 拉取
-    let mut dormitory = get_dormitory(stu_id.as_str(), &data.db).await?;
+    let mut dormitory =
+        get_dormitory(stu_id.as_str(), &data.db).await?;
     if dormitory.is_none() {
-        update_dormitory_handler(State(data.clone()), Extension(token)).await?;
+        update_dormitory_handler(
+            State(data.clone()),
+            Extension(token),
+        )
+        .await?;
         dormitory = get_dormitory(stu_id.as_str(), &data.db).await?;
     }
     // 还为空就摆烂
@@ -228,8 +253,12 @@ pub async fn get_electricity_handler(
                 ("room", room),
                 ("refresh", req.refresh.to_string()),
             ];
-            let res_north = spider_data("/electricity/query", &params_north).await;
-            let res_south = spider_data("/electricity/query", &params_south).await;
+            let res_north =
+                spider_data("/electricity/query", &params_north)
+                    .await;
+            let res_south =
+                spider_data("/electricity/query", &params_south)
+                    .await;
             match (res_north, res_south) {
                 (Ok(n), Err(_)) => {
                     // 这样做是为了给编译器类型推断提示
@@ -240,7 +269,10 @@ pub async fn get_electricity_handler(
                     let s: String = s;
                     Ok(s.into())
                 }
-                _ => Err(anyhow!("获取电量信息失败，无法区分宿舍南北").into()),
+                _ => {
+                    Err(anyhow!("获取电量信息失败，无法区分宿舍南北")
+                        .into())
+                }
             }
         }
         _ => {
@@ -250,7 +282,8 @@ pub async fn get_electricity_handler(
                 ("room", room),
                 ("refresh", req.refresh.to_string()),
             ];
-            let res: String = spider_data("/electricity/query", &params).await?;
+            let res: String =
+                spider_data("/electricity/query", &params).await?;
             Ok(res.into())
         }
     }
@@ -268,8 +301,11 @@ pub async fn update_dormitory_handler(
         .del(format!("person_info-{}", stu_id))
         .await
         .map_err(|e| anyhow!("删除 Redis 缓存失败：{}", e))?;
-    let person_info: PersonInfo =
-        spider_data("/xgxt/person_info", &[("stuid", stu_id.clone())]).await?;
+    let person_info: PersonInfo = spider_data(
+        "/xgxt/person_info",
+        &[("stuid", stu_id.clone())],
+    )
+    .await?;
     // 将学工系统里的住宿信息解析
     // dbg!(&person_info);
     let mut park = "";
@@ -378,6 +414,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[expect(clippy::get_first)]
     async fn test_all_dormitory() {
         // 这个测试将根据数据集测试对所有宿舍信息的解析，耗时会比较长
         // 数据集在 testdata/electricity/weihuda_mini_bind_[1-9].json
@@ -388,10 +425,12 @@ mod tests {
                 i
             ))
             .unwrap();
-            let arr: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap();
+            let arr: Vec<serde_json::Value> =
+                serde_json::from_str(&text).unwrap();
             for item in arr {
                 let id = item.get("id").unwrap().as_i64().unwrap();
-                let room = item.get("room").unwrap().as_str().unwrap();
+                let room =
+                    item.get("room").unwrap().as_str().unwrap();
                 let arr = room.split("/").collect::<Vec<&str>>();
                 if arr.len() != 3 {
                     continue;
@@ -407,11 +446,12 @@ mod tests {
                 if flag {
                     continue;
                 }
-                let dormitory = crate::dtos::spider::xgxt::Dormitory {
-                    park: arr.get(0).unwrap().to_string(),
-                    build: arr.get(1).unwrap().to_string(),
-                    room: arr.get(2).unwrap().to_string(),
-                };
+                let dormitory =
+                    crate::dtos::spider::xgxt::Dormitory {
+                        park: arr.get(0).unwrap().to_string(),
+                        build: arr.get(1).unwrap().to_string(),
+                        room: arr.get(2).unwrap().to_string(),
+                    };
                 let res = super::parse_dormitory(dormitory);
                 if res.is_err() {
                     eprintln!("id={} 解析失败，room={}", id, room);

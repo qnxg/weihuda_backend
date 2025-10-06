@@ -11,7 +11,11 @@ pub async fn verify_password(
 ) -> Result<VerifyResult, anyhow::Error> {
     let res = client
         .post(&CFG.service.verify_url)
-        .form(&[("stuid", stu_id), ("hdjwpass", hdjw_pass), ("ptpass", stu_pass)])
+        .form(&[
+            ("stuid", stu_id),
+            ("hdjwpass", hdjw_pass),
+            ("ptpass", stu_pass),
+        ])
         .send()
         .await
         .map_err(|_| anyhow::anyhow!("密码验证服务请求失败"))?

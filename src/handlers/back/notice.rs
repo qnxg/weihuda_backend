@@ -7,12 +7,14 @@ use serde::Serialize;
 
 use crate::{
     app_result::{AppResult, AppState},
-    dtos::back::notice::{GetNoticeReq, PostMessageLeft, PutNoticeByIdReq},
+    dtos::back::notice::{
+        GetNoticeReq, PostMessageLeft, PutNoticeByIdReq,
+    },
     extractors::{Json, Query},
     utils::jwt::parse_stu_id,
 };
 
-#[allow(non_snake_case)]
+#[expect(non_snake_case)]
 #[derive(Serialize, Debug)]
 pub struct Notice {
     pub id: u32,
@@ -31,7 +33,7 @@ pub struct NoticeRes {
     pub rows: Vec<Notice>,
 }
 
-#[allow(non_snake_case)]
+#[expect(non_snake_case)]
 pub async fn get_notice_handler(
     State(data): AppState,
     Query(req): Query<GetNoticeReq>,
@@ -88,12 +90,14 @@ pub async fn get_notice_handler(
     .fetch_all(&data.db)
     .await?;
 
-    let res = NoticeRes { count: res.len() as u32, rows: res };
+    let res = NoticeRes {
+        count: res.len() as u32,
+        rows: res,
+    };
 
     Ok(res.into())
 }
 
-#[allow(non_snake_case)]
 pub async fn put_notice_by_id_handler(
     State(data): AppState,
     Path(id): Path<u32>,

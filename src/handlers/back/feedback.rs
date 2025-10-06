@@ -4,7 +4,9 @@ use axum::extract::State;
 
 use crate::{
     app_result::{AppResult, AppState},
-    dtos::back::feedback::{AddFeedbackReq, GetFeedbackReq, UpdateFeedbackReq},
+    dtos::back::feedback::{
+        AddFeedbackReq, GetFeedbackReq, UpdateFeedbackReq,
+    },
     entities::back::feedback::{FeedbackInfo, FeedbackRes},
     extractors::{Json, Query},
 };
@@ -30,7 +32,10 @@ pub async fn get_feedback_handler(
     .fetch_all(&data.db)
     .await?;
 
-    let res = FeedbackRes { count: feedback_items.len() as u32, rows: feedback_items };
+    let res = FeedbackRes {
+        count: feedback_items.len() as u32,
+        rows: feedback_items,
+    };
 
     Ok(res.into())
 }

@@ -21,7 +21,9 @@ use crate::{
 };
 
 // 清除redis缓存
-async fn clear_redis_cache(stu_id: &str) -> Result<(), anyhow::Error> {
+async fn clear_redis_cache(
+    stu_id: &str,
+) -> Result<(), anyhow::Error> {
     let mut con = get_redis_conn().await?;
     let keys: Vec<String> = con.keys(format!("*{}*", stu_id)).await?;
     for key in keys {
@@ -30,10 +32,18 @@ async fn clear_redis_cache(stu_id: &str) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub async fn bind_user_handler(State(data): AppState, Json(req): Json<BindReq>) -> AppResult {
+pub async fn bind_user_handler(
+    State(data): AppState,
+    Json(req): Json<BindReq>,
+) -> AppResult {
     // 三个请求并发提高速度，验证密码和获取openid和加密密码
     let (verify_res, openid, crypto_res, _) = try_join!(
-        verify_password(&client, &req.stuId, &req.hdjwPassword, &req.stuPassword),
+        verify_password(
+            &client,
+            &req.stuId,
+            &req.hdjwPassword,
+            &req.stuPassword
+        ),
         get_openid(&req.code),
         crypto_password(&client, &req.hdjwPassword, &req.stuPassword),
         clear_redis_cache(&req.stuId),
