@@ -1,5 +1,5 @@
 pub mod auth;
-mod common;
+pub mod common;
 pub mod config;
 pub mod course;
 pub mod exam_num;
