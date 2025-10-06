@@ -1,16 +1,16 @@
 use crate::app_error::AppError;
-use crate::dtos::spider::hdjw::HdjwGradeRankReq;
+use crate::dtos::spider::hdjw::{
+    GetExamArrangeReq, HdjwGradeRankReq,
+};
 use crate::entities::back::course::CourseInfo;
 use crate::entities::back::flex_time::FlexTime;
 use crate::entities::spider::grade::{
     CaGradeRank, GradeInfo, HdjwGradeRank, SpiderGradeInfo,
 };
-use crate::utils::semester::get_class_start_date_by_xnxq;
 use crate::{
     app_result::{AppResult, AppState},
     dtos::spider::hdjw::{
-        GetClassStartDateReq, GetClassTableReq, GetEmptyRoomReq,
-        GetExamArrangeReq, GetGradeReq,
+        GetClassTableReq, GetEmptyRoomReq, GetGradeReq,
     },
     entities::{
         back::course::CustomizeCourseInfo,
@@ -292,14 +292,6 @@ pub async fn get_class_table_handler(
         item.weeks.sort_unstable();
     }
     Ok(res.into())
-}
-
-pub async fn get_class_start_date_handler(
-    Query(req): Query<GetClassStartDateReq>,
-) -> AppResult {
-    Ok(get_class_start_date_by_xnxq(req.xn, req.xq)
-        .unwrap_or_default()
-        .into())
 }
 
 pub async fn get_grade_handler(
