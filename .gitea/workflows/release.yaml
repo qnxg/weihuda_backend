@@ -1,0 +1,53 @@
+on:
+  release:
+    types: [published]
+
+jobs:
+  upload-assets:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: https://gitee.com/skr2005/checkout@v5
+
+      - name: Setup Toolchain
+        uses: ./.gitea/workflows/setup-toolchain
+
+      - name: Build
+        run: |
+          cargo build --release --bin ${{ github.event.repository.name }} --target x86_64-unknown-linux-musl
+      
+      - uses: https://gitee.com/skr2005/gitea-release-action@v1
+        with:
+          files: |-
+            target/x86_64-unknown-linux-musl/release/${{ github.event.repository.name }}
+      
+      - name: Setup SSH
+        uses: https://gitee.com/greyCloud/ssh-key-action.git@v2
+        with:
+          key: ${{ secrets.SSH_KEY_118 }}
+          known_hosts: unnecessary
+
+      - name: Deploy to Server
+        run: |
+          apt-get install -y sshpass
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME_118 }}@${{ secrets.SSH_SERVER_118 }} << 'EOF'
+          systemctl stop back
+          EOF
+          sshpass scp -o StrictHostKeyChecking=no \
+            -P 22 target/x86_64-unknown-linux-musl/release/${{ github.event.repository.name }} \
+            ${{ secrets.SSH_USERNAME_118 }}@${{ secrets.SSH_SERVER_118 }}:${{ vars.DEPLOY_DIR }}/
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME_118 }}@${{ secrets.SSH_SERVER_118 }} << 'EOF'
+          chmod +x ${{ vars.DEPLOY_DIR }}/${{ github.event.repository.name }}
+          systemctl restart back
+          EOF
+      
+      # - name: Upload release file to server
+      #   uses: https://github.com/appleboy/scp-action@v1
+      #   with:
+      #     host: ${{ secrets.HOST }}
+      #     username: root
+      #     password: ${{ secrets.PASSWORD }}
+      #     port: 22
+      #     source: target/x86_64-unknown-linux-musl/release/${{ github.event.repository.name }}
+      #     target: /root/rust-spider-2024/
