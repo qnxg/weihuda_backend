@@ -6,7 +6,9 @@ use axum::{extract::State, Extension};
 
 use crate::{
     app_result::AppResult,
-    dtos::back::exam_num::{AddExamNumberReq, DeleteExamNumberReq, UpdateExamNumberReq},
+    dtos::back::exam_num::{
+        AddExamNumberReq, DeleteExamNumberReq, UpdateExamNumberReq,
+    },
     entities::back::exam_num::ExamNumberInfo,
     utils::jwt::parse_id,
 };
@@ -60,7 +62,7 @@ pub async fn add_exam_num_handler(
     Ok("添加成功".into())
 }
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 pub async fn update_exam_num_handler(
     State(data): AppState,
     Extension(token): Extension<String>,

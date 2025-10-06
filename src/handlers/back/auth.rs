@@ -2,7 +2,9 @@ use crate::{
     app_result::{AppResult, AppState},
     dtos::back::auth::{AuthReq, FlutterReq},
     extractors::{Json, Query},
-    handlers::back::common::check_user::{check_by_code, check_by_stu_id},
+    handlers::back::common::check_user::{
+        check_by_code, check_by_stu_id,
+    },
     utils::{
         jwt::{auth, parse_stu_id},
         request::client,
@@ -23,7 +25,10 @@ use std::{
 
 use super::common::validation::verify_password;
 
-pub async fn get_auth_handler(State(data): AppState, Query(req): Query<AuthReq>) -> AppResult {
+pub async fn get_auth_handler(
+    State(data): AppState,
+    Query(req): Query<AuthReq>,
+) -> AppResult {
     let user = check_by_code(data, &req.code).await?;
     if user.stuID.is_none() {
         return Err("找不到学号".into());
@@ -37,7 +42,13 @@ pub async fn flutter_auth_handler(
     State(data): AppState,
     Json(req): Json<FlutterReq>,
 ) -> AppResult {
-    let verify_res = verify_password(&client, &req.stu_id, &req.stu_pwd, &req.stu_pwd).await?;
+    let verify_res = verify_password(
+        &client,
+        &req.stu_id,
+        &req.stu_pwd,
+        &req.stu_pwd,
+    )
+    .await?;
     match verify_res.code {
         0 => {} // 验证成功
         1 => return Err("个人门户密码错误".into()),
@@ -111,11 +122,15 @@ pub async fn get_auth_qrcode_handler() -> AppResult {
     );
 
     // 检查历史二维码，如果超过10分钟则删除
-    map.retain(|_, v| now.signed_duration_since(v.create_time).num_minutes() <= 10);
+    map.retain(|_, v| {
+        now.signed_duration_since(v.create_time).num_minutes() <= 10
+    });
     Ok(code.into())
 }
 
-pub async fn get_auth_qrcode_status_handler(Path(code): Path<String>) -> AppResult {
+pub async fn get_auth_qrcode_status_handler(
+    Path(code): Path<String>,
+) -> AppResult {
     let map = AUTH_QRCODE_MAP.lock().unwrap();
     if map.contains_key(&code) {
         Ok(map.get(&code).unwrap().status.clone().into())
@@ -134,7 +149,9 @@ pub async fn put_auth_qrcode_status_handler(
     let stu_id = parse_stu_id(&token)?;
 
     // 参数校验
-    if !["using", "confirmed", "canceled"].contains(&data.status.as_str()) {
+    if !["using", "confirmed", "canceled"]
+        .contains(&data.status.as_str())
+    {
         return Err("status参数不合法".into());
     }
 
@@ -156,7 +173,9 @@ pub async fn put_auth_qrcode_status_handler(
     }
 }
 
-pub async fn get_auth_qrcode_info_handler(Path(code): Path<String>) -> AppResult {
+pub async fn get_auth_qrcode_info_handler(
+    Path(code): Path<String>,
+) -> AppResult {
     let mut map = AUTH_QRCODE_MAP.lock().unwrap();
 
     if let Some(qrcode) = map.get_mut(&code) {

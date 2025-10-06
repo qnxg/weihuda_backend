@@ -39,7 +39,8 @@ async fn fetch_class_start_date_table() -> Vec<(String, String)> {
     .expect("学期日期表不见了")
     .value;
     let mut table: Vec<(String, String)> =
-        serde_json::from_str(&table_json).expect("解析学期开始日期表JSON出错");
+        serde_json::from_str(&table_json)
+            .expect("解析学期开始日期表JSON出错");
     for (xnxq, date) in &table {
         assert!(is_well_formed_xnxq(xnxq));
         assert!(is_well_formed_date(date));
@@ -52,13 +53,15 @@ async fn fetch_class_start_date_table() -> Vec<(String, String)> {
 }
 
 pub fn is_well_formed_date(date: &str) -> bool {
-    static PATTERN: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$").unwrap());
+    static PATTERN: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$").unwrap()
+    });
     PATTERN.is_match(date)
 }
 
 pub fn is_well_formed_xnxq(xnxq: &str) -> bool {
-    static PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[0-9]{4}-[0-9]{1}$").unwrap());
+    static PATTERN: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"^[0-9]{4}-[0-9]{1}$").unwrap());
     PATTERN.is_match(xnxq)
 }
 
@@ -90,10 +93,14 @@ pub fn date_today() -> (String, i32, u32, u32) {
     (format!("{year}-{month:0>2}-{day:0>2}"), year, month, day)
 }
 
-pub fn get_class_start_date_by_xnxq(xn: u32, xq: u32) -> Option<String> {
+pub fn get_class_start_date_by_xnxq(
+    xn: u32,
+    xq: u32,
+) -> Option<String> {
     let key = format!("{}-{}", xn, xq);
     let table = CLASS_START_DATE.read();
-    let idx = table.binary_search_by_key(&&key, |(xn_xq, _)| xn_xq).ok()?;
+    let idx =
+        table.binary_search_by_key(&&key, |(xn_xq, _)| xn_xq).ok()?;
     Some(table[idx].1.clone())
 }
 
@@ -140,22 +147,22 @@ mod test {
 
     #[test]
     fn test_is_well_formed_date() {
-        assert!(is_well_formed_date("1145-14-19".into()));
-        assert!(is_well_formed_date("1919-81-00".into()));
-        assert!(!is_well_formed_date("1919-1-1".into()));
-        assert!(!is_well_formed_date("1919-1-100".into()));
-        assert!(!is_well_formed_date("919-100-1".into()));
-        assert_eq!(is_well_formed_date("2O25-O5-O9".into()), false);
+        assert!(is_well_formed_date("1145-14-19"));
+        assert!(is_well_formed_date("1919-81-00"));
+        assert!(!is_well_formed_date("1919-1-1"));
+        assert!(!is_well_formed_date("1919-1-100"));
+        assert!(!is_well_formed_date("919-100-1"));
+        assert!(!is_well_formed_date("2O25-O5-O9"));
     }
 
     #[test]
     fn test_is_well_formed_xnxq() {
-        assert!(is_well_formed_xnxq("2077-1".into()));
-        assert!(is_well_formed_xnxq("7707-9".into()));
-        assert!(!is_well_formed_xnxq("7707-90".into()));
-        assert!(!is_well_formed_xnxq("707-90".into()));
-        assert!(!is_well_formed_xnxq("70799-9".into()));
-        assert_eq!(is_well_formed_xnxq("2O25-1".into()), false);
+        assert!(is_well_formed_xnxq("2077-1"));
+        assert!(is_well_formed_xnxq("7707-9"));
+        assert!(!is_well_formed_xnxq("7707-90"));
+        assert!(!is_well_formed_xnxq("707-90"));
+        assert!(!is_well_formed_xnxq("70799-9"));
+        assert!(!is_well_formed_xnxq("2O25-1"));
     }
 
     #[test]
@@ -175,16 +182,25 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_this_semester_start_date() {
-        assert_eq!(get_this_semester_start_date(), "2025-02-16".to_string());
+        assert_eq!(
+            get_this_semester_start_date(),
+            "2025-02-16".to_string()
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_next_semester_start_date() {
-        assert_eq!(get_next_semester_start_date(), "2025-06-22".to_string());
+        assert_eq!(
+            get_next_semester_start_date(),
+            "2025-06-22".to_string()
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_vacation() {
-        assert_eq!(get_vacation_date().await, "2025-01-19".to_string());
+        assert_eq!(
+            get_vacation_date().await,
+            "2025-01-19".to_string()
+        );
     }
 }

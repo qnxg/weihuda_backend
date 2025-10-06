@@ -5,10 +5,6 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[lints.rust]
-unsafe_code = "forbid"
-# unused = "allow"       # for exploratory development
-
 [dependencies]
 anyhow = "1.0.81"
 axum = { version = "0.7.5", features = ["macros"] }

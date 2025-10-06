@@ -2,20 +2,29 @@ use crate::app_error::AppError;
 use crate::dtos::spider::hdjw::HdjwGradeRankReq;
 use crate::entities::back::course::CourseInfo;
 use crate::entities::back::flex_time::FlexTime;
-use crate::entities::spider::grade::{CaGradeRank, GradeInfo, HdjwGradeRank, SpiderGradeInfo};
+use crate::entities::spider::grade::{
+    CaGradeRank, GradeInfo, HdjwGradeRank, SpiderGradeInfo,
+};
 use crate::utils::semester::get_class_start_date_by_xnxq;
 use crate::{
     app_result::{AppResult, AppState},
     dtos::spider::hdjw::{
-        GetClassStartDateReq, GetClassTableReq, GetEmptyRoomReq, GetExamArrangeReq, GetGradeReq,
+        GetClassStartDateReq, GetClassTableReq, GetEmptyRoomReq,
+        GetExamArrangeReq, GetGradeReq,
     },
     entities::{
         back::course::CustomizeCourseInfo,
         spider::{
             class_table::SpiderCourseInfo,
             empty_room::EmptyRoomRes,
-            exam::{ExamArrangeRes, SpiderComputerExamArrange, SpiderExamArrange},
-            grade::{F64OrString, GradeChartRes, SpiderGradeChart, U32OrString},
+            exam::{
+                ExamArrangeRes, SpiderComputerExamArrange,
+                SpiderExamArrange,
+            },
+            grade::{
+                F64OrString, GradeChartRes, SpiderGradeChart,
+                U32OrString,
+            },
         },
     },
     extractors::Query,
@@ -32,7 +41,10 @@ use std::collections::{HashMap, HashSet};
 use std::vec;
 
 // 课表解析的代码还不太稳定，并且逻辑比较长，所以考虑单独提出来
-async fn parse_class_table(data: Vec<SpiderCourseInfo>) -> Result<Vec<CourseInfo>> {
+#[expect(clippy::too_many_lines, reason = "REFACTOR ME")]
+async fn parse_class_table(
+    data: Vec<SpiderCourseInfo>,
+) -> Result<Vec<CourseInfo>> {
     let mut res = Vec::new();
     let re = Regex::new(r"周(.)第(.*)节.*\{第(.*)周\}").unwrap();
     for item in data {
@@ -42,7 +54,9 @@ async fn parse_class_table(data: Vec<SpiderCourseInfo>) -> Result<Vec<CourseInfo
         let mut record = HashMap::new();
         let detail_times = item.sktime.split(';');
         for (i, time) in detail_times.into_iter().enumerate() {
-            let caps = re.captures(time).ok_or(anyhow!("解析课程时间失败"))?;
+            let caps = re
+                .captures(time)
+                .ok_or(anyhow!("解析课程时间失败"))?;
             let day = caps
                 .get(1)
                 .ok_or(anyhow!("解析课程时间失败"))?
@@ -66,8 +80,12 @@ async fn parse_class_table(data: Vec<SpiderCourseInfo>) -> Result<Vec<CourseInfo
                 .as_str()
                 .split('、')
                 .collect::<Vec<_>>();
-            let weeks = caps.get(3).ok_or(anyhow!("解析课程时间失败"))?.as_str();
-            let place = places.get(i).ok_or(anyhow!("解析课程地点失败"))?;
+            let weeks = caps
+                .get(3)
+                .ok_or(anyhow!("解析课程时间失败"))?
+                .as_str();
+            let place =
+                places.get(i).ok_or(anyhow!("解析课程地点失败"))?;
             for week_range in weeks.split(',') {
                 // week 这里可能是单个数字，也可能是一个范围，用 ',' 分割
                 let parts = week_range.split('-').collect::<Vec<_>>();
@@ -83,7 +101,9 @@ async fn parse_class_table(data: Vec<SpiderCourseInfo>) -> Result<Vec<CourseInfo
                         .get(1)
                         .ok_or(anyhow!("解析课程周次失败"))?
                         .parse::<u8>()
-                        .map_err(|e| anyhow!("解析课程周次失败 {}", e))?
+                        .map_err(|e| {
+                            anyhow!("解析课程周次失败 {}", e)
+                        })?
                 };
                 for time in times.iter() {
                     // time 可能是单个数字，也可能是一个范围，用 '、' 分割
@@ -92,7 +112,9 @@ async fn parse_class_table(data: Vec<SpiderCourseInfo>) -> Result<Vec<CourseInfo
                         .first()
                         .ok_or(anyhow!("解析课程时间失败"))?
                         .parse::<u8>()
-                        .map_err(|e| anyhow!("解析课程时间失败 {}", e))?;
+                        .map_err(|e| {
+                            anyhow!("解析课程时间失败 {}", e)
+                        })?;
                     let time_r = if parts.len() == 1 {
                         time_l
                     } else {
@@ -100,11 +122,15 @@ async fn parse_class_table(data: Vec<SpiderCourseInfo>) -> Result<Vec<CourseInfo
                             .get(1)
                             .ok_or(anyhow!("解析课程时间失败"))?
                             .parse::<u8>()
-                            .map_err(|e| anyhow!("解析课程时间失败 {}", e))?
+                            .map_err(|e| {
+                                anyhow!("解析课程时间失败 {}", e)
+                            })?
                     };
                     for time in time_l..=time_r {
                         let key = (day, time, *place);
-                        let set = record.entry(key).or_insert_with(HashSet::new);
+                        let set = record
+                            .entry(key)
+                            .or_insert_with(HashSet::new);
                         for week in week_l..=week_r {
                             set.insert(week);
                         }
@@ -139,6 +165,7 @@ async fn parse_class_table(data: Vec<SpiderCourseInfo>) -> Result<Vec<CourseInfo
     Ok(res)
 }
 
+#[expect(clippy::too_many_lines, reason = "REFACTOR ME")]
 pub async fn get_class_table_handler(
     State(data): AppState,
     Query(req): Query<GetClassTableReq>,
@@ -158,22 +185,37 @@ pub async fn get_class_table_handler(
     .fetch_all(&data.db)
     .await?;
     // 爬虫返回教务课程
-    let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
-    let spider_res: Vec<SpiderCourseInfo> = spider_data("/bks/classtable", &params).await?;
+    let params = [
+        ("xn", req.xn.to_string()),
+        ("xq", req.xq.to_string()),
+        ("stuid", stu_id),
+    ];
+    let spider_res: Vec<SpiderCourseInfo> =
+        spider_data("/bks/classtable", &params).await?;
     // 合并两个数据源
     // 注意 res 里的每个元素都对应课程表中的一个格子，至于格子之间的合并什么的交给前端
     let mut res = parse_class_table(spider_res).await?;
     for item in back_res {
         let times: Vec<&str> = item.section.split(',').collect();
-        let weeks_from_str: Vec<&str> = item.week.split(',').collect();
+        let weeks_from_str: Vec<&str> =
+            item.week.split(',').collect();
         let mut weeks = Vec::new();
         for week in weeks_from_str {
-            let week = week.trim().parse::<u8>().map_err(|e| anyhow!("课程周次解析失败 {}", e))?;
+            let week = week
+                .trim()
+                .parse::<u8>()
+                .map_err(|e| anyhow!("课程周次解析失败 {}", e))?;
             weeks.push(week);
         }
-        let day = item.day.parse::<u8>().map_err(|e| anyhow!("课程星期解析失败 {}", e))?;
+        let day = item
+            .day
+            .parse::<u8>()
+            .map_err(|e| anyhow!("课程星期解析失败 {}", e))?;
         for time in &times {
-            let time = time.trim().parse::<u8>().map_err(|e| anyhow!("课程节次解析失败 {}", e))?;
+            let time = time
+                .trim()
+                .parse::<u8>()
+                .map_err(|e| anyhow!("课程节次解析失败 {}", e))?;
             let tmp = CourseInfo {
                 course_name: item.classname.clone(),
                 course_id: None,
@@ -194,13 +236,16 @@ pub async fn get_class_table_handler(
         }
     }
     // 处理调休。目前的设计也会调休自定义课程，可能不是一个好做法？
-    let flex_time =
-        sqlx::query!("SELECT value FROM mini_configs WHERE `key` = ? AND enabled = 1", "flexTime")
-            .fetch_one(&data.db)
-            .await?
-            .value;
+    let flex_time = sqlx::query!(
+        "SELECT value FROM mini_configs WHERE `key` = ? AND enabled = 1",
+        "flexTime"
+    )
+    .fetch_one(&data.db)
+    .await?
+    .value;
     let mut flex_time: Vec<FlexTime> =
-        serde_json::from_str(&flex_time).map_err(|e| anyhow::anyhow!("解析调休信息失败 {}", e))?;
+        serde_json::from_str(&flex_time)
+            .map_err(|e| anyhow::anyhow!("解析调休信息失败 {}", e))?;
     // 只选择当前学年/学期的调休
     flex_time.retain(|x| x.time.xn == req.xn && x.time.xq == req.xq);
     for flex in flex_time {
@@ -220,7 +265,9 @@ pub async fn get_class_table_handler(
         // 加入到 to 的时候直接创建一个新的课程，和原来的课程做一个区分，这样前端显示起来会好一点
         let mut new_items = Vec::new();
         for item in res.iter_mut() {
-            if item.day != from.day || !item.weeks.contains(&from.week) {
+            if item.day != from.day
+                || !item.weeks.contains(&from.week)
+            {
                 continue;
             }
             let mut new_item = item.clone();
@@ -247,8 +294,12 @@ pub async fn get_class_table_handler(
     Ok(res.into())
 }
 
-pub async fn get_class_start_date_handler(Query(req): Query<GetClassStartDateReq>) -> AppResult {
-    Ok(get_class_start_date_by_xnxq(req.xn, req.xq).unwrap_or_default().into())
+pub async fn get_class_start_date_handler(
+    Query(req): Query<GetClassStartDateReq>,
+) -> AppResult {
+    Ok(get_class_start_date_by_xnxq(req.xn, req.xq)
+        .unwrap_or_default()
+        .into())
 }
 
 pub async fn get_grade_handler(
@@ -256,8 +307,13 @@ pub async fn get_grade_handler(
     Extension(token): Extension<String>,
 ) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
-    let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
-    let spider_res: Vec<SpiderGradeInfo> = spider_data("/bks/grade", &params).await?;
+    let params = [
+        ("xn", req.xn.to_string()),
+        ("xq", req.xq.to_string()),
+        ("stuid", stu_id),
+    ];
+    let spider_res: Vec<SpiderGradeInfo> =
+        spider_data("/bks/grade", &params).await?;
 
     if spider_res.is_empty() {
         return Ok(().into()); // 返回数据为空，直接返回空数据
@@ -291,18 +347,25 @@ pub async fn get_grade_handler(
     Ok(res.into())
 }
 
-pub async fn get_grade_rank_from_ca_handler(Extension(token): Extension<String>) -> AppResult {
+pub async fn get_grade_rank_from_ca_handler(
+    Extension(token): Extension<String>,
+) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
     let params = [("stuid", stu_id)];
-    let spider_res: String = spider_data("/bks/grade-from-ca", &params).await?;
+    let spider_res: String =
+        spider_data("/bks/grade-from-ca", &params).await?;
     let regex = RegexBuilder::new(r"平均学分绩点排名 ([0-9/]+).*平均学分绩点 ([0-9.]+).*核心课程平均学分绩点排名 ([0-9/]+).*必修课平均学分绩点 ([0-9.]+).*课程算术平均成绩排名 ([0-9/]+).*算术平均分 ([0-9.]+).*核心课程算术平均成绩排名 ([0-9/]+).*必修课算术平均分 ([0-9.]+).*学分加权平均成绩排名 ([0-9/]+).*加权平均分 ([0-9.]+).*核心课程学分加权平均成绩排名 ([0-9/]+).*必修课加权平均分 ([0-9.]+)")
         .dot_matches_new_line(true)
         .build()
         .unwrap();
-    let caps = regex.captures(&spider_res).ok_or(anyhow!("解析可信电子凭证失败"))?;
+    let caps = regex
+        .captures(&spider_res)
+        .ok_or(anyhow!("解析可信电子凭证失败"))?;
     // 12 个捕获组，caps[0] 是完整匹配，共 13 个
     if caps.len() != 13 {
-        return Err(AppError::AnyHow(anyhow!("解析可信电子凭证失败a1")));
+        return Err(AppError::AnyHow(anyhow!(
+            "解析可信电子凭证失败a1"
+        )));
     }
     let mut res = Vec::new();
     for i in 1..=12 {
@@ -341,7 +404,8 @@ pub async fn get_grade_rank_handler(
     if let Some(term) = req.term {
         params.push(("term", term.to_string()));
     }
-    let spider_res: HdjwGradeRank = spider_data("/bks/rank", &params).await?;
+    let spider_res: HdjwGradeRank =
+        spider_data("/bks/rank", &params).await?;
     Ok(spider_res.into())
 }
 
@@ -416,10 +480,13 @@ pub async fn get_grade_rank_handler(
 //     Ok(res.into())
 // }
 
-pub async fn get_grade_chart_handler(Extension(token): Extension<String>) -> AppResult {
+pub async fn get_grade_chart_handler(
+    Extension(token): Extension<String>,
+) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
     let params = [("stuid", stu_id)];
-    let spider_res: Vec<SpiderGradeChart> = spider_data("/bks/grade/chart", &params).await?;
+    let spider_res: Vec<SpiderGradeChart> =
+        spider_data("/bks/grade/chart", &params).await?;
 
     let mut res: GradeChartRes = GradeChartRes::default();
     for item in spider_res {
@@ -439,10 +506,12 @@ pub async fn get_grade_chart_handler(Extension(token): Extension<String>) -> App
             F64OrString::F64(x) => x,
             F64OrString::String(_) => 0.0,
         });
-        res.CoreWeightAvgRank.push(match item.CORE_WEIGHTED_AVG_RANK {
-            U32OrString::U32(x) => x,
-            U32OrString::String(_) => 0,
-        });
+        res.CoreWeightAvgRank.push(
+            match item.CORE_WEIGHTED_AVG_RANK {
+                U32OrString::U32(x) => x,
+                U32OrString::String(_) => 0,
+            },
+        );
     }
     Ok(res.into())
 }
@@ -452,8 +521,13 @@ pub async fn get_exam_arrange_handler(
     Extension(token): Extension<String>,
 ) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
-    let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
-    let spider_res: SpiderExamArrange = spider_data("/bks/exam/schedule", &params).await?;
+    let params = [
+        ("xn", req.xn.to_string()),
+        ("xq", req.xq.to_string()),
+        ("stuid", stu_id),
+    ];
+    let spider_res: SpiderExamArrange =
+        spider_data("/bks/exam/schedule", &params).await?;
 
     let mut res = Vec::with_capacity(spider_res.rowCount as usize);
     for item in spider_res.items {
@@ -476,7 +550,11 @@ pub async fn get_computer_exam_arrange_handler(
     Extension(token): Extension<String>,
 ) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
-    let params = [("xn", req.xn.to_string()), ("xq", req.xq.to_string()), ("stuid", stu_id)];
+    let params = [
+        ("xn", req.xn.to_string()),
+        ("xq", req.xq.to_string()),
+        ("stuid", stu_id),
+    ];
     //TODO 结构正确性有待验证
     let spider_res: Vec<SpiderComputerExamArrange> =
         spider_data("/bks/jkexam/schedule", &params).await?;
@@ -511,7 +589,8 @@ pub async fn get_empty_room_handler(
         ("xq", req.xq.to_string()),
         ("stuid", stu_id),
     ];
-    let spider_res: Value = spider_data("/freeroom/list", &params).await?;
+    let spider_res: Value =
+        spider_data("/freeroom/list", &params).await?;
     let data = spider_res
         .as_array()
         .ok_or(anyhow!("解析空教室数据失败"))?
@@ -521,8 +600,12 @@ pub async fn get_empty_room_handler(
         .ok_or(anyhow!("解析空教室数据失败"))?;
     let mut res = Vec::new();
     for item in data {
-        let item = item.as_array().ok_or(anyhow!("解析空教室数据失败"))?;
-        let is_free = item.get(1).ok_or(anyhow!("解析空教室数据失败"))?.is_null();
+        let item =
+            item.as_array().ok_or(anyhow!("解析空教室数据失败"))?;
+        let is_free = item
+            .get(1)
+            .ok_or(anyhow!("解析空教室数据失败"))?
+            .is_null();
         if !is_free {
             continue;
         }
@@ -536,7 +619,10 @@ pub async fn get_empty_room_handler(
             .ok_or(anyhow!("解析空教室数据失败"))?
             .as_str()
             .ok_or(anyhow!("解析空教室数据失败"))?;
-        if capacity.len() < 3 || !capacity.starts_with('(') || !capacity.ends_with(')') {
+        if capacity.len() < 3
+            || !capacity.starts_with('(')
+            || !capacity.ends_with(')')
+        {
             return Err(anyhow!("解析空教室数据失败").into());
         }
         let _type = item

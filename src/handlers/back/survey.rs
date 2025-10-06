@@ -5,7 +5,9 @@ use crate::extractors::Json;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 
-pub async fn post_query_result_handler(Json(req): Json<PostQueryResultReq>) -> AppResult {
+pub async fn post_query_result_handler(
+    Json(req): Json<PostQueryResultReq>,
+) -> AppResult {
     // 读取当前目录的临时文件，如果存在将其中内容读取成json解释到结构体
     // 将req中的results与json中的内容进行合并
     // 将合并后的内容写入临时文件
@@ -17,13 +19,13 @@ pub async fn post_query_result_handler(Json(req): Json<PostQueryResultReq>) -> A
         let mut content = String::new();
         file.read_to_string(&mut content)
             .map_err(|e| anyhow::anyhow!("读取文件失败, {e}"))?;
-        results =
-            serde_json::from_str(&content).map_err(|e| AppError::JsonError(e.to_string()))?;
+        results = serde_json::from_str(&content)
+            .map_err(|e| AppError::JsonError(e.to_string()))?;
     }
     results.push(req);
 
-    let merged_content =
-        serde_json::to_string(&results).map_err(|e| AppError::JsonError(e.to_string()))?;
+    let merged_content = serde_json::to_string(&results)
+        .map_err(|e| AppError::JsonError(e.to_string()))?;
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)

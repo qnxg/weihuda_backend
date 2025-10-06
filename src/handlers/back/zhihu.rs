@@ -12,7 +12,6 @@ use crate::{
 };
 
 /// 获取知湖文章列表
-#[allow(non_snake_case)]
 pub async fn get_zhihu_page_handler(
     State(data): AppState,
     Query(req): Query<GetZhihuPageReq>,
@@ -84,13 +83,15 @@ pub async fn get_zhihu_page_handler(
     .await?
     .count;
 
-    let res: ZhihuPage = ZhihuPage { count: count as u32, rows: res };
+    let res: ZhihuPage = ZhihuPage {
+        count: count as u32,
+        rows: res,
+    };
 
     Ok(res.into())
 }
 
 /// 通过id获取知湖文章信息
-#[allow(non_snake_case)]
 pub async fn get_zhihu_by_id_handler(
     State(data): AppState,
     Path(req): Path<CrudZhihuByIdReq>,

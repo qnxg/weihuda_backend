@@ -3,7 +3,8 @@ use crate::handlers::back::user_settings::{
     get_all_user_settings_handler, post_all_user_settings_handler,
 };
 use crate::handlers::spider::electricity::{
-    get_dormitory_handler, get_electricity_handler, update_dormitory_handler,
+    get_dormitory_handler, get_electricity_handler,
+    update_dormitory_handler,
 };
 use crate::handlers::spider::hdjw::get_grade_rank_from_ca_handler;
 use crate::middlewares::cache::{cache_middleware, Cache};
@@ -11,45 +12,64 @@ use crate::{
     handlers::{
         back::{
             auth::{
-                flutter_auth_handler, get_auth_handler, get_auth_qrcode_handler,
-                get_auth_qrcode_info_handler, get_auth_qrcode_status_handler,
+                flutter_auth_handler, get_auth_handler,
+                get_auth_qrcode_handler,
+                get_auth_qrcode_info_handler,
+                get_auth_qrcode_status_handler,
                 put_auth_qrcode_status_handler,
             },
             config::get_config_handler,
             course::{add_course_handler, delete_course_handler},
-            exam_num::{add_exam_num_handler, delete_exam_num_handler, get_exam_num_handler},
-            feedback::{add_feedback_handler, get_feedback_handler, update_feedback_handler},
+            exam_num::{
+                add_exam_num_handler, delete_exam_num_handler,
+                get_exam_num_handler,
+            },
+            feedback::{
+                add_feedback_handler, get_feedback_handler,
+                update_feedback_handler,
+            },
             message::get_message_handler,
-            notice::{get_notice_handler, post_message_left_handler, put_notice_by_id_handler},
+            notice::{
+                get_notice_handler, post_message_left_handler,
+                put_notice_by_id_handler,
+            },
             ping::health_checker_handler,
             record::{
-                get_record_goods_handler, get_record_handler, get_record_rules_handler,
-                get_record_total_handler, get_webview_read_handler, post_goods_handler,
+                get_record_goods_handler, get_record_handler,
+                get_record_rules_handler, get_record_total_handler,
+                get_webview_read_handler, post_goods_handler,
                 post_record_handler,
             },
             survey::post_query_result_handler,
             user::{bind_user_handler, unbind_user_handler},
             zhihu::{
-                delete_zhihu_handler, get_zhihu_by_id_handler, get_zhihu_page_handler,
-                post_zhihu_handler, put_zhihu_handler,
+                delete_zhihu_handler, get_zhihu_by_id_handler,
+                get_zhihu_page_handler, post_zhihu_handler,
+                put_zhihu_handler,
             },
         },
         spider::{
             hdjw::{
-                get_class_start_date_handler, get_class_table_handler,
-                get_computer_exam_arrange_handler, get_empty_room_handler,
-                get_exam_arrange_handler, get_grade_chart_handler, get_grade_handler,
+                get_class_start_date_handler,
+                get_class_table_handler,
+                get_computer_exam_arrange_handler,
+                get_empty_room_handler, get_exam_arrange_handler,
+                get_grade_chart_handler, get_grade_handler,
                 get_grade_rank_handler,
             },
-            info::{get_semester_info_handler, get_user_info_handler},
+            info::{
+                get_semester_info_handler, get_user_info_handler,
+            },
             library::get_library_handler,
             netflow::{
                 get_netflow_day_detail_handler, get_netflow_handler,
-                get_netflow_month_detail_handler, get_netflow_order_handler,
+                get_netflow_month_detail_handler,
+                get_netflow_order_handler,
             },
             pt::{
-                get_card_history_handler, get_card_info_handler, get_email_handler,
-                get_fitness_appoint_handler, get_fitness_handler, get_lab_arrange_handler,
+                get_card_history_handler, get_card_info_handler,
+                get_email_handler, get_fitness_appoint_handler,
+                get_fitness_handler, get_lab_arrange_handler,
                 get_lab_grade_handler,
             },
         },
@@ -70,8 +90,13 @@ use axum::{
 };
 use std::sync::Arc;
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "考虑后续将路由进一步整理，拆分到不同函数甚至不同文件中去"
+)]
 pub fn create_router(db_pool: Arc<DbPool>) -> Router {
-    let ping = Router::new().route("/ping", get(health_checker_handler));
+    let ping =
+        Router::new().route("/ping", get(health_checker_handler));
 
     // 后端路由
     let course = Router::new()
@@ -87,13 +112,15 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
 
     let auth = Router::new().route("/token", get(get_auth_handler)); // 用code换取token
 
-    let message = Router::new().route("/message", get(get_message_handler)); // 获取消息
+    let message =
+        Router::new().route("/message", get(get_message_handler)); // 获取消息
 
     let user_bind = Router::new()
         .route("/bind", post(bind_user_handler))
         .route("/flutter", post(flutter_auth_handler)); // 绑定用户
 
-    let user_unbind = Router::new().route("/unbind", post(unbind_user_handler)); // 解绑用户
+    let user_unbind =
+        Router::new().route("/unbind", post(unbind_user_handler)); // 解绑用户
 
     let feedback = Router::new()
         .route("/feedback/no-auth", get(get_feedback_handler))
@@ -102,34 +129,52 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .route("/feedback", put(update_feedback_handler)); // 反馈先简单地归类为无需权限
 
     // 教务系统路由 hdjw
-    let class_table = Router::new().route("/hdjw/class-table", get(get_class_table_handler)); // 获取课表
+    let class_table = Router::new()
+        .route("/hdjw/class-table", get(get_class_table_handler)); // 获取课表
 
-    let class_start_date =
-        Router::new().route("/hdjw/class-start-date", get(get_class_start_date_handler)); // 获取学期开课时间
+    let class_start_date = Router::new().route(
+        "/hdjw/class-start-date",
+        get(get_class_start_date_handler),
+    ); // 获取学期开课时间
 
     let grade = Router::new()
         .route("/hdjw/grade", get(get_grade_handler)) // 获取成绩
         .route("/hdjw/grade-rank", get(get_grade_rank_handler)) // 获取成绩排名
         // .route("/hdjw/raw-grade", get(get_raw_grade_handler)) // 获取项目成绩
         // .route("/hdjw/must-grade", get(get_must_grade_handler)) // 获取上一个学年的必修课程加权平均成绩和课程个数，主要用来衡量奖学金
-        .route("/hdjw/grade-rank-from-ca", get(get_grade_rank_from_ca_handler)) // 获取成绩排名，来自成绩查询助手;
+        .route(
+            "/hdjw/grade-rank-from-ca",
+            get(get_grade_rank_from_ca_handler),
+        ) // 获取成绩排名，来自成绩查询助手;
         .route("/hdjw/chart", get(get_grade_chart_handler)); // 获取成绩趋势
 
     let exam = Router::new()
         .route("/hdjw/exam-arrange", get(get_exam_arrange_handler)) // 获取考试安排
-        .route("/hdjw/computer-exam", get(get_computer_exam_arrange_handler)); // 获取机考安排
+        .route(
+            "/hdjw/computer-exam",
+            get(get_computer_exam_arrange_handler),
+        ); // 获取机考安排
 
-    let empty_room = Router::new().route("/hdjw/empty-room", get(get_empty_room_handler)); // 获取空教室
+    let empty_room = Router::new()
+        .route("/hdjw/empty-room", get(get_empty_room_handler)); // 获取空教室
 
     // 获取信息 info
-    let semester_info = Router::new().route("/info/smester", get(get_semester_info_handler)); // 获取学期信息
-    let user_info = Router::new().route("/info/user", get(get_user_info_handler)); // 获取用户信息
+    let semester_info = Router::new()
+        .route("/info/smester", get(get_semester_info_handler)); // 获取学期信息
+    let user_info =
+        Router::new().route("/info/user", get(get_user_info_handler)); // 获取用户信息
 
     // 校园网 netflow
     let netflow = Router::new()
         .route("/netflow/order", get(get_netflow_order_handler))
-        .route("/netflow/month-detail", get(get_netflow_month_detail_handler))
-        .route("/netflow/day-detail", get(get_netflow_day_detail_handler))
+        .route(
+            "/netflow/month-detail",
+            get(get_netflow_month_detail_handler),
+        )
+        .route(
+            "/netflow/day-detail",
+            get(get_netflow_day_detail_handler),
+        )
         .route("/netflow", get(get_netflow_handler)); // 获取校园网流量订单
 
     // 知湖 zhihu
@@ -147,11 +192,15 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .route("/pt/card-history", get(get_card_history_handler)) // 获取一卡通消费历史
         .route("/pt/lab-arrange", get(get_lab_arrange_handler)) // 获取实验安排
         .route("/pt/lab-grade", get(get_lab_grade_handler)) // 获取未读邮件数量
-        .route("/pt/fitness-appoint", get(get_fitness_appoint_handler)) // 获取体测预约
+        .route(
+            "/pt/fitness-appoint",
+            get(get_fitness_appoint_handler),
+        ) // 获取体测预约
         .route("/pt/fitness", get(get_fitness_handler)); // 获取体测信息
 
     // 图书馆 library
-    let library = Router::new().route("/library", get(get_library_handler)); // 获取图书馆信息
+    let library =
+        Router::new().route("/library", get(get_library_handler)); // 获取图书馆信息
 
     // 积分
     let record = Router::new()
@@ -165,7 +214,8 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .route("/jifen/webview-read", get(get_webview_read_handler));
 
     // 配置
-    let config = Router::new().route("/config", get(get_config_handler));
+    let config =
+        Router::new().route("/config", get(get_config_handler));
 
     // 通知
     let notice = Router::new()
@@ -175,15 +225,24 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     // 二维码
     let qr = Router::new()
         .route("/auth-qrcode", get(get_auth_qrcode_handler))
-        .route("/auth-qrcode/status/:code", get(get_auth_qrcode_status_handler))
-        .route("/auth-qrcode/info/:code", get(get_auth_qrcode_info_handler));
-    let qr_auth =
-        Router::new().route("/auth-qrcode/status/:code", put(put_auth_qrcode_status_handler)); // put请求需要获取jwt，所以需要加入到with_auth的路由组
+        .route(
+            "/auth-qrcode/status/:code",
+            get(get_auth_qrcode_status_handler),
+        )
+        .route(
+            "/auth-qrcode/info/:code",
+            get(get_auth_qrcode_info_handler),
+        );
+    let qr_auth = Router::new().route(
+        "/auth-qrcode/status/:code",
+        put(put_auth_qrcode_status_handler),
+    ); // put请求需要获取jwt，所以需要加入到with_auth的路由组
 
     // 查询全校课表
     // let course_info = Router::new().route("/hdjw/course", get(get_course_info_handler));
     // 问卷处理接口
-    let survey = Router::new().route("/survey", post(post_query_result_handler));
+    let survey = Router::new()
+        .route("/survey", post(post_query_result_handler));
 
     // 电量查询信息
     let electricity = Router::new()
@@ -192,11 +251,18 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .route("/dormitory/update", get(update_dormitory_handler));
 
     // 调休信息
-    let flex_time = Router::new().route("/flex-time", get(get_flex_time_handler));
+    let flex_time =
+        Router::new().route("/flex-time", get(get_flex_time_handler));
 
     let user_settings = Router::new()
-        .route("/user-settings/all", get(get_all_user_settings_handler))
-        .route("/user-settings/all", post(post_all_user_settings_handler));
+        .route(
+            "/user-settings/all",
+            get(get_all_user_settings_handler),
+        )
+        .route(
+            "/user-settings/all",
+            post(post_all_user_settings_handler),
+        );
 
     // Test 用来开发测试的接口路由
     // let test = Router::new().route("/test", post(test_option_naive_datetime_parsing));
@@ -259,6 +325,12 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .layer(log_middleware()) // 增加日志中间件
         .layer(timeout_middleware()) // 增加超时中间件
         .layer(cors_middleware()) // 增加跨域中间件
-        .layer(axum::middleware::from_fn_with_state(count, count_middleware)) // 启用计数中间件
-        .layer(axum::middleware::from_fn_with_state(cache, cache_middleware)) // 启用缓存中间件
+        .layer(axum::middleware::from_fn_with_state(
+            count,
+            count_middleware,
+        )) // 启用计数中间件
+        .layer(axum::middleware::from_fn_with_state(
+            cache,
+            cache_middleware,
+        )) // 启用缓存中间件
 }

@@ -3,17 +3,17 @@ use axum::{extract::State, Extension};
 use crate::{
     app_result::{AppResult, AppState},
     dtos::back::record::{
-        GetRecordGoodsReq, GetRecordReq, GetRecordRulesReq, GetWebviewReq, PostRecordReq,
+        GetRecordGoodsReq, GetRecordReq, GetRecordRulesReq,
+        GetWebviewReq, PostRecordReq,
     },
     entities::back::record::{
-        GoodsReq, MiniBindRecord, PostRecordRes, Record, RecordGoods, RecordGoodsRes, RecordRes,
-        RecordRules, RecordRulesRes,
+        GoodsReq, MiniBindRecord, PostRecordRes, Record, RecordGoods,
+        RecordGoodsRes, RecordRes, RecordRules, RecordRulesRes,
     },
     extractors::{Json, Query},
     utils::jwt::parse_stu_id,
 };
 
-#[allow(non_snake_case)]
 pub async fn get_record_total_handler(
     State(data): AppState,
     Extension(token): Extension<String>,
@@ -33,7 +33,6 @@ pub async fn get_record_total_handler(
     Ok(res.into())
 }
 
-#[allow(non_snake_case)]
 pub async fn get_record_handler(
     State(data): AppState,
     Extension(token): Extension<String>,
@@ -77,7 +76,10 @@ pub async fn get_record_handler(
     .fetch_all(&data.db)
     .await?;
 
-    let res = RecordRes { count: res.len() as u32, rows: res };
+    let res = RecordRes {
+        count: res.len() as u32,
+        rows: res,
+    };
     Ok(res.into())
 }
 
@@ -120,12 +122,15 @@ pub async fn get_record_goods_handler(
     .fetch_all(&data.db)
     .await?;
 
-    let res = RecordGoodsRes { count: res.len() as u32, rows: res };
+    let res = RecordGoodsRes {
+        count: res.len() as u32,
+        rows: res,
+    };
 
     Ok(res.into())
 }
 
-#[allow(non_snake_case)]
+#[expect(non_snake_case)]
 pub async fn get_record_rules_handler(
     State(data): AppState,
     Query(req): Query<GetRecordRulesReq>,
@@ -165,11 +170,14 @@ pub async fn get_record_rules_handler(
     .fetch_all(&data.db)
     .await?;
 
-    let res = RecordRulesRes { count: res.len() as u32, rows: res };
+    let res = RecordRulesRes {
+        count: res.len() as u32,
+        rows: res,
+    };
     Ok(res.into())
 }
 
-#[allow(non_snake_case)]
+#[expect(clippy::too_many_lines, reason = "REFACTOR ME")]
 pub async fn post_record_handler(
     State(data): AppState,
     Extension(token): Extension<String>,
@@ -223,8 +231,10 @@ pub async fn post_record_handler(
 
     // 查询周期内的积分记录
     let now = chrono::Local::now();
-    let create_time_greater_than = now - chrono::Duration::days(record_rule.cycle as i64 - 1);
-    let create_time_greater_than_str = create_time_greater_than.format("%Y-%m-%d").to_string();
+    let create_time_greater_than =
+        now - chrono::Duration::days(record_rule.cycle as i64 - 1);
+    let create_time_greater_than_str =
+        create_time_greater_than.format("%Y-%m-%d").to_string();
 
     // 统计数量
     let records = sqlx::query!(
@@ -289,12 +299,13 @@ pub async fn post_record_handler(
     .fetch_one(&data.db)
     .await?;
 
-    let res = PostRecordRes { jifen: mini_bind.jifen.unwrap() as i32 };
+    let res = PostRecordRes {
+        jifen: mini_bind.jifen.unwrap() as i32,
+    };
 
     Ok(res.into())
 }
 
-#[allow(non_snake_case)]
 pub async fn post_goods_handler(
     State(data): AppState,
     Extension(token): Extension<String>,
@@ -402,7 +413,7 @@ pub async fn post_goods_handler(
     Ok("兑换成功".into())
 }
 
-#[allow(non_snake_case)]
+#[expect(clippy::too_many_lines, reason = "REFACTOR ME")]
 pub async fn get_webview_read_handler(
     State(data): AppState,
     Query(req): Query<GetWebviewReq>,
@@ -463,9 +474,13 @@ pub async fn get_webview_read_handler(
 
     // 查询周期内的积分记录
     let now = chrono::Local::now();
-    let create_time_greater_than = now - chrono::Duration::days(record_rule.cycle as i64); // 不用再减1，因为Utc时间需要是前一天的16点对应北京时间24点，所以其实要多减一天，括号内为+1天，消掉-1天
+    let create_time_greater_than =
+        now - chrono::Duration::days(record_rule.cycle as i64); // 不用再减1，因为Utc时间需要是前一天的16点对应北京时间24点，所以其实要多减一天，括号内为+1天，消掉-1天
     let create_time_greater_than_naive_datetime =
-        create_time_greater_than.date_naive().and_hms_opt(16, 0, 0).unwrap(); // 设置时分秒为0
+        create_time_greater_than
+            .date_naive()
+            .and_hms_opt(16, 0, 0)
+            .unwrap(); // 设置时分秒为0
 
     let count = sqlx::query!(
         r#"
@@ -529,7 +544,9 @@ pub async fn get_webview_read_handler(
     .fetch_one(&data.db)
     .await?;
 
-    let res = PostRecordRes { jifen: mini_bind.jifen.unwrap() as i32 };
+    let res = PostRecordRes {
+        jifen: mini_bind.jifen.unwrap() as i32,
+    };
 
     Ok(res.into())
 }
@@ -589,17 +606,26 @@ mod tests {
     async fn test() {
         // 查询周期内的积分记录
         let now = chrono::Local::now();
-        let create_time_greater_than = now - chrono::Duration::days(1 + 1 - 1);
         let create_time_greater_than =
-            create_time_greater_than.date_naive().and_hms_opt(16, 0, 0).unwrap();
-        let create_time_greater_than_str =
-            create_time_greater_than.format("%Y-%m-%d %H:%M:%S").to_string();
+            now - chrono::Duration::days(1 + 1 - 1);
+        let create_time_greater_than = create_time_greater_than
+            .date_naive()
+            .and_hms_opt(16, 0, 0)
+            .unwrap();
+        let create_time_greater_than_str = create_time_greater_than
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
         println!("{}", create_time_greater_than);
         println!("{}", create_time_greater_than_str);
-        let dt = chrono::NaiveDateTime::parse_from_str("2024-03-02 11:04:49", "%Y-%m-%d %H:%M:%S")
-            .unwrap();
+        let dt = chrono::NaiveDateTime::parse_from_str(
+            "2024-03-02 11:04:49",
+            "%Y-%m-%d %H:%M:%S",
+        )
+        .unwrap();
         dbg!(dt
-            .checked_sub_offset(chrono::FixedOffset::east_opt(8 * 3600).unwrap())
+            .checked_sub_offset(
+                chrono::FixedOffset::east_opt(8 * 3600).unwrap()
+            )
             .unwrap());
     }
 }

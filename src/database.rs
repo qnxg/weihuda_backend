@@ -25,11 +25,16 @@ pub async fn get_db_pool() -> MySqlPool {
                 .await
             {
                 Ok(pool) => {
-                    tracing::info!("🔥 Successfully connected to MySQL");
+                    tracing::info!(
+                        "🔥 Successfully connected to MySQL"
+                    );
                     pool
                 }
                 Err(e) => {
-                    tracing::error!("🪨 Failed to connect to MySQL: {:?}", e);
+                    tracing::error!(
+                        "🪨 Failed to connect to MySQL: {:?}",
+                        e
+                    );
                     std::process::exit(1);
                 }
             }

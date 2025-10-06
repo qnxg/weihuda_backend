@@ -76,7 +76,11 @@ where
     D: Deserializer<'de>,
 {
     let s: String = Deserialize::deserialize(deserializer)?;
-    Ok(if s.is_empty() { default_xn() } else { s.parse().unwrap() })
+    Ok(if s.is_empty() {
+        default_xn()
+    } else {
+        s.parse().unwrap()
+    })
 }
 
 // 解决参数为空字符串时候的解析问题
@@ -85,5 +89,9 @@ where
     D: Deserializer<'de>,
 {
     let s: String = Deserialize::deserialize(deserializer)?;
-    Ok(if s.is_empty() { default_xq() } else { s.parse().unwrap() })
+    Ok(if s.is_empty() {
+        default_xq()
+    } else {
+        s.parse().unwrap()
+    })
 }

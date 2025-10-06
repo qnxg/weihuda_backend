@@ -1,0 +1,25 @@
+name: PR Check
+
+on:
+  push: # 允许main分支更新时再检查一遍，这是为了使得action对缓存更友好，见 https://docs.github.com/zh/actions/reference/dependency-caching-reference#restrictions-for-accessing-a-cache
+    branches: ['master']
+  pull_request:
+    branches: ['master']
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: https://gitee.com/skr2005/checkout@v5
+
+      - name: Setup Toolchain
+        uses: ./.gitea/workflows/setup-toolchain
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test Documentation Items
+        run: cargo doc --document-private-items --no-deps
+        
+      - name: Check Code Format
+        run: cargo fmt --check

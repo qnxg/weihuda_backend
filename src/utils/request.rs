@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use crate::{app_error::AppError, config::CFG};
 
-#[allow(non_upper_case_globals)]
+#[expect(non_upper_case_globals)]
 pub static client: Lazy<Client> = Lazy::new(|| {
     Client::builder()
         .connection_verbose(false)
@@ -39,16 +39,30 @@ pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
 ) -> Result<U, AppError> {
     let url = format!("{}{}", CFG.service.spider_url, path);
 
-    let mut res = client.get(&url).query(params).send().await.map_err(|e| {
-        tracing::error!("请求爬虫失败，错误信息：{}，请求目标：{}", e, url);
-        AppError::SpiderRequestError("内部错误：内部请求失败".to_string())
-    })?;
+    let mut res =
+        client.get(&url).query(params).send().await.map_err(|e| {
+            tracing::error!(
+                "请求爬虫失败，错误信息：{}，请求目标：{}",
+                e,
+                url
+            );
+            AppError::SpiderRequestError(
+                "内部错误：内部请求失败".to_string(),
+            )
+        })?;
 
     while res.status().is_redirection() {
-        let redirect_url = res.headers().get(LOCATION).unwrap().to_str().unwrap();
+        let redirect_url =
+            res.headers().get(LOCATION).unwrap().to_str().unwrap();
         res = client.get(redirect_url).send().await.map_err(|e| {
-            tracing::error!("请求爬虫失败，错误信息：{}，请求目标：{}", e, url);
-            AppError::SpiderRequestError("内部错误：内部请求失败".to_string())
+            tracing::error!(
+                "请求爬虫失败，错误信息：{}，请求目标：{}",
+                e,
+                url
+            );
+            AppError::SpiderRequestError(
+                "内部错误：内部请求失败".to_string(),
+            )
         })?;
     }
 
@@ -56,23 +70,36 @@ pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
         StatusCode::UNAUTHORIZED => Err(AppError::PasswordError),
         status => {
             let res_obj = res.text().await.map_err(|e| {
-                tracing::error!("解析爬虫响应体失败，错误信息：{}，请求目标：{}", e, url);
-                AppError::SpiderRequestError("内部错误：内部请求失败。".to_string())
+                tracing::error!(
+                    "解析爬虫响应体失败，错误信息：{}，请求目标：{}",
+                    e,
+                    url
+                );
+                AppError::SpiderRequestError(
+                    "内部错误：内部请求失败。".to_string(),
+                )
             })?;
 
-            let mut res_obj: Value = serde_json::from_str(&res_obj).map_err(|e| {
-                tracing::error!(
+            let mut res_obj: Value =
+                serde_json::from_str(&res_obj).map_err(|e| {
+                    tracing::error!(
                     "解析爬虫响应内容到 json 失败，错误信息：{}，请求目标：{}",
                     e,
                     url
                 );
-                AppError::SpiderRequestError("内部错误：内部请求失败。".to_string())
-            })?;
+                    AppError::SpiderRequestError(
+                        "内部错误：内部请求失败。".to_string(),
+                    )
+                })?;
 
-            let msg = res_obj.get("msg").and_then(|v| v.as_str()).unwrap_or("未知错误");
+            let msg = res_obj
+                .get("msg")
+                .and_then(|v| v.as_str())
+                .unwrap_or("未知错误");
             match status {
                 StatusCode::OK => {
-                    if res_obj.get("data").is_none_or(|v| v.is_null()) {
+                    if res_obj.get("data").is_none_or(|v| v.is_null())
+                    {
                         tracing::error!(
                             "爬虫响应状态正常，但是返回没有携带 data 字段，请求目标：{}",
                             url
@@ -82,10 +109,15 @@ pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
                         ));
                     }
                     // take()方法将json_res的所有权转移给res
-                    let res: U = serde_json::from_value(res_obj["data"].take()).map_err(|e| {
-                        tracing::error!("解析爬虫信息失败，错误信息：{}，请求目标：{}", e, url);
-                        anyhow!("解析爬虫信息失败")
-                    })?;
+                    let res: U = serde_json::from_value(res_obj["data"].take())
+                        .map_err(|e| {
+                            tracing::error!(
+                                "解析爬虫信息失败，错误信息：{}，请求目标：{}",
+                                e,
+                                url
+                            );
+                            anyhow!("解析爬虫信息失败")
+                        })?;
                     Ok(res)
                 }
                 _ => {
@@ -114,7 +146,8 @@ pub async fn spider<T: Serialize, U: DeserializeOwned>(
     let mut res = client.get(url).query(params).send().await?;
 
     while res.status().is_redirection() {
-        let redirect_url = res.headers().get(LOCATION).unwrap().to_str().unwrap();
+        let redirect_url =
+            res.headers().get(LOCATION).unwrap().to_str().unwrap();
         res = client.get(redirect_url).send().await?;
     }
 
@@ -122,13 +155,14 @@ pub async fn spider<T: Serialize, U: DeserializeOwned>(
 
     let json_res: Value = serde_json::from_str(&res)?;
 
-    let res: U = serde_json::from_value(json_res)
-        .map_err(|e| anyhow::anyhow!(format!("数据获取失败: {}", e)))?;
+    let res: U = serde_json::from_value(json_res).map_err(|e| {
+        anyhow::anyhow!(format!("数据获取失败: {}", e))
+    })?;
 
     Ok(res)
 }
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 ///访问地址完全自定义
 #[inline]
 pub async fn spider_data_url<T: Serialize, U: DeserializeOwned>(
@@ -138,7 +172,8 @@ pub async fn spider_data_url<T: Serialize, U: DeserializeOwned>(
     let mut res = client.get(url).query(params).send().await?;
 
     while res.status().is_redirection() {
-        let redirect_url = res.headers().get(LOCATION).unwrap().to_str().unwrap();
+        let redirect_url =
+            res.headers().get(LOCATION).unwrap().to_str().unwrap();
         res = client.get(redirect_url).send().await?;
     }
 

@@ -70,17 +70,26 @@ impl Configs {
         let mut file = match File::open(CONFIG_FILE) {
             Ok(f) => f,
             Err(e) => {
-                panic!("Configuration file does not exist: {}, error message: {}", CONFIG_FILE, e)
+                panic!(
+                    "Configuration file does not exist: {}, error message: {}",
+                    CONFIG_FILE, e
+                )
             }
         };
         let mut cfg_contents = String::new();
         match file.read_to_string(&mut cfg_contents) {
             Ok(s) => s,
-            Err(e) => panic!("Failed to read configuration file, error message: {}", e),
+            Err(e) => panic!(
+                "Failed to read configuration file, error message: {}",
+                e
+            ),
         };
         match toml::from_str(&cfg_contents) {
             Ok(c) => c,
-            Err(e) => panic!("Failed to parse configuration file, error message: {}", e),
+            Err(e) => panic!(
+                "Failed to parse configuration file, error message: {}",
+                e
+            ),
         }
     }
 }

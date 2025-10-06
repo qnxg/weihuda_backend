@@ -1,3 +1,14 @@
+#![doc = include_str!("../README.md")]
+#![forbid(unsafe_code)]
+#![deny(rustdoc::all)]
+#![warn(clippy::allow_attributes)]
+#![warn(clippy::too_many_lines)]
+#![warn(clippy::too_long_first_doc_paragraph)]
+#![warn(
+    clippy::todo,
+    reason = "在`git commit`之前，请确认代码中没有`todo!()`"
+)]
+
 mod app_error;
 mod app_result;
 mod config;
@@ -51,7 +62,9 @@ async fn run() {
                                                                     // Start the server
     tracing::info!("🚀 Server {} is starting", &CFG.server.name);
     tracing::info!("🔄 Listening on port: {}", &CFG.server.address);
-    let listener = tokio::net::TcpListener::bind(&CFG.server.address).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(&CFG.server.address)
+        .await
+        .unwrap();
 
     // Serve the server
     axum::serve(listener, app)
@@ -62,7 +75,9 @@ async fn run() {
 
 async fn shutdown_signal() {
     let ctrl_c = async {
-        signal::ctrl_c().await.expect("failed to install Ctrl+C handler");
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
     };
 
     #[cfg(unix)]

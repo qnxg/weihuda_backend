@@ -4,7 +4,6 @@ use crate::{
 };
 use axum::extract::State;
 
-#[allow(dead_code)]
 pub async fn get_message_handler(State(data): AppState) -> AppResult {
     let messages = sqlx::query_as!(
         MessageInfo,

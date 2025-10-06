@@ -2,7 +2,9 @@ use serde::Deserializer;
 use serde::{Deserialize, Serialize};
 
 /// If the value is None, return "0" instead.
-fn none_to_zero<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+fn none_to_zero<'de, D>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error>
 where
     D: Deserializer<'de>,
 {

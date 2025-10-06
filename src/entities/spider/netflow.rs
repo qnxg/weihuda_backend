@@ -41,10 +41,10 @@ pub struct NetflowResItem {
     pub all: String,
     pub allBasePackageAmount: f64,
     pub allExtendPackageAmount: f64,
-    pub basePackageUsed: f64,      //本月可用流量 已用
-    pub basePackageUsedPer: f64,   //本月可用流量 使用率
-    pub surplusBasePackage: f64,   //本月可用流量 剩余
-    pub extendPackageUsed: f64,    //本月超出流量 已用
+    pub basePackageUsed: f64, //本月可用流量 已用
+    pub basePackageUsedPer: f64, //本月可用流量 使用率
+    pub surplusBasePackage: f64, //本月可用流量 剩余
+    pub extendPackageUsed: f64, //本月超出流量 已用
     pub extendPackageUsedPer: f64, //本月超出流量 使用率
     pub surplusExtendPackage: f64, //本月超出流量 剩余
 }

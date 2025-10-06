@@ -8,8 +8,8 @@ use crate::{
         jwt::parse_stu_id,
         request::spider_data,
         semester::{
-            get_next_semester_start_date, get_vacation_date, get_now_xnxq,
-            get_this_semester_start_date,
+            get_next_semester_start_date, get_now_xnxq,
+            get_this_semester_start_date, get_vacation_date,
         },
     },
 };
@@ -25,10 +25,13 @@ pub async fn get_semester_info_handler() -> AppResult {
     Ok(res.into())
 }
 
-pub async fn get_user_info_handler(Extension(token): Extension<String>) -> AppResult {
+pub async fn get_user_info_handler(
+    Extension(token): Extension<String>,
+) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
     let params = [("stuid", stu_id)];
-    let spider_res: PersonInfo = spider_data("/xgxt/person_info", &params).await?;
+    let spider_res: PersonInfo =
+        spider_data("/xgxt/person_info", &params).await?;
 
     let res = UserInfoRes {
         class: spider_res.class,

@@ -48,40 +48,69 @@ impl IntoResponse for AppError {
         match self {
             AppError::AnyHow(e) => {
                 tracing::error!("服务器内部错误 {}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, error_json(500, &format!("内部错误: {}", e)))
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    error_json(500, &format!("内部错误: {}", e)),
+                )
                     .into_response()
                 // 展示给前端方便定位错误原因
             }
             AppError::QueryError(e) => {
                 tracing::error!("Query参数错误 {}", e);
-                (StatusCode::BAD_REQUEST, error_json(400, "参数解析错误")).into_response()
+                (
+                    StatusCode::BAD_REQUEST,
+                    error_json(400, "参数解析错误"),
+                )
+                    .into_response()
                 // 错误信息默认只提示消耗stream流过程中第一个缺失的字段
             }
             AppError::JsonError(e) => {
                 tracing::error!("Json请求体参数错误 {}", e);
-                (StatusCode::BAD_REQUEST, error_json(400, "Body中Json参数解析错误"))
+                (
+                    StatusCode::BAD_REQUEST,
+                    error_json(400, "Body中Json参数解析错误"),
+                )
                     .into_response()
             }
             AppError::SqlxError(e) => {
                 tracing::error!("数据库SQL语句执行错误 {}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, error_json(500, "数据库内部错误"))
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    error_json(500, "数据库内部错误"),
+                )
                     .into_response()
             }
             AppError::JwtError(e) => {
                 tracing::error!("JWT编解码错误 {}", e);
-                (StatusCode::UNAUTHORIZED, error_json(401, "身份验证错误")).into_response()
+                (
+                    StatusCode::UNAUTHORIZED,
+                    error_json(401, "身份验证错误"),
+                )
+                    .into_response()
             }
             AppError::ParseError(e) => {
                 tracing::error!("时间解析错误 {}", e);
-                (StatusCode::BAD_REQUEST, error_json(400, "时间解析错误")).into_response()
+                (
+                    StatusCode::BAD_REQUEST,
+                    error_json(400, "时间解析错误"),
+                )
+                    .into_response()
             }
             AppError::PasswordError => {
                 // 密码错误信息交给爬虫打印
-                (StatusCode::UNAUTHORIZED, error_json(401, "密码错误")).into_response()
+                (
+                    StatusCode::UNAUTHORIZED,
+                    error_json(401, "密码错误"),
+                )
+                    .into_response()
             }
             AppError::SpiderRequestError(e) => {
                 // 爬虫请求的错误信息在爬虫请求时打印，这里拿到的 e 是简单信息
-                (StatusCode::INTERNAL_SERVER_ERROR, error_json(500, &e)).into_response()
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    error_json(500, &e),
+                )
+                    .into_response()
             }
         }
     }
