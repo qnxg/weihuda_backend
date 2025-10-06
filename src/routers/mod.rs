@@ -7,6 +7,11 @@ use crate::handlers::spider::electricity::{
     update_dormitory_handler,
 };
 use crate::handlers::spider::hdjw::get_grade_rank_from_ca_handler;
+use crate::handlers::spider::lab::{
+    get_lab_grade_handler, get_lab_list_handler,
+    get_lab_sem_info_handler, get_lab_virtual_grade_handler,
+    set_lab_password_handler,
+};
 use crate::middlewares::cache::{cache_middleware, Cache};
 use crate::{
     handlers::{
@@ -69,8 +74,7 @@ use crate::{
             pt::{
                 get_card_history_handler, get_card_info_handler,
                 get_email_handler, get_fitness_appoint_handler,
-                get_fitness_handler, get_lab_arrange_handler,
-                get_lab_grade_handler,
+                get_fitness_handler,
             },
         },
         // test::{test_naive_datetime_parsing, test_option_naive_datetime_parsing},
@@ -190,8 +194,10 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .route("/pt/card-info", get(get_card_info_handler)) // 获取一卡通信息
         .route("/pt/email", get(get_email_handler))
         .route("/pt/card-history", get(get_card_history_handler)) // 获取一卡通消费历史
-        .route("/pt/lab-arrange", get(get_lab_arrange_handler)) // 获取实验安排
-        .route("/pt/lab-grade", get(get_lab_grade_handler)) // 获取未读邮件数量
+        .route(
+            "/pt/fitness-appoint",
+            get(get_fitness_appoint_handler),
+        ) // 获取体测预约
         .route(
             "/pt/fitness-appoint",
             get(get_fitness_appoint_handler),
@@ -202,6 +208,16 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
     let library =
         Router::new().route("/library", get(get_library_handler)); // 获取图书馆信息
 
+    // 大物实验平台
+    let lab = Router::new()
+        .route("/lab/list", get(get_lab_list_handler))
+        .route("/lab/setPassword", post(set_lab_password_handler))
+        .route("/lab/sem_info", get(get_lab_sem_info_handler))
+        .route("/lab/grade", get(get_lab_grade_handler))
+        .route(
+            "/lab/virtual_grade",
+            get(get_lab_virtual_grade_handler),
+        );
     // 积分
     let record = Router::new()
         .route("/jifen/total", get(get_record_total_handler))
@@ -287,6 +303,7 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .merge(record)
         .merge(notice)
         .merge(user_settings)
+        .merge(lab)
         .layer(auth_middleware())
         .with_state(db_pool.clone());
 

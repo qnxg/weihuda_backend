@@ -98,16 +98,16 @@ pub async fn spider_data<T: Serialize, U: DeserializeOwned>(
                 .unwrap_or("未知错误");
             match status {
                 StatusCode::OK => {
-                    if res_obj.get("data").is_none_or(|v| v.is_null())
-                    {
-                        tracing::error!(
-                            "爬虫响应状态正常，但是返回没有携带 data 字段，请求目标：{}",
-                            url
-                        );
-                        return Err(AppError::SpiderRequestError(
-                            "内部错误：内部请求失败。".to_string(),
-                        ));
-                    }
+                    // 目前的实验平台爬虫接口会有意地利用 null 来表示实验平台密码没有绑定/密码错误
+                    // if res_obj.get("data").is_none_or(|v| v.is_null()) {
+                    //     tracing::error!(
+                    //         "爬虫响应状态正常，但是返回没有携带 data 字段，请求目标：{}",
+                    //         url
+                    //     );
+                    //     return Err(AppError::SpiderRequestError(
+                    //         "内部错误：内部请求失败。".to_string(),
+                    //     ));
+                    // }
                     // take()方法将json_res的所有权转移给res
                     let res: U = serde_json::from_value(res_obj["data"].take())
                         .map_err(|e| {
