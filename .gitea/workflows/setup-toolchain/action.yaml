@@ -9,7 +9,7 @@ runs:
         echo "RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup" >> $GITHUB_ENV
 
     - name: Setup Toolchain
-      uses: https://gitee.com/skr2005/setup-rust-toolchain@v1
+      uses: https://gitee.com/skr2005/setup-rust-toolchain@main
       with:
         toolchain: stable
         target: x86_64-unknown-linux-musl
