@@ -1,4 +1,8 @@
 use axum::Extension;
+use chrono::{
+    format::{Parsed, StrftimeItems},
+    NaiveDate,
+};
 use tokio::try_join;
 
 use crate::{
@@ -90,6 +94,10 @@ pub async fn get_netflow_order_handler(
         };
         res.push(temp);
     }
+    res.sort_by_key(|item| {
+        parse_year_month(&item.month).expect("异常的年月字符串")
+    });
+    res.reverse();
     Ok(res.into())
 }
 
@@ -120,4 +128,39 @@ pub async fn get_netflow_day_detail_handler(
     let spider_res: SpiderNetflowMonthDetail =
         spider_data("/netflow/day_detail", &params).await?; // 直接复用月流量明细的结构体
     Ok(spider_res.into())
+}
+
+/// 解析`%Y-%m`格式的字符串，将其转为当月的第一天。
+pub fn parse_year_month(str: &str) -> Option<NaiveDate> {
+    let mut parsed = Parsed::new();
+    chrono::format::parse(
+        &mut parsed,
+        str,
+        StrftimeItems::new("%Y-%m"),
+    )
+    .ok()?;
+    parsed.set_day(1).ok()?;
+    parsed.to_naive_date().ok()
+}
+
+#[cfg(test)]
+mod test {
+    use crate::handlers::spider::netflow::parse_year_month;
+
+    #[test]
+    fn test_parse_year_month() {
+        assert_eq!(
+            parse_year_month("2025-01").unwrap(),
+            "2025-01-01".parse().unwrap()
+        );
+        assert_eq!(
+            parse_year_month("2077-12").unwrap(),
+            "2077-12-01".parse().unwrap()
+        );
+        assert_eq!(
+            parse_year_month("2077-3").unwrap(),
+            "2077-03-01".parse().unwrap()
+        );
+        assert_eq!(parse_year_month("2077-13"), None);
+    }
 }
