@@ -18,6 +18,7 @@ mod entities;
 mod extractors;
 mod handlers;
 mod middlewares;
+mod rabbitmq;
 mod routers;
 mod utils;
 
