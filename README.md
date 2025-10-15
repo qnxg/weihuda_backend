@@ -10,6 +10,7 @@
 2. VSCode 安装 rust-analyzer 插件，用来提供代码提示。
 3. 由于后端还依赖于爬虫，所以请参考爬虫的文档将爬虫运行起来。
 4. 安装 MySQL 和 Redis。爬虫也需要 Redis，前端和爬虫应该共用一个 Redis 服务。
+5. 如果你需要调试增加问题反馈的接口，那么还需要安装 RabbitMQ（由于与 RabbitMQ 的连接实例是懒加载的，所以你不去真的使用 RabbitMQ 那么就不用配置 RabbitMQ，目前代码中只有问题反馈用到了 RabbitMQ），设置一个 fanout 类型的 exchange 即可（或者直接注释掉 `rabbitmq.rs` 中 `publish_message` 的一些代码）。如果需要改动 RabbitMQ 相关代码，那么需要确保 consumer 能正常适应新的变动。
 
 ### 1.2 配置
 
@@ -50,6 +51,7 @@
 |-- config.rs       // 配置文件的解析
 |-- database.rs     // 数据库连接
 |-- main.rs         // 入口文件
+|-- rabbitmq.rs     // 消息队列
 |-- dtos、entities  // 各种结构体的定义都在这里了，目前这里比较屎，后面会考虑重构，先凑合看看
 |-- extract         // 自定义请求参数的解析，用于与自定义错误类型匹配
 |   |-- json.rs     // Json请求体参数的解析
