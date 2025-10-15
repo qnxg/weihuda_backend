@@ -13,6 +13,7 @@ pub struct Configs {
     pub jwt: Jwt,
     pub wechat: Wechat,
     pub service: Service,
+    pub rabbitmq: RabbitMq,
 }
 
 #[derive(Deserialize, Debug)]
@@ -59,6 +60,12 @@ pub struct Service {
     pub verify_url: String,
     pub crypto_url: String,
     pub spider_url: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct RabbitMq {
+    pub url: String,
+    pub feedback_exchange: String,
 }
 
 const CONFIG_FILE: &str = "config/config.toml";

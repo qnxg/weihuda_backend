@@ -9,6 +9,7 @@ use crate::{
     },
     entities::back::feedback::{FeedbackInfo, FeedbackRes},
     extractors::{Json, Query},
+    rabbitmq::{self, RabbitMessage},
 };
 
 pub async fn get_feedback_handler(
@@ -52,7 +53,7 @@ pub async fn add_feedback_handler(
     //     return Err("时间格式不正确".into());
     // }
     let now = chrono::Local::now();
-    sqlx::query!(
+    let result = sqlx::query!(
         r#"
         INSERT INTO feedbacks (stuId, `desc`, contact, imgUrl, type, createTime, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         "#,
@@ -67,6 +68,14 @@ pub async fn add_feedback_handler(
     )
     .execute(&data.db)
     .await?;
+
+    let msg = RabbitMessage::Feedback {
+        stu_id: req.stuId,
+        desc: req.desc,
+        img_url: req.imgUrl,
+        id: result.last_insert_id(),
+    };
+    rabbitmq::publish_message(msg).await?;
 
     Ok("添加反馈成功".into())
 }
