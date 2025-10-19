@@ -54,12 +54,18 @@ pub struct GetExamArrangeReq {
 /// 获取空教室
 #[derive(Deserialize, Debug)]
 pub struct GetEmptyRoomReq {
-    pub buildId: String, // 楼栋id
-    pub day: u32,        // 星期几
-    pub jc: String,      // 节次
-    pub week: u32,       // 周次
-    pub xn: u32,
-    pub xq: u32,
+    /// 楼栋id
+    pub buildId: String,
+    /// 星期几
+    pub day: u32,
+    /// 节次
+    pub jc: String,
+    /// 周次
+    pub week: u32,
+    /// 学年
+    pub xn: Option<u32>,
+    /// 学期
+    pub xq: Option<u32>,
 }
 
 #[derive(Deserialize, Debug)]
