@@ -7,6 +7,7 @@ use crate::entities::back::flex_time::FlexTime;
 use crate::entities::spider::grade::{
     CaGradeRank, GradeInfo, HdjwGradeRank, SpiderGradeInfo,
 };
+use crate::utils::semester::get_now_xnxq;
 use crate::{
     app_result::{AppResult, AppState},
     dtos::spider::hdjw::{
@@ -572,13 +573,14 @@ pub async fn get_empty_room_handler(
     Extension(token): Extension<String>,
 ) -> AppResult {
     let stu_id = parse_stu_id(&token)?;
+    let (current_xn, current_xq) = get_now_xnxq();
     let params = [
         ("build_id", req.buildId),
         ("day", req.day.to_string()),
         ("jc", req.jc),
         ("week", req.week.to_string()),
-        ("xn", req.xn.to_string()),
-        ("xq", req.xq.to_string()),
+        ("xn", req.xn.unwrap_or(current_xn).to_string()),
+        ("xq", req.xq.unwrap_or(current_xq).to_string()),
         ("stuid", stu_id),
     ];
     let spider_res: Value =
