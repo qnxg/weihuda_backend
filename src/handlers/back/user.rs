@@ -2,10 +2,9 @@
 use crate::{
     app_result::AppState,
     extractors::Json,
-    utils::{redis::get_redis_conn, request::client},
+    utils::{self, request::client},
 };
 use axum::{extract::State, Extension};
-use redis::AsyncCommands as _;
 use tokio::try_join;
 
 use crate::{
@@ -19,18 +18,6 @@ use crate::{
     },
     utils::jwt::parse_id,
 };
-
-// 清除redis缓存
-async fn clear_redis_cache(
-    stu_id: &str,
-) -> Result<(), anyhow::Error> {
-    let mut con = get_redis_conn().await?;
-    let keys: Vec<String> = con.keys(format!("*{}*", stu_id)).await?;
-    for key in keys {
-        let _: () = con.del(key).await?;
-    }
-    Ok(())
-}
 
 pub async fn bind_user_handler(
     State(data): AppState,
@@ -46,7 +33,7 @@ pub async fn bind_user_handler(
         ),
         get_openid(&req.code),
         crypto_password(&client, &req.hdjwPassword, &req.stuPassword),
-        clear_redis_cache(&req.stuId),
+        utils::redis::clear_redis_cache(&req.stuId),
     )?;
 
     match verify_res.code {

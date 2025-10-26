@@ -20,6 +20,7 @@ use crate::{
     },
     handlers::back::common::validation::crypto_password,
     utils::{
+        self,
         jwt::parse_stu_id,
         request::{client, spider_data},
     },
@@ -36,6 +37,7 @@ pub async fn set_lab_password_handler(
     Json(req): Json<SetLabPasswordReq>,
 ) -> AppResult {
     let stuid = parse_stu_id(&token)?;
+    utils::redis::clear_redis_cache(&stuid).await?;
     let spider_res: SpiderLabLoginInfo = spider_data(
         "/lab/checkPassword",
         &[("stuid", &stuid), ("password", &req.password)],
