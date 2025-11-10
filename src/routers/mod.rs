@@ -60,7 +60,6 @@ use crate::{
         },
         spider::{
             hdjw::{
-                get_computer_exam_arrange_handler,
                 get_empty_room_handler, get_exam_arrange_handler,
                 get_grade_chart_handler, get_grade_handler,
                 get_grade_rank_handler,
@@ -155,11 +154,7 @@ pub fn create_router(db_pool: Arc<DbPool>) -> Router {
         .route("/hdjw/chart", get(get_grade_chart_handler)); // 获取成绩趋势
 
     let exam = Router::new()
-        .route("/hdjw/exam-arrange", get(get_exam_arrange_handler)) // 获取考试安排
-        .route(
-            "/hdjw/computer-exam",
-            get(get_computer_exam_arrange_handler),
-        ); // 获取机考安排
+        .route("/hdjw/exam-arrange", get(get_exam_arrange_handler)); // 获取考试安排
 
     let empty_room = Router::new()
         .route("/hdjw/empty-room", get(get_empty_room_handler)); // 获取空教室

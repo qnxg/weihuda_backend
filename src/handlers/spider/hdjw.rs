@@ -4,6 +4,7 @@ use crate::dtos::spider::hdjw::{
 };
 use crate::entities::back::course::CourseInfo;
 use crate::entities::back::flex_time::FlexTime;
+use crate::entities::spider::exam::SpiderExamArrangeItem;
 use crate::entities::spider::grade::{
     CaGradeRank, GradeInfo, HdjwGradeRank, SpiderGradeInfo,
 };
@@ -18,10 +19,7 @@ use crate::{
         spider::{
             class_table::SpiderCourseInfo,
             empty_room::EmptyRoomRes,
-            exam::{
-                ExamArrangeRes, SpiderComputerExamArrange,
-                SpiderExamArrange,
-            },
+            exam::ExamArrangeRes,
             grade::{
                 F64OrString, GradeChartRes, SpiderGradeChart,
                 U32OrString,
@@ -519,52 +517,29 @@ pub async fn get_exam_arrange_handler(
         ("xq", req.xq.to_string()),
         ("stuid", stu_id),
     ];
-    let spider_res: SpiderExamArrange =
+    let spider_res: Vec<SpiderExamArrangeItem> =
         spider_data("/bks/exam/schedule", &params).await?;
 
-    let mut res = Vec::with_capacity(spider_res.rowCount as usize);
-    for item in spider_res.items {
-        let temp = ExamArrangeRes {
-            number: item.kcbh,
-            name: item.kc_name,
-            classroom: item.kcmc_name,
-            startTime: item.kskssj,
-            endTime: item.ksjssj,
-            seat: item.zwh.unwrap_or_default(),
-        };
-        res.push(temp);
-    }
-    //TODO 将vec按startTime排序，由于现在爬虫无数据返回，所以暂时不实现
-    Ok(res.into())
-}
-
-pub async fn get_computer_exam_arrange_handler(
-    Query(req): Query<GetExamArrangeReq>,
-    Extension(token): Extension<String>,
-) -> AppResult {
-    let stu_id = parse_stu_id(&token)?;
-    let params = [
-        ("xn", req.xn.to_string()),
-        ("xq", req.xq.to_string()),
-        ("stuid", stu_id),
-    ];
-    //TODO 结构正确性有待验证
-    let spider_res: Vec<SpiderComputerExamArrange> =
-        spider_data("/bks/jkexam/schedule", &params).await?;
-
-    let mut res = Vec::with_capacity(spider_res.len());
+    let mut res = Vec::new();
     for item in spider_res {
+        let date_time_parts: Vec<&str> =
+            item.kssj.split(' ').collect();
+        if date_time_parts.len() != 2 {
+            return Err(
+                anyhow!("解析考试时间失败：{}", item.kssj).into()
+            );
+        }
         let temp = ExamArrangeRes {
-            number: item.kcbh,
-            name: item.kc_name,
-            classroom: item.jf_name,
-            startTime: format!("{} {}", item.jkrq, item.kssj),
-            endTime: format!("{} {}", item.jkrq, item.jssj),
-            seat: item.jwbh,
+            id: item.kch,
+            name: item.kskcmc,
+            place: format!("{} {}", item.js_mc, item.ksxq),
+            date: date_time_parts[0].to_string(),
+            time: date_time_parts[1].to_string(),
+            seat: item.zwh.unwrap_or_else(|| "无".to_string()),
         };
         res.push(temp);
     }
-    //TODO 将vec按startTime排序，由于现在爬虫无数据返回，所以暂时不实现
+    res.sort_by(|a, b| a.date.cmp(&b.date));
     Ok(res.into())
 }
 
