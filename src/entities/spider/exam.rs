@@ -2,29 +2,23 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug)]
-pub struct SpiderExamArrange {
-    pub items: Vec<SpiderExamArrangeItem>,
-    pub rowCount: u32,
-}
-
-#[derive(Deserialize, Debug)]
 pub struct SpiderExamArrangeItem {
-    pub kcbh: String,
-    pub kc_name: String,
-    pub kcmc_name: String,
-    pub kskssj: String,
-    pub ksjssj: String,
-    pub zwh: Option<String>,
+    pub kch: String,         // 课程代码
+    pub kskcmc: String,      // 课程名称
+    pub ksxq: String,        // 考试校区
+    pub js_mc: String,       // 考试的教室
+    pub kssj: String,        // 考试时间（已经是一个时间区间了）
+    pub zwh: Option<String>, // 座位号
 }
 
-/// 考试安排，机考安排复用此结构体
+/// 考试安排
 #[derive(Serialize, Debug)]
 pub struct ExamArrangeRes {
-    pub number: String,
+    pub id: String,
     pub name: String,
-    pub classroom: String,
-    pub startTime: String,
-    pub endTime: String,
+    pub place: String,
+    pub date: String, // 考试日期，格式为 "YYYY-MM-DD"
+    pub time: String, // 考试的时间段，例如：14:00~16:00
     pub seat: String,
 }
 
