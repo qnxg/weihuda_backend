@@ -1,10 +1,10 @@
-use axum::http::Method;
-use tower_http::cors::{Any, CorsLayer};
+use salvo::cors::{Any, Cors, CorsHandler};
+use salvo::http::Method;
 
 /// 跨域中间件
 #[inline]
-pub fn cors_middleware() -> CorsLayer {
-    CorsLayer::new()
+pub fn cors_middleware() -> CorsHandler {
+    Cors::new()
         .allow_origin(Any)
         .allow_methods([
             Method::GET,
@@ -13,11 +13,5 @@ pub fn cors_middleware() -> CorsLayer {
             Method::PUT,
         ])
         .allow_headers(Any)
-    // .allow_headers([AUTHORIZATION])
+        .into_handler()
 }
-
-// CorsLayer::new()
-//     .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
-//     .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
-//     .allow_credentials(true)
-//     .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE])

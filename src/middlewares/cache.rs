@@ -1,13 +1,12 @@
-use crate::utils::jwt::parse_stu_id;
-use axum::body::{to_bytes, Body};
-use axum::extract::{Request, State};
-use axum::http::header::CONTENT_TYPE;
-use axum::http::StatusCode;
-use axum::middleware::Next;
-use axum::response::Response;
 use chrono::{Duration, Local, NaiveDateTime};
 use flurry::HashMap;
-use std::sync::Arc;
+use reqwest::StatusCode;
+use salvo::{
+    Depot, FlowCtrl, Request, Response, handler, http::ResBody,
+};
+use tokio::sync::OnceCell;
+
+use crate::utils;
 
 /// 鉴于用户量，不去考虑设置上限
 pub struct Cache {
@@ -133,11 +132,15 @@ const CACHE_PATHS: [&str; 8] = [
     "/course", // 这是一个特殊情况，不缓存请求，需要删除class-table的缓存
 ];
 
+static CACHE: OnceCell<Cache> = OnceCell::const_new();
+
+#[handler]
 pub async fn cache_middleware(
-    State(cache): State<Arc<Cache>>,
-    request: Request,
-    next: Next,
-) -> Response {
+    req: &mut Request,
+    resp: &mut Response,
+    ctrl: &mut FlowCtrl,
+    depot: &mut Depot,
+) {
     // let jwt = request
     //     .headers()
     //     .get("Authorization")
@@ -146,49 +149,57 @@ pub async fn cache_middleware(
     //     .unwrap()
     //     .to_string();
     // request.extensions_mut().insert(jwt);
-    let uri = request.uri();
+    let uri = req.uri();
     let path = uri.path();
     if CACHE_PATHS.contains(&path) {
-        let jwt = request
+        let Some(jwt) = req
             .headers()
             .get("Authorization")
-            .map(|t| t.to_str().unwrap());
-        let stu_id = parse_stu_id(jwt.unwrap()).unwrap();
-        let index = format!("{stu_id}{uri}");
-        // 特殊情况处理，检查是否是course请求，需要删除class-table的缓存
-        if path == "/course" {
-            cache.reset_prefix(&format!("{stu_id}/hdjw/class-table"));
-            let response = next.run(request).await;
-            return response;
-        }
-
-        return if let Some(value) = cache.get(&index) {
-            // 取消掉计数更新，只采用内置的请求间隔判断
-            // let counter = cache.increment_counter(&index).unwrap();
-            // if counter >= 6 {
-            //     cache.reset(&index);
-            // }
-            Response::builder()
-                .status(StatusCode::OK)
-                .header(CONTENT_TYPE, "application/json")
-                .body(value.into())
-                .unwrap()
-        } else {
-            let response = next.run(request).await;
-            if response.status().is_success() {
-                let (parts, body) = response.into_parts();
-                let body_bytes =
-                    to_bytes(body, usize::MAX).await.unwrap();
-                let body_string =
-                    String::from_utf8(body_bytes.to_vec()).unwrap();
-                cache.set(index, body_string);
-                return Response::from_parts(
-                    parts,
-                    Body::from(body_bytes),
-                );
-            }
-            response
+            .and_then(|v| v.to_str().ok())
+        else {
+            ctrl.call_next(req, depot, resp).await;
+            return;
         };
+        let Ok((_, stu_id)) = utils::jwt::parse(jwt) else {
+            ctrl.call_next(req, depot, resp).await;
+            return;
+        };
+        let index = format!("{stu_id}{uri}");
+        let cache = CACHE.get_or_init(async || Cache::new()).await;
+        if path == "/course" {
+            // 特殊情况处理，检查是否是course请求，需要删除class-table的缓存
+            cache.reset_prefix(&format!("{stu_id}/hdjw/class-table"));
+            ctrl.call_next(req, depot, resp).await;
+            return;
+        }
+        if let Some(cached_value) = cache.get(&index) {
+            resp.headers_mut().insert(
+                salvo::http::header::CONTENT_TYPE,
+                salvo::http::HeaderValue::from_static(
+                    "application/json",
+                ),
+            );
+            resp.render(cached_value);
+            ctrl.skip_rest();
+        } else {
+            ctrl.call_next(req, depot, resp).await;
+            if let Some(StatusCode::OK) = resp.status_code {
+                // if let Ok(body) = .await {
+                //     cache.set(index, body);
+                // }
+                let body = match resp.body {
+                    ResBody::Once(ref data) => {
+                        let bytes = data.to_vec();
+                        String::from_utf8(bytes.to_vec())
+                    }
+                    _ => return,
+                };
+                if let Ok(body) = body {
+                    cache.set(index, body);
+                }
+            }
+        }
+    } else {
+        ctrl.call_next(req, depot, resp).await;
     }
-    next.run(request).await
 }

@@ -1,11 +1,17 @@
 use jsonwebtoken::{
-    decode, encode, DecodingKey, EncodingKey, Header, Validation,
+    DecodingKey, EncodingKey, Header, Validation, decode, encode,
 };
-use lazy_static::lazy_static;
+use salvo::Request;
 use serde::{Deserialize, Serialize};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    sync::LazyLock,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
-use crate::config::CFG;
+use crate::{
+    config::CFG,
+    result::{AppError, AppResult},
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Claims {
@@ -18,23 +24,17 @@ struct Claims {
     stu_id: String,
 }
 
-// 把validation设置为const常量
-lazy_static! {
-    pub static ref VALIDATION: Validation = {
-        let mut validation = Validation::default();
-        validation.validate_exp = false;
-        validation
-    };
-}
+static VALIDATION: LazyLock<Validation> = LazyLock::new(|| {
+    let mut validation = Validation::default();
+    validation.validate_exp = false;
+    validation
+});
 
 /// 用mini_bind_id和stu_id生成token
-pub fn auth(
-    id: u32,
-    stu_id: &str,
-) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn generate_jwt(id: u32, stu_id: &str) -> AppResult<String> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .expect("Time went backwards")
         .as_secs() as usize;
 
     let claims = Claims {
@@ -56,36 +56,7 @@ pub fn auth(
     Ok(res)
 }
 
-/// 返回mini_bind_id，用于数据库操作
-pub fn parse_id(
-    token: &str,
-) -> Result<u32, jsonwebtoken::errors::Error> {
-    let res = decode::<Claims>(
-        token,
-        &DecodingKey::from_secret(CFG.jwt.secret.as_bytes()),
-        &VALIDATION,
-    )?;
-
-    Ok(res.claims.id)
-}
-
-/// 返回stu_id，用于爬虫请求
-pub fn parse_stu_id(
-    token: &str,
-) -> Result<String, jsonwebtoken::errors::Error> {
-    let res = decode::<Claims>(
-        token,
-        &DecodingKey::from_secret(CFG.jwt.secret.as_bytes()),
-        &VALIDATION,
-    )?;
-
-    Ok(res.claims.stu_id)
-}
-
-/// 用于即返回mini_bind_id，又返回stu_id的情况
-pub fn parse(
-    token: &str,
-) -> Result<(u32, String), jsonwebtoken::errors::Error> {
+pub fn parse(token: &str) -> AppResult<(u32, String)> {
     let res = decode::<Claims>(
         token,
         &DecodingKey::from_secret(CFG.jwt.secret.as_bytes()),
@@ -93,6 +64,17 @@ pub fn parse(
     )?;
 
     Ok((res.claims.id, res.claims.stu_id))
+}
+
+/// 如果验证失败就返回 AppError::Unauthorized
+pub fn auth(req: &mut Request) -> AppResult<(u32, String)> {
+    let jwt = req
+        .headers()
+        .get("Authorization")
+        .ok_or(AppError::Unauthorized)?
+        .to_str()
+        .map_err(|_| AppError::Unauthorized)?;
+    parse(jwt)
 }
 
 #[cfg(test)]
@@ -111,7 +93,7 @@ mod tests {
     fn test_auth() {
         let id = 44971;
         let stu_id = "202104061314";
-        let token = auth(id, stu_id).unwrap();
+        let token = generate_jwt(id, stu_id).unwrap();
         let (res_id, _res_stu_id) = parse(&token).unwrap();
         assert_eq!(id, res_id);
     }

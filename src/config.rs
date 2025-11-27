@@ -31,7 +31,6 @@ pub struct DataBase {
 #[derive(Deserialize, Debug)]
 pub struct Redis {
     pub redis_url: String,
-    pub redis_password: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -58,7 +57,6 @@ pub struct Wechat {
 #[derive(Deserialize, Debug)]
 pub struct Service {
     pub verify_url: String,
-    pub crypto_url: String,
     pub spider_url: String,
 }
 

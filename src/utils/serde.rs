@@ -1,5 +1,8 @@
+use std::str::FromStr;
+
 use chrono::{Duration, NaiveDateTime};
 use serde::{Deserialize, Deserializer};
+use serde_json::Value;
 
 pub fn deserialize_naive_datetime<'de, D>(
     deserializer: D,
@@ -32,15 +35,28 @@ where
     }
 }
 
-/// 当数据整数时，序列化为整数，而不是显示类似4.0的浮点数
-/// 使用方式：use super::serialize_f64;
-pub fn serialize_f64<S>(x: &f64, s: S) -> Result<S::Ok, S::Error>
+pub fn empty_string_as_none<'de, D, T>(
+    deserializer: D,
+) -> Result<Option<T>, D::Error>
 where
-    S: serde::Serializer,
+    D: Deserializer<'de>,
+    T: for<'a> Deserialize<'a> + FromStr,
+    <T as FromStr>::Err: std::fmt::Display,
 {
-    if x.fract() == 0.0 {
-        s.serialize_u64(*x as u64)
-    } else {
-        s.serialize_f64(*x)
+    // 先反序列化为 Value，不消费 deserializer
+    let value = Value::deserialize(deserializer)?;
+
+    match value {
+        Value::String(s) if s.is_empty() => Ok(None),
+        Value::String(s) => {
+            s.parse().map(Some).map_err(serde::de::Error::custom)
+        }
+        Value::Null => Ok(None),
+        _ => {
+            // 对于其他类型，使用 serde_json 重新反序列化
+            serde_json::from_value(value)
+                .map(Some)
+                .map_err(serde::de::Error::custom)
+        }
     }
 }

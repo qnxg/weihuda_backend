@@ -1,23 +1,29 @@
-use tower_http::timeout::TimeoutLayer;
+use std::time::Duration;
 
-/// 请求超时中间件，请求超时情况可以根据StatusCode判断，这里不再自定义错误返回信息，使用默认配置
-#[inline]
-pub fn timeout_middleware() -> TimeoutLayer {
-    TimeoutLayer::new(std::time::Duration::from_secs(6))
+use salvo::{
+    Depot, FlowCtrl, Request, Response, handler,
+    http::headers::{Connection, HeaderMapExt},
+};
+
+use crate::result::AppError;
+
+#[handler]
+pub async fn timeout_middleware(
+    req: &mut Request,
+    depot: &mut Depot,
+    res: &mut Response,
+    ctrl: &mut FlowCtrl,
+) {
+    let timeout = match req.uri().path() {
+        "/hdjw/grade-rank-from-ca" => Duration::from_secs(10),
+        _ => Duration::from_secs(6),
+    };
+    tokio::select! {
+        _ = ctrl.call_next(req, depot, res) => {},
+        _ = tokio::time::sleep(timeout) => {
+            res.headers_mut().typed_insert(Connection::close());
+            res.render(AppError::TimeoutError);
+            ctrl.skip_rest();
+        }
+    }
 }
-
-// 用tower结合axum自定义超时中间件，大致逻辑如下
-// pub time_out_middleware() {
-//     ServiceBuilder::new()
-//         .layer(HandleErrorLayer::new(|err: BoxError| {
-//             if err.is::<tower::timeout::error::Elapsed>() {
-//                 Ok::<_, axum::body::Body>((
-//                     axum::http::StatusCode::REQUEST_TIMEOUT,
-//                     "Request took too long".into(),
-//                 ))
-//             } else {
-//                 Err(err)
-//             }
-//         }))
-//         .timeout(std::time::Duration::from_secs(5))
-// }

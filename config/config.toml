@@ -7,8 +7,7 @@ max_connections = 100
 database_url = "mysql://用户名:密码@ip地址:端口/weihuda"
 
 [redis]
-redis_url = "ip地址:端口"
-redis_password = "密码"
+redis_url = "redis://用户名:密码@ip地址:端口/"
 
 [jwt]
 secret = "__qnxg__jwt_secret__"
@@ -24,8 +23,7 @@ feedback_exchange = "feedback"               # 设置反馈消息应该发送到
 [service]
 # 这里要在本地8002端口开一个爬虫服务
 verify_url = "http://127.0.0.1:8002/bks/auth"
-crypto_url = "http://202.197.99.118/api/crypto/v1/encrypt"
-spider_url = "http://127.0.0.1:8002"                       # 注意结尾一定不要带/，因为后续请求会拼接路径
+spider_url = "http://127.0.0.1:8002"          # 注意结尾一定不要带/，因为后续请求会拼接路径
 
 [log]
 filter_level = "error" # 可用的日志等级："debug", "info", "warn", "error"
