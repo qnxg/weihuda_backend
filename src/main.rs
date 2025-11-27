@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 #![deny(rustdoc::all)]
+#![cfg_attr(not(test), warn(clippy::unwrap_used))]
 #![warn(clippy::allow_attributes)]
 #![warn(clippy::too_many_lines)]
 #![warn(clippy::too_long_first_doc_paragraph)]
@@ -9,28 +10,25 @@
     reason = "在`git commit`之前，请确认代码中没有`todo!()`"
 )]
 
-mod app_error;
-mod app_result;
 mod config;
-mod database;
-mod dtos;
-mod entities;
-mod extractors;
-mod handlers;
+mod infra;
 mod middlewares;
-mod rabbitmq;
+mod result;
 mod routers;
+mod service;
 mod utils;
 
-use crate::{config::CFG, routers::create_router};
-use database::get_db_pool;
-use sqlx::mysql::MySqlPool;
-use std::sync::Arc;
-use tokio::signal;
-
-pub struct DbPool {
-    db: MySqlPool,
-}
+use crate::{
+    config::CFG,
+    middlewares::{
+        cache::cache_middleware, cors::cors_middleware,
+        count::count_middleware, default::default_middleware,
+        timeout::timeout_middleware,
+    },
+};
+use salvo::Service;
+use salvo::logging::Logger;
+use salvo::prelude::*;
 
 #[tokio::main]
 async fn main() {
@@ -54,46 +52,16 @@ async fn run() {
 
     // Mark the log level
     tracing::info!("📓 Log level: {}", &CFG.log.filter_level);
-
-    // Connect to MySQL
-    let pool = get_db_pool().await;
-
-    // Build the final router combined with middleware layers
-    let app = create_router(Arc::new(DbPool { db: pool.clone() })); // 将AppState用原子化引用计数包装，使其可以在多个线程中共享
-                                                                    // Start the server
     tracing::info!("🚀 Server {} is starting", &CFG.server.name);
     tracing::info!("🔄 Listening on port: {}", &CFG.server.address);
-    let listener = tokio::net::TcpListener::bind(&CFG.server.address)
-        .await
-        .unwrap();
-
-    // Serve the server
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .unwrap();
-}
-
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
+    let listener = TcpListener::new(&CFG.server.address).bind().await;
+    let routers = routers::routers();
+    let service = Service::new(routers)
+        .hoop(default_middleware)
+        .hoop(Logger::new())
+        .hoop(cors_middleware())
+        .hoop(count_middleware)
+        .hoop(cache_middleware)
+        .hoop(timeout_middleware);
+    Server::new(listener).serve(service).await;
 }

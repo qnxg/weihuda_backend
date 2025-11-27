@@ -1,14 +1,11 @@
 #![allow(dead_code)]
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 
-use axum::{
-    extract::{Request, State},
-    middleware::Next,
-    response::Response,
-};
 use chrono::{Local, NaiveDate};
+use reqwest::StatusCode;
+use salvo::{Depot, FlowCtrl, Request, Response, handler};
 use tokio::io::AsyncReadExt;
+use tokio::sync::OnceCell;
 use tokio::{fs::OpenOptions, io::AsyncWriteExt, sync::RwLock};
 
 pub struct Count {
@@ -29,43 +26,48 @@ impl Count {
     }
 }
 
-pub async fn count_middleware(
-    State(state): State<Arc<Count>>,
-    request: Request,
-    next: Next,
-) -> Response {
-    let today = Local::now().naive_local().date();
+static COUNTER: OnceCell<Count> = OnceCell::const_new();
 
-    let last_update = *state.last_update.read().await;
+#[handler]
+pub async fn count_middleware(
+    req: &mut Request,
+    resp: &mut Response,
+    ctrl: &mut FlowCtrl,
+    depot: &mut Depot,
+) {
+    let counter = COUNTER.get_or_init(async || Count::new()).await;
+    let today = Local::now().naive_local().date();
+    let last_update = *counter.last_update.read().await;
 
     if today != last_update {
-        let count = state.count.load(Ordering::Relaxed);
+        let count = counter.count.load(Ordering::Relaxed);
         // 应对极端情况，虽然没有任何可能出现。
         if count == 0 {
-            state.count.store(1, Ordering::Relaxed);
+            counter.count.store(1, Ordering::Relaxed);
         }
-        let err_count = state.err_count.load(Ordering::Relaxed);
+        let err_count = counter.err_count.load(Ordering::Relaxed);
         let _res =
             update_count_file(count, err_count, &last_update).await; // 不去处理这个错误
         if _res.is_err() {
             tracing::error!("更新计数文件失败");
         }
-        state.count.store(1, Ordering::Relaxed);
-        state.err_count.store(0, Ordering::Relaxed); // 每日重置错误计数
-        let mut last_update = state.last_update.write().await;
+        counter.count.store(1, Ordering::Relaxed);
+        counter.err_count.store(0, Ordering::Relaxed); // 每日重置错误计数
+        let mut last_update = counter.last_update.write().await;
         *last_update = today;
     } else {
-        state.count.fetch_add(1, Ordering::Relaxed);
+        counter.count.fetch_add(1, Ordering::Relaxed);
     }
 
-    let response = next.run(request).await;
+    ctrl.call_next(req, depot, resp).await;
 
     // 如果Response为Error，增加错误计数，因为错误远比正确少，使用错误来计数减少性能消耗
-    if !response.status().is_success() {
-        state.err_count.fetch_add(1, Ordering::Relaxed);
+    if let Some(code) = resp.status_code
+        && code != StatusCode::OK
+    {
+        counter.err_count.fetch_add(1, Ordering::Relaxed);
+        return;
     }
-
-    response
 }
 
 async fn update_count_file(
