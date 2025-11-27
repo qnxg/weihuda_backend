@@ -25,19 +25,19 @@ jobs:
       - name: Setup SSH
         uses: https://gitee.com/greyCloud/ssh-key-action.git@v2
         with:
-          key: ${{ secrets.SSH_KEY_119 }}
+          key: ${{ secrets.SSH_KEY_118 }}
           known_hosts: unnecessary
 
       - name: Deploy to Server
         run: |
           apt-get install -y sshpass
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME_119 }}@${{ secrets.SSH_SERVER_119 }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME_118 }}@${{ secrets.SSH_SERVER_118 }} << 'EOF'
           systemctl stop back
           EOF
           sshpass scp -o StrictHostKeyChecking=no \
             -P 22 target/x86_64-unknown-linux-musl/release/${{ github.event.repository.name }} \
-            ${{ secrets.SSH_USERNAME_119 }}@${{ secrets.SSH_SERVER_119 }}:${{ vars.DEPLOY_DIR }}/
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME_119 }}@${{ secrets.SSH_SERVER_119 }} << 'EOF'
+            ${{ secrets.SSH_USERNAME_118 }}@${{ secrets.SSH_SERVER_118 }}:${{ vars.DEPLOY_DIR }}/
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME_118 }}@${{ secrets.SSH_SERVER_118 }} << 'EOF'
           chmod +x ${{ vars.DEPLOY_DIR }}/${{ github.event.repository.name }}
           systemctl restart back
           EOF
