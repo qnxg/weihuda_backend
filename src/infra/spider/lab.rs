@@ -91,7 +91,7 @@ pub async fn get_lab_score(
 pub struct SpiderLabScoreDetail {
     pub LabScoreStructureID: i32, // 对应的成绩结构id
     pub LabID: i32,               // 对应的实验id
-    pub LabStructureScore: Option<i32>, // 分数
+    pub LabStructureScore: Option<f64>, // 分数
 }
 /// 获取某门课程下实验的具体成绩
 pub async fn get_lab_score_detail(

@@ -278,3 +278,34 @@ pub async fn get_virtual_lab_grade(
     res.dedup_by(|a, b| a.lab_name == b.lab_name);
     Ok(res)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const STUID: &str = "";
+
+    #[tokio::test]
+    async fn test_get_sem_info() {
+        let sems = get_sem_info(STUID).await.unwrap();
+        println!("{:#?}", sems);
+    }
+
+    #[tokio::test]
+    async fn test_get_course() {
+        let course = get_course(STUID, "17").await.unwrap();
+        println!("{:#?}", course);
+    }
+
+    #[tokio::test]
+    async fn test_get_lab_arrange() {
+        let arrange = get_lab_arrange(STUID).await.unwrap();
+        println!("{:#?}", arrange);
+    }
+
+    #[tokio::test]
+    async fn test_get_virtual_lab_grade() {
+        let grades = get_virtual_lab_grade(STUID).await.unwrap();
+        println!("{:#?}", grades);
+    }
+}
