@@ -1,3 +1,4 @@
+use crate::utils;
 use crate::{infra, result::AppResult};
 
 pub use infra::mysql::user::get_by_openid as check_by_openid;
@@ -12,8 +13,13 @@ pub async fn bind(
     stu_pass: &str,
     hdjw_pass: &str,
 ) -> AppResult<()> {
-    infra::mysql::user::add_user(openid, stu_id, stu_pass, hdjw_pass)
-        .await?;
+    infra::mysql::user::add_user(
+        openid,
+        stu_id,
+        &utils::crypto::encrypt(stu_pass),
+        &utils::crypto::encrypt(hdjw_pass),
+    )
+    .await?;
     // 需要清一下缓存，因为爬虫那边会缓存用户密码到 redis 中
     infra::redis::clear_stuid_cache(stu_id).await
 }
