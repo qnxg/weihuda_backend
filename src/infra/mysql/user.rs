@@ -91,7 +91,7 @@ pub async fn delete_user(mini_bind_id: u32) -> AppResult<()> {
 
 pub async fn get_room(stu_id: &str) -> AppResult<Option<String>> {
     let text = sqlx::query_scalar!(
-        "SELECT room FROM mini_bind WHERE stuID = ?",
+        "SELECT room FROM mini_bind WHERE stuID = ? AND deleted_at is NULL",
         stu_id
     )
     .fetch_optional(get_db_pool().await)

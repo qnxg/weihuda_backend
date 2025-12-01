@@ -66,7 +66,7 @@ pub async fn update_notice(
             SET 
                 result = ?
             WHERE 
-                id = ?
+                id = ? AND deletedAt IS NULL
             "#,
             result,
             id,
@@ -82,7 +82,7 @@ pub async fn update_notice(
             SET 
                 status = ?
             WHERE 
-                id = ?
+                id = ? AND deletedAt IS NULL
             "#,
             status,
             id,

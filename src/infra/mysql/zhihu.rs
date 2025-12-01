@@ -167,7 +167,7 @@ pub async fn update_zhihu(
             stuId = ?, 
             updatedAt = ? 
         WHERE 
-            id = ?;
+            id = ? AND deletedAt IS NULL;
         "#,
         item.title,
         item._type,
@@ -191,7 +191,7 @@ pub async fn delete_zhihu(id: u32) -> AppResult<()> {
         r#"
         Update zhihus
         SET deletedAt = ?
-        WHERE id = ?;
+        WHERE id = ? AND deletedAt IS NULL;
         "#,
         now,
         id
