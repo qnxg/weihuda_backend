@@ -25,10 +25,7 @@ pub fn routers() -> Router {
 #[handler]
 async fn get_jifen(req: &mut Request) -> RouterResult {
     let (_, stu_id) = utils::jwt::auth(req)?;
-    // 这里确保用户是存在的了
-    let res = service::jifen::get_jifen(&stu_id)
-        .await?
-        .expect("通过鉴权，但是获取积分时用户不存在");
+    let res = service::jifen::get_jifen(&stu_id).await?;
     // 为了与原接口兼容，这里还需要获取当前用户的 id，虽然这貌似并没有什么必要
     let mini_bind = service::auth::user::check_by_stu_id(&stu_id)
         .await?
@@ -237,17 +234,12 @@ async fn post_goods(req: &mut Request) -> RouterResult {
     if goods.count <= 0 {
         return Err("商品库存不足".into());
     }
-    // 用户一定存在，因此不可能返回 None
-    let user_jifen = service::jifen::get_jifen(&stu_id)
-        .await?
-        .expect("通过鉴权后用户不存在");
+    let user_jifen = service::jifen::get_jifen(&stu_id).await?;
     if user_jifen < goods.price as u32 {
         return Err("积分不足".into());
     }
     // 检查积分是否足够
-    let current_jifen = service::jifen::get_jifen(&stu_id)
-        .await?
-        .expect("通过鉴权后用户不存在");
+    let current_jifen = service::jifen::get_jifen(&stu_id).await?;
     if current_jifen < goods.price as u32 {
         return Err("积分不足，无法兑换".into());
     }

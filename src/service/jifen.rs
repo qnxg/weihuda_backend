@@ -30,10 +30,7 @@ pub async fn add_jifen(
     // 更新积分
     infra::mysql::jifen::update_jifen(stu_id, jifen).await?;
     // 获取增加后的积分数值
-    // 这里用户一定是存在的
-    let res = infra::mysql::jifen::get_jifen(stu_id)
-        .await?
-        .expect("鉴权后用户不存在");
+    let res = infra::mysql::jifen::get_jifen(stu_id).await?;
     Ok(res)
 }
 
@@ -61,4 +58,33 @@ pub async fn exchange_goods(
     infra::mysql::jifen::add_goods_record(stu_id, goods.id, &desc)
         .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::infra;
+
+    #[tokio::test]
+    async fn check_jifen() {
+        let stu_id = "202326010115";
+        let mut records = infra::mysql::jifen::get_jifen_record_list(
+            stu_id, 1, 100000, None, None,
+        )
+        .await
+        .unwrap();
+        records.sort_by_key(|r| r.id);
+        let mut now = 0;
+        for record in records.iter() {
+            let flag = now >= 0;
+            now += record.jifen;
+            let flag2 = now <= 0;
+            if flag && flag2 {
+                println!(
+                    "Negative jifen at record id {}: {}\n{:#?}",
+                    record.id, now, record
+                );
+            }
+        }
+        println!("Final jifen: {}", now);
+    }
 }

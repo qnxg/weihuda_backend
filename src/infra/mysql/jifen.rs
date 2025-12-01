@@ -1,25 +1,43 @@
+#![expect(unused)]
 use super::get_db_pool;
 use crate::result::AppResult;
+use anyhow::anyhow;
 use chrono::{DateTime, Local, NaiveDateTime};
 use serde::Serialize;
 
-pub async fn get_jifen(stu_id: &str) -> AppResult<Option<u32>> {
+/// 调用前请确保学号是存在的，否则会自动向数据库中添加对应记录，初始积分为 0
+pub async fn get_jifen(stu_id: &str) -> AppResult<u32> {
+    sqlx::query!(
+        "INSERT IGNORE INTO mini_jifen (stuID, jifen) VALUES (?, 0)",
+        stu_id,
+    )
+    .execute(get_db_pool().await)
+    .await?;
     let res = sqlx::query_scalar!(
-        "SELECT jifen FROM mini_bind WHERE stuID = ?",
+        r#"
+        SELECT jifen FROM mini_jifen WHERE stuID = ?
+        "#,
         stu_id
     )
-    .fetch_optional(get_db_pool().await)
+    .fetch_one(get_db_pool().await)
     .await?;
-    Ok(res.flatten())
+    Ok(res)
 }
 
+/// 调用前请确保学号是存在的，否则会自动向数据库中添加对应记录，初始积分为 0
 pub async fn update_jifen(
     stu_id: &str,
     increment: i32,
 ) -> AppResult<()> {
     sqlx::query!(
+        "INSERT IGNORE INTO mini_jifen (stuID, jifen) VALUES (?, 0)",
+        stu_id,
+    )
+    .execute(get_db_pool().await)
+    .await?;
+    sqlx::query!(
         r#"
-        UPDATE mini_bind
+        UPDATE mini_jifen
         SET jifen = jifen + ?
         WHERE stuID = ?
         "#,
@@ -64,7 +82,7 @@ pub async fn get_jifen_record_list(
         FROM 
             jifen_records
         WHERE 
-            (`key` LIKE ? AND param LIKE ? AND stuId = ?)
+            `key` LIKE ? AND param LIKE ? AND stuId = ? AND deletedAt IS NULL
         ORDER BY 
             id DESC
         LIMIT 
@@ -229,7 +247,7 @@ pub async fn get_goods(
         FROM 
             jifen_goods
         WHERE 
-            id = ?
+            id = ? AND deletedAt IS NULL
         "#,
         goods_id
     )
@@ -268,7 +286,7 @@ pub async fn update_goods_count(
         r#"
         UPDATE jifen_goods
         SET count = count - ?
-        WHERE id = ?
+        WHERE id = ? AND deletedAt IS NULL
         "#,
         decrement,
         goods_id
