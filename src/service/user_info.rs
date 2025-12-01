@@ -105,8 +105,7 @@ fn parse_dormitory_info(dormitory: &str, room: &str) -> Dormitory {
     }
     if dormitory.contains("财院校区") {
         park = "财院校区";
-        let re =
-            Regex::new(r"[1-9AB]+栋").expect("构建正则表达式失败");
+        let re = Regex::new(r"[1-9AB]").expect("构建正则表达式失败");
         build = re
             .find_iter(dormitory)
             .map(|mat| mat.as_str())
@@ -127,5 +126,29 @@ fn parse_dormitory_info(dormitory: &str, room: &str) -> Dormitory {
         park: park.to_string(),
         build: build.to_string(),
         room: room.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn test_get_dormitory() {
+        let stu_id = "";
+        let dormitory = get_dormitory(stu_id).await.unwrap();
+        println!("{:#?}", dormitory);
+    }
+
+    #[tokio::test]
+    async fn test_update_dormitory() {
+        let stu_id = "";
+        update_dormitory(stu_id).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_get_person_info() {
+        let stu_id = "";
+        let person_info = get_person_info(stu_id).await.unwrap();
+        println!("{:#?}", person_info);
     }
 }
