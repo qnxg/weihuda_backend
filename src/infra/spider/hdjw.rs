@@ -67,8 +67,8 @@ pub struct SpiderGradeInfo {
     // pub kz: u8,           // 未知字段
     pub kcxzmc: String, // 课程性质（通识必修/专业核心等）
     // pub xs0101id: String, // 未知字段
-    // pub jx0404id: Option<String>, // 似乎和 kch 重复，部分成绩没有该字段
-    pub jd: f32, // 绩点
+    pub jx0404id: Option<String>, // 用于课程成绩详情查询，部分成绩没有该字段
+    pub jd: f32,                  // 绩点
     // pub ksxz: String,         // 考试性质（暂时不用）
     pub falb: String,         // 主修还是辅修
     pub cjbs: Option<String>, // 成绩标识（缓考/重修等，注意这个标识是挂在为 0 分的那个成绩 item 上）
@@ -189,6 +189,16 @@ pub async fn get_empty_room(
     ];
     let spider_res: Value =
         spider_data("/freeroom/list", &params).await?;
+    Ok(spider_res)
+}
+
+pub async fn get_grade_detail(
+    stu_id: &str,
+    jx0404id: &str,
+) -> AppResult<String> {
+    let params = [("stuid", stu_id), ("jx0404id", jx0404id)];
+    let spider_res: String =
+        spider_data("/bks/grade/detail", &params).await?;
     Ok(spider_res)
 }
 
