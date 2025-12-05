@@ -173,7 +173,7 @@ pub async fn get_empty_room(
     stu_id: &str,
     build_id: &str,
     day: &str,
-    jc: &str,
+    jc: &Vec<&str>,
     week: u32,
     xn: u32,
     xq: u32,
@@ -181,7 +181,7 @@ pub async fn get_empty_room(
     let params = [
         ("build_id", build_id.to_string()),
         ("day", day.to_string()),
-        ("jc", jc.to_string()),
+        ("jc", jc.join(",")),
         ("week", week.to_string()),
         ("xn", xn.to_string()),
         ("xq", xq.to_string()),
@@ -190,4 +190,24 @@ pub async fn get_empty_room(
     let spider_res: Value =
         spider_data("/freeroom/list", &params).await?;
     Ok(spider_res)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn test_get_course() {
+        let res = get_empty_room(
+            "",
+            "106",
+            "4",
+            &vec!["0102", "0304"],
+            11,
+            2025,
+            1,
+        )
+        .await
+        .unwrap();
+        println!("{:#?}", res);
+    }
 }

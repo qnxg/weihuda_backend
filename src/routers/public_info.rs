@@ -43,11 +43,12 @@ async fn get_empty_room(req: &mut Request) -> RouterResult {
         service::semester::get_now_xnxq().await?;
     let xn = xn.unwrap_or(current_xn);
     let xq = xq.unwrap_or(current_xq);
+    let jc = jc.split(',').collect::<Vec<_>>();
     let res = service::public_info::get_empty_room(
         &stu_id,
         &buildId,
         &day.to_string(),
-        &jc,
+        jc,
         week,
         xn,
         xq,
