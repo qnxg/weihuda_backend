@@ -124,27 +124,38 @@ pub async fn get_fitness_raw_grade(
 
 #[derive(Deserialize, Debug)]
 pub struct SpiderFitnessAppoint {
-    pub appo_desc: String,
-    // pub appo_time: String,
-    // pub appoint_date: String,
-    // pub appoint_test_time: String,
-    // pub appoint_time: String,
-    // pub button_status: u32,
-    // pub class_id: u32,
+    pub class_id: u32,
+    pub button_status: u32,
     pub class_name: String,
-    // pub class_time: String,
-    pub show_time: String,
-    // pub sign_time: String,
-    pub status: String,
-    // pub target_id: u32,
-    // pub target_type: u32,
-    pub test_time: String,
-    pub test_type: String,
+    pub class_time: String, // 如：2025-12-15
+    pub show_time: String,  // 如：2025年12月15号（周一）
+    pub test_time: String,  // 如：10:00 - 11:30
 }
 pub async fn get_fitness_appoint(
     stu_id: &str,
 ) -> AppResult<Vec<SpiderFitnessAppoint>> {
     let params = &[("stuid", stu_id)];
     let res = spider_data("/gymos/appoint", params).await?;
+    Ok(res)
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SpiderFitnessAppointDetail {
+    pub class_desc: String,
+    pub appo_type: u32,
+}
+pub async fn get_fitness_appoint_detail(
+    stu_id: &str,
+    class_id: &str,
+    class_time: &str,
+    test_time: &str,
+) -> AppResult<SpiderFitnessAppointDetail> {
+    let params = &[
+        ("stuid", stu_id),
+        ("class_id", class_id),
+        ("class_time", class_time),
+        ("test_time", test_time),
+    ];
+    let res = spider_data("/gymos/appoint/detail", params).await?;
     Ok(res)
 }

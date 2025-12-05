@@ -223,15 +223,52 @@ pub async fn get_fitness_appoint(
         infra::spider::gymos::get_fitness_appoint(stu_id).await?;
     let mut res = Vec::with_capacity(spider_res.len());
     for item in spider_res {
+        let detail =
+            infra::spider::gymos::get_fitness_appoint_detail(
+                stu_id,
+                &item.class_id.to_string(),
+                &item.class_time,
+                &item.test_time,
+            )
+            .await?;
         let temp = FitnessAppoint {
-            appo_desc: item.appo_desc,
+            appo_desc: detail.class_desc,
             show_time: item.show_time,
             test_time: item.test_time,
-            test_type: item.test_type,
+            test_type: match detail.appo_type {
+                0 => "两项以上".to_string(),
+                1 => "身高体重".to_string(),
+                2 => "肺活量".to_string(),
+                3 => "立定跳远".to_string(),
+                4 => "坐位体前屈".to_string(),
+                5 => "引体向上/仰卧起坐".to_string(),
+                7 => "50米".to_string(),
+                8 => "800米/1000米".to_string(),
+                9 => "视力".to_string(),
+                _ => "未知类型".to_string(),
+            },
             class_name: item.class_name,
-            status: item.status,
+            status: match item.button_status {
+                0 => "未预约".to_string(),
+                1 => "已预约".to_string(),
+                2 => "已完成".to_string(),
+                3 => "已过期".to_string(),
+                4 => "已失效".to_string(),
+                _ => "未知状态".to_string(),
+            },
         };
         res.push(temp);
     }
     Ok(res)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_fitness_appoint() {
+        let res = get_fitness_appoint("202402050201").await.unwrap();
+        println!("{:#?}", res);
+    }
 }
