@@ -147,13 +147,14 @@ pub async fn get_rank(
 }
 
 #[derive(Deserialize, Debug)]
+// 带 Option 的字段应该是类似于体育理论这样考试安排信息很不全的课程
 pub struct SpiderExamArrangeItem {
-    pub kch: String,         // 课程代码
-    pub kskcmc: String,      // 课程名称
-    pub ksxq: String,        // 考试校区
-    pub js_mc: String,       // 考试的教室
-    pub kssj: String,        // 考试时间（已经是一个时间区间了）
-    pub zwh: Option<String>, // 座位号
+    pub kch: String,           // 课程代码
+    pub kskcmc: String,        // 课程名称
+    pub ksxq: Option<String>,  // 考试校区
+    pub js_mc: Option<String>, // 考试的教室
+    pub kssj: Option<String>,  // 考试时间（已经是一个时间区间了）
+    pub zwh: Option<String>,   // 座位号
 }
 pub async fn get_exam_arrange(
     stu_id: &str,
