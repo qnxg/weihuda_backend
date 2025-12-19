@@ -29,7 +29,12 @@ async fn get_jifen(req: &mut Request) -> RouterResult {
     // 为了与原接口兼容，这里还需要获取当前用户的 id，虽然这貌似并没有什么必要
     let mini_bind = service::auth::user::check_by_stu_id(&stu_id)
         .await?
-        .expect("通过鉴权，但是获取 mini_bind 时用户不存在");
+        .unwrap_or_else(|| {
+            panic!(
+                "jwt合理，但用户学号在mini_bind中不存在：stuid={}",
+                &stu_id
+            )
+        });
     // 兼容旧接口
     Ok(json!({
         "jifen": res,
