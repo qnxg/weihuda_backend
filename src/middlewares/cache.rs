@@ -120,13 +120,12 @@ impl Cache {
     }
 }
 
-const CACHE_PATHS: [&str; 8] = [
+const CACHE_PATHS: [&str; 7] = [
     "/hdjw/grade",
     // "/hdjw/grade-rank",
     "/hdjw/raw-grade",
     "/hdjw/grade-rank-from-ca",
     "/hdjw/must-grade",
-    "/hdjw/chart",
     "/hdjw/class-table",
     "/netflow",
     "/course", // 这是一个特殊情况，不缓存请求，需要删除class-table的缓存
