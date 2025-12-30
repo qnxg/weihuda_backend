@@ -14,13 +14,13 @@ pub use infra::spider::hdjw::RankRange as HdjwRankRange;
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GradeInfo {
-    pub course_id: String,        // 课程代码
-    pub course_name: String,      // 课程名称
-    pub credit: f32,              // 学分
-    pub course_type1: String,     // 课程性质1（必修还是选修）
-    pub course_type2: String,     // 课程性质2（通识必修/专业核心等）
-    pub gpa: f32,                 // 绩点
-    pub score: u8,                // 成绩
+    pub course_id: String,            // 课程代码
+    pub course_name: String,          // 课程名称
+    pub credit: f32,                  // 学分
+    pub course_type1: Option<String>, // 课程性质1（必修还是选修）
+    pub course_type2: String, // 课程性质2（通识必修/专业核心等）
+    pub gpa: f32,             // 绩点
+    pub score: u8,            // 成绩
     pub tags: Vec<String>, // 其他标签，如缓考还是什么（参考 SpiderGradeInfo 的 cjbs 说明），或者辅修等
     pub jx0404id: Option<String>, // 用于获取成绩详情
 }
@@ -240,6 +240,12 @@ mod tests {
     async fn test_get_grade_detail() {
         let res =
             get_grade_detail(STUID, "TB001TY24I-373").await.unwrap();
+        println!("{:#?}", res);
+    }
+
+    #[tokio::test]
+    async fn test_get_grade() {
+        let res = get_grade(2025, 1, STUID).await.unwrap();
         println!("{:#?}", res);
     }
 }
