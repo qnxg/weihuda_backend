@@ -60,7 +60,7 @@ pub struct SpiderGradeInfo {
     pub xf: f32, // 学分
     // pub zxs: u32,      // 总学时（暂时不用）
     // pub ksfs: String,  // 考试方式（暂时不用）
-    pub kcsx: String, // 课程属性（必修/选修等）
+    pub kcsx: Option<String>, // 课程属性（必修/选修等）
     // pub xqstr: String, // 似乎又和 xnxqid 重复
     pub zcj: u8, // 总成绩
     // pub zcjstr: String,   // 总成绩字符串形式（暂时不用）
