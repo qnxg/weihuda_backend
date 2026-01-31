@@ -21,7 +21,11 @@ pub fn routers() -> Router {
         .push(Router::with_path("grade-rank").get(get_rank_from_hdjw))
         .push(
             Router::with_path("grade-rank-from-ca")
-                .get(get_rank_from_ca),
+                .get(get_rank_from_ca)
+                .push(
+                    salvo::Router::with_path("refresh")
+                        .get(refresh_ca_rank),
+                ),
         )
 }
 
@@ -82,8 +86,15 @@ async fn get_rank_from_hdjw(req: &mut Request) -> RouterResult {
 #[handler]
 async fn get_rank_from_ca(req: &mut Request) -> RouterResult {
     let (_, stu_id) = utils::jwt::auth(req)?;
-    let res = service::grade_rank::get_rank_from_ca(&stu_id).await?;
+    let res = service::grade_rank::ca::get_ca_rank(&stu_id).await?;
     Ok(res.into())
+}
+
+#[handler]
+async fn refresh_ca_rank(req: &mut Request) -> RouterResult {
+    let (_, stu_id) = utils::jwt::auth(req)?;
+    service::grade_rank::ca::refresh_ca_rank(&stu_id).await?;
+    Ok(().into())
 }
 
 #[derive(Deserialize, Debug)]
