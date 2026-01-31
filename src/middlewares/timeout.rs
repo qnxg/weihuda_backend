@@ -14,13 +14,9 @@ pub async fn timeout_middleware(
     res: &mut Response,
     ctrl: &mut FlowCtrl,
 ) {
-    let timeout = match req.uri().path() {
-        "/hdjw/grade-rank-from-ca" => Duration::from_secs(10),
-        _ => Duration::from_secs(6),
-    };
     tokio::select! {
         _ = ctrl.call_next(req, depot, res) => {},
-        _ = tokio::time::sleep(timeout) => {
+        _ = tokio::time::sleep(Duration::from_secs(6)) => {
             res.headers_mut().typed_insert(Connection::close());
             res.render(AppError::TimeoutError);
             ctrl.skip_rest();

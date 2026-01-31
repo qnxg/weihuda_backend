@@ -52,6 +52,8 @@ async fn run() {
 
     // Mark the log level
     tracing::info!("📓 Log level: {}", &CFG.log.filter_level);
+    tracing::info!("🚀 Starting Ca Task Worker");
+    service::grade_rank::ca::start_ca_task_worker().await;
     tracing::info!("🚀 Server {} is starting", &CFG.server.name);
     tracing::info!("🔄 Listening on port: {}", &CFG.server.address);
     let listener = TcpListener::new(&CFG.server.address).bind().await;

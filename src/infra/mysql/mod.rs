@@ -5,6 +5,7 @@ pub mod exam_num;
 pub mod feedback;
 pub mod flex_time;
 pub mod jifen;
+pub mod kv_cache;
 pub mod left_message;
 pub mod notice;
 pub mod semester;
