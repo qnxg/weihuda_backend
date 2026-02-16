@@ -42,16 +42,33 @@ static CLIENT: Lazy<Client> = Lazy::new(|| {
         .expect("构建用于爬虫的 reqwest client 失败")
 });
 
-/// 提取爬虫返回值的data字段
-#[inline]
 async fn spider_data<T: Serialize, U: DeserializeOwned>(
     path: &str,
     params: &T,
 ) -> AppResult<U> {
+    spider_data_with_timeout(path, params, Duration::from_secs(6))
+        .await
+}
+
+/// 提取爬虫返回值的data字段
+#[inline]
+async fn spider_data_with_timeout<
+    T: Serialize,
+    U: DeserializeOwned,
+>(
+    path: &str,
+    params: &T,
+    timeout: Duration,
+) -> AppResult<U> {
     let url = format!("{}{}", CFG.service.spider_url, path);
 
-    let mut res =
-        CLIENT.get(&url).query(params).send().await.map_err(|e| {
+    let mut res = CLIENT
+        .get(&url)
+        .query(params)
+        .timeout(timeout)
+        .send()
+        .await
+        .map_err(|e| {
             tracing::error!(
                 "请求爬虫失败，错误信息：{}，请求目标：{}",
                 e,
