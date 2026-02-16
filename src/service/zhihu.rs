@@ -1,7 +1,9 @@
 use crate::{
     infra::{self},
     result::AppResult,
+    service,
 };
+use serde::{Deserialize, Serialize};
 
 pub use infra::mysql::zhihu::ZhihuListItem;
 
@@ -30,7 +32,21 @@ pub async fn get_zhihu_list(
     Ok((total, list))
 }
 
-pub use infra::mysql::zhihu::add_zhihu;
-pub use infra::mysql::zhihu::delete_zhihu;
 pub use infra::mysql::zhihu::get_zhihu_by_id;
-pub use infra::mysql::zhihu::update_zhihu;
+
+const ZHIHU_TAGS_CONFIG_KEY: &str = "zhihuTags";
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ZhihuTagItem {
+    pub label: String,
+    pub value: String,
+}
+pub async fn get_zhihu_tags() -> AppResult<Vec<ZhihuTagItem>> {
+    let tags = service::config::get_config(ZHIHU_TAGS_CONFIG_KEY)
+        .await?
+        .expect("知湖标签配置不存在")
+        .value;
+    let tags: Vec<ZhihuTagItem> =
+        serde_json::from_str(&tags).expect("知湖标签配置有误");
+    Ok(tags)
+}

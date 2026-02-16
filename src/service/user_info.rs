@@ -8,6 +8,8 @@ use crate::{
 
 const REDIS_PERSON_INFO_KEY_PREFIX: &str = "person_info-";
 
+pub use infra::mysql::user::get_user_setting;
+pub use infra::mysql::user::update_user_setting;
 pub use infra::spider::xgxt::get_person_info;
 
 #[derive(Serialize, Deserialize, Debug)]

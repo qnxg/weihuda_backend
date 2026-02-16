@@ -1,15 +1,16 @@
 use super::get_db_pool;
-use crate::result::AppResult;
+use crate::{result::AppResult, utils};
 use serde::Serialize;
+use serde_json::Value;
 
-#[expect(non_snake_case)]
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct MiniBind {
+    pub stu_id: String,
     pub openid: Option<String>,
-    pub stuID: Option<String>,
-    pub stuPASS: Option<String>,
-    pub hdjwPASS: Option<String>,
-    pub id: u32,
+    pub qq_openid: Option<String>,
+    pub password: String,
+    pub lab_pass: Option<String>,
 }
 
 pub async fn get_by_stu_id(
@@ -18,55 +19,73 @@ pub async fn get_by_stu_id(
     let res = sqlx::query_as!(
         MiniBind,
         r#"
-        SELECT id, openid, stuID, stuPASS, hdjwPASS FROM mini_bind WHERE stuID = ? AND deleted_at is null
+        SELECT 
+        stuId as `stu_id`, openid, qqOpenid as `qq_openid`, password, labPass as `lab_pass`
+        FROM mini_bind 
+        WHERE stuId = ?
         "#,
         stu_id,
     ).fetch_optional(get_db_pool().await).await?;
     Ok(res)
 }
 
+/// 可能存在多个绑定，只返回最新的一个
 pub async fn get_by_openid(
     openid: &str,
 ) -> AppResult<Option<MiniBind>> {
     let res = sqlx::query_as!(
         MiniBind,
         r#"
-        SELECT id, openid, stuID, stuPASS, hdjwPASS FROM mini_bind WHERE openid = ? AND deleted_at is null
+        SELECT 
+        stuId as `stu_id`, openid, qqOpenid as `qq_openid`, password, labPass as `lab_pass`
+        FROM mini_bind 
+        WHERE openid = ?
+        ORDER BY createdAt DESC
+        LIMIT 1
         "#,
         openid,
     ).fetch_optional(get_db_pool().await).await?;
     Ok(res)
 }
 
-#[expect(dead_code)]
-pub async fn get_by_id(id: u32) -> AppResult<Option<MiniBind>> {
-    let res = sqlx::query_as!(
-        MiniBind,
+/// 将指定 openid 的绑定信息删除
+pub async fn clear_openid(openid: &str) -> AppResult<()> {
+    sqlx::query!(
         r#"
-        SELECT id, openid, stuID, stuPASS, hdjwPASS FROM mini_bind WHERE id = ? AND deleted_at is null
+        UPDATE mini_bind SET openid = NULL WHERE openid = ?
         "#,
-        id,
-    ).fetch_optional(get_db_pool().await).await?;
-    Ok(res)
+        openid
+    )
+    .execute(get_db_pool().await)
+    .await?;
+    Ok(())
 }
 
 /// 插入新用户绑定信息，如果用户已存在则更新
 pub async fn add_user(
-    open_id: &str,
     stu_id: &str,
-    stu_pass: &str,
-    hdjw_pass: &str,
+    password: &str,
+    openid: Option<&str>,
+    qq_openid: Option<&str>,
 ) -> AppResult<()> {
-    let now = chrono::Local::now();
+    let now = utils::time::now_time();
     sqlx::query!(
         r#"
-        INSERT INTO mini_bind (openid, stuID, stuPASS, hdjwPASS) VALUES (?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE openid = VALUES(openid), stuPASS = VALUES(stuPASS), hdjwPASS = VALUES(hdjwPASS), updated_at = ?
+        INSERT INTO mini_bind 
+        (stuId, password, openid, qqOpenid, jifen, createdAt, updatedAt) 
+        VALUES (?, ?, ?, ?, 0, ?, ?)
+        ON DUPLICATE KEY 
+            UPDATE 
+            password = VALUES(password), 
+            openid = VALUES(openid), 
+            qqOpenid = VALUES(qqOpenid), 
+            updatedAt = VALUES(updatedAt)
         "#,
-        open_id,
         stu_id,
-        stu_pass,
-        hdjw_pass,
+        password,
+        openid,
+        qq_openid,
+        now,
         now
     )
     .execute(get_db_pool().await)
@@ -74,35 +93,21 @@ pub async fn add_user(
     Ok(())
 }
 
-pub async fn delete_user(mini_bind_id: u32) -> AppResult<()> {
-    let now = chrono::Local::now();
-    sqlx::query!(
-        r#"
-        UPDATE mini_bind SET updated_at = ?, deleted_at = ?, openid = '' WHERE id = ? AND deleted_at is null
-        "#,
-        now,
-        now,
-        mini_bind_id
-    )
-    .execute(get_db_pool().await)
-    .await?;
-    Ok(())
-}
-
+/// 返回 None 时，可能是用户不存在，也可能是对应的 room 字段就是空的
 pub async fn get_room(stu_id: &str) -> AppResult<Option<String>> {
     let text = sqlx::query_scalar!(
-        "SELECT room FROM mini_bind WHERE stuID = ? AND deleted_at is NULL",
+        "SELECT room FROM mini_bind WHERE stuId = ?",
         stu_id
     )
     .fetch_optional(get_db_pool().await)
     .await?;
-    Ok(text)
+    Ok(text.flatten())
 }
 
 pub async fn update_room(stu_id: &str, room: &str) -> AppResult<()> {
     sqlx::query!(
         r#"
-        UPDATE mini_bind SET room = ? WHERE stuID = ? AND deleted_at is null
+        UPDATE mini_bind SET room = ? WHERE stuId = ?
         "#,
         room,
         stu_id
@@ -118,9 +123,41 @@ pub async fn set_lab_pass(
 ) -> AppResult<()> {
     sqlx::query!(
         r#"
-        UPDATE mini_bind SET labPASS = ? WHERE stuID = ? AND deleted_at is null
+        UPDATE mini_bind SET labPass = ? WHERE stuId = ?
         "#,
         lab_pass,
+        stu_id
+    )
+    .execute(get_db_pool().await)
+    .await?;
+    Ok(())
+}
+
+/// 返回 None 时，可能是用户不存在，也可能是对应的 room 字段就是空的
+pub async fn get_user_setting(
+    stu_id: &str,
+) -> AppResult<Option<Value>> {
+    let res = sqlx::query!(
+        "
+        SELECT settings FROM mini_bind WHERE stuId = ?
+        ",
+        stu_id
+    )
+    .fetch_optional(get_db_pool().await)
+    .await?
+    .map(|r| r.settings);
+    Ok(res.flatten())
+}
+
+pub async fn update_user_setting(
+    stu_id: &str,
+    settings: &Value,
+) -> AppResult<()> {
+    sqlx::query!(
+        r#"
+        UPDATE mini_bind SET settings = ? WHERE stuId = ?
+        "#,
+        settings,
         stu_id
     )
     .execute(get_db_pool().await)

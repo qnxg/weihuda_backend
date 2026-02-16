@@ -70,3 +70,16 @@ pub async fn get_card_history(
     };
     Ok(res)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const STUID: &str = "202402050201";
+
+    #[tokio::test]
+    async fn test_get_card_info() {
+        let card_info = get_card_info(STUID).await.unwrap();
+        println!("{:#?}", card_info);
+    }
+}

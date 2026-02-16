@@ -36,15 +36,14 @@ pub struct VerifyResult {
 }
 pub async fn verify_password(
     stu_id: &str,
-    hdjw_pass: &str,
-    stu_pass: &str,
+    password: &str,
 ) -> AppResult<VerifyResult> {
     let res = CLIENT
         .post(&CFG.service.verify_url)
         .form(&[
             ("stuid", stu_id),
-            ("hdjwpass", hdjw_pass),
-            ("ptpass", stu_pass),
+            ("hdjwpass", password),
+            ("ptpass", password),
         ])
         .send()
         .await

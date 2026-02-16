@@ -4,7 +4,7 @@ use crate::{
     service::{self, exam::ExamNumberInfo},
     utils,
 };
-use salvo::{Request, Router, handler};
+use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
 
 pub fn routers() -> Router {
@@ -23,28 +23,36 @@ pub fn routers() -> Router {
 
 #[handler]
 async fn get_exam_num(req: &mut Request) -> RouterResult {
-    let (mini_bind_id, _) = utils::jwt::auth(req)?;
-    let res = service::exam::get_exam_num_list(mini_bind_id).await?;
+    let stu_id = utils::jwt::auth(req)?;
+    let res = service::exam::get_exam_num_list(&stu_id).await?;
     Ok(res.into())
 }
 
-#[derive(Deserialize, Debug)]
-struct AddExamNumberReq {
-    pub num: String,
-    pub name: String,
-    pub date: String,
-}
 #[handler]
 async fn add_exam_num(req: &mut Request) -> RouterResult {
-    let exam_num: AddExamNumberReq = req.parse_json().await?;
-    let (mini_bind_id, _) = utils::jwt::auth(req)?;
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(
+        default_source(from = "body"),
+        rename_all = "camelCase"
+    ))]
+    struct AddExamNumberReq {
+        pub exam_num: String,
+        pub exam_name: String,
+        pub exam_date: String,
+    }
+    let AddExamNumberReq {
+        exam_num,
+        exam_name,
+        exam_date,
+    } = req.extract().await?;
+    let stu_id = utils::jwt::auth(req)?;
 
     service::exam::add_exam_num(
-        mini_bind_id,
+        &stu_id,
         ExamNumberInfo {
-            exam_num: exam_num.num,
-            exam_name: exam_num.name,
-            exam_date: exam_num.date,
+            exam_num,
+            exam_name,
+            exam_date,
             id: 0,
         },
     )
@@ -53,34 +61,33 @@ async fn add_exam_num(req: &mut Request) -> RouterResult {
     Ok("添加成功".into())
 }
 
-#[derive(Deserialize, Debug)]
-struct DeleteExamNumberReq {
-    pub id: u32,
-}
 #[handler]
 async fn delete_exam_num(req: &mut Request) -> RouterResult {
-    let delete_req: DeleteExamNumberReq = req.parse_queries()?;
-    let (mini_bind_id, _) = utils::jwt::auth(req)?;
-
-    service::exam::delete_exam_num(mini_bind_id, delete_req.id)
-        .await?;
-
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "query")))]
+    struct DeleteExamNumberReq {
+        pub id: u32,
+    }
+    let DeleteExamNumberReq { id } = req.extract().await?;
+    let stu_id = utils::jwt::auth(req)?;
+    service::exam::delete_exam_num(&stu_id, id).await?;
     Ok("删除成功".into())
 }
 
-#[derive(Deserialize, Debug)]
-struct GetExamArrangeReq {
-    #[serde(default)]
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub xn: Option<u32>,
-    #[serde(default)]
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub xq: Option<u32>,
-}
 #[handler]
 async fn get_exam_arrange(req: &mut Request) -> RouterResult {
-    let (_, stu_id) = utils::jwt::auth(req)?;
-    let GetExamArrangeReq { xn, xq } = req.parse_queries()?;
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "query")))]
+    struct GetExamArrangeReq {
+        #[serde(default)]
+        #[serde(deserialize_with = "empty_string_as_none")]
+        pub xn: Option<u32>,
+        #[serde(default)]
+        #[serde(deserialize_with = "empty_string_as_none")]
+        pub xq: Option<u32>,
+    }
+    let GetExamArrangeReq { xn, xq } = req.extract().await?;
+    let stu_id = utils::jwt::auth(req)?;
     let (current_xn, current_xq) =
         service::semester::get_now_xnxq().await?;
     let xn = xn.unwrap_or(current_xn);

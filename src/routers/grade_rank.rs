@@ -1,5 +1,5 @@
 use crate::utils::serde::empty_string_as_none;
-use salvo::{Request, Router, handler};
+use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
 
 use crate::{
@@ -30,54 +30,51 @@ pub fn routers() -> Router {
 }
 
 /// 获取成绩
-#[derive(Deserialize, Debug)]
-struct GetGradeReq {
-    pub xn: u32,
-    pub xq: u32,
-}
 #[handler]
 async fn get_grade(req: &mut Request) -> RouterResult {
-    let GetGradeReq { xn, xq } = req.parse_queries()?;
-    let (_, stu_id) = utils::jwt::auth(req)?;
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "query")))]
+    struct GetGradeReq {
+        pub xn: u32,
+        pub xq: u32,
+    }
+    let GetGradeReq { xn, xq } = req.extract().await?;
+    let stu_id = utils::jwt::auth(req)?;
     let res = service::grade_rank::get_grade(xn, xq, &stu_id).await?;
     Ok(res.into())
 }
 
-#[derive(Deserialize, Debug)]
-struct GetRankFromHdjwReq {
-    #[serde(default)]
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub year: Option<u32>,
-    #[serde(default)]
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub term: Option<u32>,
-    pub course: u32,
-    pub rank: u32,
-}
 #[handler]
 async fn get_rank_from_hdjw(req: &mut Request) -> RouterResult {
-    let GetRankFromHdjwReq {
-        year,
-        term,
-        course,
-        rank,
-    } = req.parse_queries()?;
-    let (_, stu_id) = utils::jwt::auth(req)?;
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "query")))]
+    struct GetRankFromHdjwReq {
+        #[serde(default)]
+        #[serde(deserialize_with = "empty_string_as_none")]
+        pub year: Option<u32>,
+        #[serde(default)]
+        #[serde(deserialize_with = "empty_string_as_none")]
+        pub term: Option<u32>,
+        pub course: u32,
+        pub rank: u32,
+    }
+    let query: GetRankFromHdjwReq = req.extract().await?;
+    let stu_id = utils::jwt::auth(req)?;
 
-    let range = match course {
+    let range = match query.course {
         1 => HdjwRankRange::All,
         2 => HdjwRankRange::Must,
         3 => HdjwRankRange::Core,
         _ => return Err(AppError::ParseError()),
     };
-    let method = match rank {
+    let method = match query.rank {
         1 => HdjwRankMethod::ArithmeticAvg,
         2 => HdjwRankMethod::WeightedAvg,
         3 => HdjwRankMethod::Gpa,
         _ => return Err(AppError::ParseError()),
     };
     let res = service::grade_rank::get_rank_from_hdjw(
-        &stu_id, range, method, year, term,
+        &stu_id, range, method, query.year, query.term,
     )
     .await?;
     Ok(res.into())
@@ -85,26 +82,27 @@ async fn get_rank_from_hdjw(req: &mut Request) -> RouterResult {
 
 #[handler]
 async fn get_rank_from_ca(req: &mut Request) -> RouterResult {
-    let (_, stu_id) = utils::jwt::auth(req)?;
+    let stu_id = utils::jwt::auth(req)?;
     let res = service::grade_rank::ca::get_ca_rank(&stu_id).await?;
     Ok(res.into())
 }
 
 #[handler]
 async fn refresh_ca_rank(req: &mut Request) -> RouterResult {
-    let (_, stu_id) = utils::jwt::auth(req)?;
+    let stu_id = utils::jwt::auth(req)?;
     service::grade_rank::ca::refresh_ca_rank(&stu_id).await?;
     Ok(().into())
 }
 
-#[derive(Deserialize, Debug)]
-struct GetGradeDetailReq {
-    pub jx0404id: String,
-}
 #[handler]
 async fn get_grade_detail(req: &mut Request) -> RouterResult {
-    let (_, stu_id) = utils::jwt::auth(req)?;
-    let GetGradeDetailReq { jx0404id } = req.parse_queries()?;
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "query")))]
+    struct GetGradeDetailReq {
+        pub jx0404id: String,
+    }
+    let stu_id = utils::jwt::auth(req)?;
+    let GetGradeDetailReq { jx0404id } = req.extract().await?;
     let res =
         service::grade_rank::get_grade_detail(&stu_id, &jx0404id)
             .await?;

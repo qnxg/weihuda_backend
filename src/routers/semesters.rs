@@ -1,4 +1,4 @@
-use salvo::{Request, Router, handler};
+use salvo::{Request, Router, handler, macros::Extractible};
 use serde::{Deserialize, Serialize};
 
 use crate::{result::RouterResult, service};
@@ -15,20 +15,20 @@ pub fn routers() -> Router {
         )
 }
 
-#[derive(Serialize, Debug)]
-#[expect(non_snake_case)]
-struct SemesterInfoRes {
-    pub startDate: String,
-    pub term: u32,
-    pub year: u32,
-    pub vacation: String,
-    pub next: String,
-}
 /// 获取学期信息
 #[handler]
 async fn get_semester_info() -> RouterResult {
+    #[derive(Serialize, Debug)]
+    #[serde(rename_all = "camelCase")]
+    struct SemesterInfoRes {
+        pub start_date: String,
+        pub term: u32,
+        pub year: u32,
+        pub vacation: String,
+        pub next: String,
+    }
     let res = SemesterInfoRes {
-        startDate: service::semester::get_this_semester_start_date()
+        start_date: service::semester::get_this_semester_start_date()
             .await?,
         term: service::semester::get_now_xnxq().await?.1,
         year: service::semester::get_now_xnxq().await?.0,
@@ -39,19 +39,17 @@ async fn get_semester_info() -> RouterResult {
     Ok(res.into())
 }
 
-#[derive(Deserialize, Debug)]
-struct GetClassStartDateReq {
-    pub xn: u32,
-    pub xq: u32,
-}
 /// 获取学期开始时间
 #[handler]
 async fn get_class_start_date(req: &mut Request) -> RouterResult {
-    let query: GetClassStartDateReq = req.parse_queries()?;
-    Ok(service::semester::get_class_start_date_by_xnxq(
-        query.xn, query.xq,
-    )
-    .await
-    .unwrap_or_default()
-    .into())
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "query")))]
+    struct GetClassStartDateReq {
+        pub xn: u32,
+        pub xq: u32,
+    }
+    let GetClassStartDateReq { xn, xq } = req.extract().await?;
+    let res = service::semester::get_class_start_date_by_xnxq(xn, xq)
+        .await?;
+    Ok(res.into())
 }
