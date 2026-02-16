@@ -1,7 +1,6 @@
 mod announcement;
 mod auth;
 mod card;
-mod config;
 mod course;
 mod electricity;
 mod email;
@@ -28,7 +27,6 @@ pub fn routers() -> Router {
         .push(announcement::routers())
         .push(auth::routers())
         .push(card::routers())
-        .push(config::routers())
         .push(course::routers())
         .push(electricity::routers())
         .push(email::routers())

@@ -162,21 +162,20 @@ pub async fn get_exam_arrange(
 然后在 `router` 层提供对应的接口，在 `routers/exam.rs` 中添加下面的代码：
 
 ```rust
-#[derive(Deserialize, Debug)]
-struct GetExamArrangeReq { // <----- 我们建议把需要的参数全部放到一个结构体中
-                           //        结构体的命名格式为 请求方式+涉及到的实体名称+Req
-                           //        用于参数解析的结构体不要 pub
-    #[serde(default)]
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub xn: Option<u32>,  // <----- 建议请求参数中的可选参数都加上上面这两个宏，这样对于空字符串就会识别成 None
-    #[serde(default)]
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub xq: Option<u32>,
-}
 #[handler] // <----- salvo 的 handler 要加上这个
 async fn get_exam_arrange(req: &mut Request) -> RouterResult { // <----- 不要 pub，一般要加上 `req: &mut Request`，接口的返回类型一定是 RouterResult
-    let (_, stu_id) = utils::jwt::auth(req)?; // <----- 使用 `utils::jwt::auth` 来鉴权，鉴权失败会自动抛出错误
-    let GetExamArrangeReq { xn, xq } = req.parse_queries()?; // <----- 参数的解析建议使用解构语法
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "query")))]
+    struct GetExamArrangeReq { // <----- 我们建议把需要的参数全部放到一个结构体中。结构体的命名格式为 请求方式+涉及到的实体名称+Req。同时使用宏来指定参数从哪里解析出来。
+        #[serde(default)]
+        #[serde(deserialize_with = "empty_string_as_none")]
+        pub xn: Option<u32>, // <----- 建议请求参数中的可选参数都加上上面这两个宏，这样对于空字符串就会识别成 None
+        #[serde(default)]
+        #[serde(deserialize_with = "empty_string_as_none")]
+        pub xq: Option<u32>,
+    }
+    let GetExamArrangeReq { xn, xq } = req.extract().await?; // <----- 参数的解析建议使用解构语法。使用 extract 来解析参数。
+    let stu_id = utils::jwt::auth(req)?; // <----- 使用 `utils::jwt::auth` 来鉴权，鉴权失败会自动抛出错误
     // <----- router 层可以对参数进行加工，比如这里就给没传递学年学期的参数变为当前的学年学期
     let (current_xn, current_xq) =
         service::semester::get_now_xnxq().await?;
@@ -221,6 +220,13 @@ pub fn routers() -> Router {
 
 然后你需要使用接口测试工具直接请求你添加的接口进行测试。如果接口需要鉴权，那么你在请求接口的时候需要携带 `Authorization` 请求头，内容为 jwt 令牌。jwt 令牌的生成可以通过 `utils/jwt.rs` 中的 `test_auth` 函数获得，将里面的学号改成自己的然后跑一下这个测试就能得到。
 
+### 3.4 约定
+
+- 向数据库中添加数据时，涉及到的时间均为 UTC+8
+- 使用 `xn` 和 `xq` 来表示一个学年学期。
+  - `xn` 为当前学年学期的起始日期，比如 2025-2026 学年，`xn` 值为 2025
+  - `xq` 为 0 表示秋季学期，为 1 表示春季学期，为 2 表示夏季学期
+
 ## 4. 部署
 
-当前的后端需要在要连接的RabbitMQ服务启动后启动。并且，如果连接的RabbitMQ重启了，后端也需要重启。
+当前的后端需要在要连接的 RabbitMQ 服务启动后启动。并且，如果连接的 RabbitMQ 重启了，后端也需要重启。

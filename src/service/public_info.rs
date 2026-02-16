@@ -3,13 +3,13 @@ use anyhow::anyhow;
 use serde::Serialize;
 
 #[derive(Serialize, Debug)]
-#[expect(non_snake_case)]
+#[serde(rename_all = "camelCase")]
 pub struct EmptyRoom {
     pub name: String,
     #[serde(rename = "type")]
     pub _type: String,
     pub seat: u32,
-    pub examSeat: u32,
+    pub exam_seat: u32,
 }
 
 pub async fn get_empty_room(
@@ -78,7 +78,7 @@ pub async fn get_empty_room(
             seat: seat
                 .parse::<u32>()
                 .map_err(|e| anyhow!("解析空教室数据失败 {}", e))?,
-            examSeat: exam_seat
+            exam_seat: exam_seat
                 .parse::<u32>()
                 .map_err(|e| anyhow!("解析空教室数据失败 {}", e))?,
             _type: _type.to_string(),

@@ -1,45 +1,33 @@
 #![expect(unused)]
 use super::get_db_pool;
-use crate::result::AppResult;
+use crate::{result::AppResult, utils};
 use anyhow::anyhow;
 use chrono::{DateTime, Local, NaiveDateTime};
 use serde::Serialize;
 
-/// 调用前请确保学号是存在的，否则会自动向数据库中添加对应记录，初始积分为 0
-pub async fn get_jifen(stu_id: &str) -> AppResult<u32> {
-    sqlx::query!(
-        "INSERT IGNORE INTO mini_jifen (stuID, jifen) VALUES (?, 0)",
-        stu_id,
-    )
-    .execute(get_db_pool().await)
-    .await?;
+/// 如果学号不存在，则返回 None
+pub async fn get_jifen(stu_id: &str) -> AppResult<Option<i32>> {
     let res = sqlx::query_scalar!(
         r#"
-        SELECT jifen FROM mini_jifen WHERE stuID = ?
+        SELECT jifen FROM mini_bind WHERE stuId = ?
         "#,
         stu_id
     )
-    .fetch_one(get_db_pool().await)
+    .fetch_optional(get_db_pool().await)
     .await?;
     Ok(res)
 }
 
-/// 调用前请确保学号是存在的，否则会自动向数据库中添加对应记录，初始积分为 0
+/// 调用前请确保学号是存在的，否则不会产生任何影响
 pub async fn update_jifen(
     stu_id: &str,
     increment: i32,
 ) -> AppResult<()> {
     sqlx::query!(
-        "INSERT IGNORE INTO mini_jifen (stuID, jifen) VALUES (?, 0)",
-        stu_id,
-    )
-    .execute(get_db_pool().await)
-    .await?;
-    sqlx::query!(
         r#"
-        UPDATE mini_jifen
+        UPDATE mini_bind
         SET jifen = jifen + ?
-        WHERE stuID = ?
+        WHERE stuId = ?
         "#,
         increment,
         stu_id
@@ -50,15 +38,15 @@ pub async fn update_jifen(
 }
 
 #[derive(Serialize, Debug)]
-#[expect(non_snake_case)]
+#[serde(rename_all = "camelCase")]
 pub struct JifenRecord {
     pub id: u32,
     pub key: String,
     pub param: String,
-    pub stuId: String,
+    pub stu_id: String,
     pub jifen: i32,
     pub desc: String,
-    pub createTime: NaiveDateTime,
+    pub created_at: NaiveDateTime,
 }
 /// key 和 param 是模糊查询。如果传 None 则表示不限制该字段
 pub async fn get_jifen_record_list(
@@ -75,14 +63,14 @@ pub async fn get_jifen_record_list(
             id,
             `key`,
             param,
-            stuId,
+            stuId as stu_id,
             `desc`,
             jifen,
-            createTime
+            createdAt as created_at
         FROM 
             jifen_records
         WHERE 
-            `key` LIKE ? AND param LIKE ? AND stuId = ? AND deletedAt IS NULL
+            `key` LIKE ? AND param LIKE ? AND stuId = ?
         ORDER BY 
             id DESC
         LIMIT 
@@ -112,15 +100,14 @@ pub async fn get_jifen_record(
             id,
             `key`,
             param,
-            stuId,
+            stuId as stu_id,
             `desc`,
             jifen,
-            createTime
+            createdAt as created_at
         FROM 
             jifen_records
         WHERE 
             `key` = ? AND param = ? AND stuId = ?
-            AND deletedAt IS NULL
         "#,
         key,
         param,
@@ -135,7 +122,7 @@ pub async fn get_jifen_record(
 pub async fn get_jifen_record_count(
     stu_id: &str,
     key: &str,
-    since: DateTime<Local>,
+    since: NaiveDateTime,
 ) -> AppResult<u32> {
     let res = sqlx::query_scalar!(
         r#"
@@ -144,12 +131,11 @@ pub async fn get_jifen_record_count(
         FROM 
             jifen_records
         WHERE 
-            `key` = ? AND stuId = ? AND createTime >= ?
-            AND deletedAt IS NULL
+            `key` = ? AND stuId = ? AND createdAt >= ?
         "#,
         key,
         stu_id,
-        since.format("%Y-%m-%d").to_string()
+        since
     )
     .fetch_one(get_db_pool().await)
     .await?;
@@ -162,21 +148,19 @@ pub async fn add_jifen_record(
     jifen: i32,
     desc: &str,
 ) -> AppResult<u64> {
-    let now = chrono::Local::now();
+    let now = utils::time::now_time();
     let res = sqlx::query!(
         r#"
         INSERT INTO jifen_records
-            (stuId, `key`, param, jifen, `desc`, createTime, createdAt, updatedAt)
+            (stuId, `key`, param, jifen, `desc`, createdAt)
         VALUES
-            (?, ?, ?, ?, ?, ?, ?, ?)
+            (?, ?, ?, ?, ?, ?)
         "#,
         stu_id,
         key,
         param,
         jifen,
         desc,
-        now,
-        now,
         now
     )
     .execute(get_db_pool().await)
@@ -189,19 +173,20 @@ pub struct JifenGoods {
     pub id: u32,
     pub name: String,
     pub cover: String,
-    pub count: i32,
+    pub count: u32,
     pub price: i32,
     pub description: Option<String>,
-    pub enabled: Option<i8>,
+    pub enabled: bool,
 }
+
 /// name 是模糊查询。如果传 None 则表示不限制该字段
 pub async fn get_goods_list(
     name: Option<String>,
     page: u32,
     page_size: u32,
+    enabled: bool,
 ) -> AppResult<Vec<JifenGoods>> {
-    let res = sqlx::query_as!(
-        JifenGoods,
+    let res = sqlx::query!(
         r#"
         SELECT 
             id,
@@ -216,25 +201,37 @@ pub async fn get_goods_list(
         WHERE 
             name LIKE ?
             AND deletedAt IS NULL
+            AND enabled = ?
         ORDER BY 
             id DESC
         LIMIT 
             ?, ?
         "#,
         format!("%{}%", name.unwrap_or_default()),
+        enabled as u32,
         (page - 1) * page_size,
         page_size,
     )
     .fetch_all(get_db_pool().await)
-    .await?;
+    .await?
+    .into_iter()
+    .map(|row| JifenGoods {
+        id: row.id,
+        name: row.name,
+        cover: row.cover,
+        count: row.count,
+        price: row.price,
+        description: row.description,
+        enabled: row.enabled != 0,
+    })
+    .collect();
     Ok(res)
 }
 
 pub async fn get_goods(
     goods_id: u32,
 ) -> AppResult<Option<JifenGoods>> {
-    let goods = sqlx::query_as!(
-        JifenGoods,
+    let goods = sqlx::query!(
         r#"
         SELECT 
             id,
@@ -252,29 +249,79 @@ pub async fn get_goods(
         goods_id
     )
     .fetch_optional(get_db_pool().await)
-    .await?;
+    .await?
+    .map(|row| JifenGoods {
+        id: row.id,
+        name: row.name,
+        cover: row.cover,
+        count: row.count,
+        price: row.price,
+        description: row.description,
+        enabled: row.enabled != 0,
+    });
     Ok(goods)
 }
 
-pub async fn add_goods_record(
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GoodsExchangeRecord {
+    pub id: u32,
+    pub stu_id: String,
+    pub goods_id: u32,
+    pub status: u32,
+    pub receive_time: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+}
+
+pub async fn get_exchange_record_list(
+    stu_id: &str,
+    page: u32,
+    page_size: u32,
+) -> AppResult<Vec<GoodsExchangeRecord>> {
+    let res = sqlx::query_as!(
+        GoodsExchangeRecord,
+        r#"
+        SELECT 
+            id,
+            stuId as stu_id,
+            goodsId as goods_id,
+            status,
+            receiveTime as receive_time,
+            createdAt as created_at
+        FROM 
+            jifen_exchange
+        WHERE 
+            stuId = ?
+        ORDER BY id DESC
+        LIMIT ?
+        OFFSET ?
+        "#,
+        stu_id,
+        page_size,
+        (page - 1) * page_size,
+    )
+    .fetch_all(get_db_pool().await)
+    .await?;
+    Ok(res)
+}
+
+pub async fn add_exchange_record(
     stu_id: &str,
     goods_id: u32,
-    desc: &str,
 ) -> AppResult<u64> {
-    let now = chrono::Local::now();
+    let now = utils::time::now_time();
     let res = sqlx::query!(
         r#"
-        INSERT INTO goods_records (goodsId, stuId, exchangeTime, status, comment, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO jifen_exchange (goodsId, stuId, status, createdAt)
+        VALUES (?, ?, ?, ?)
         "#,
         goods_id,
         stu_id,
-        now,
         0,
-        desc,
-        now,
         now
-    ).execute(get_db_pool().await).await?;
+    )
+    .execute(get_db_pool().await)
+    .await?;
     Ok(res.last_insert_id())
 }
 
@@ -297,14 +344,15 @@ pub async fn update_goods_count(
 }
 
 #[derive(Serialize, Debug)]
-#[expect(non_snake_case)]
+#[serde(rename_all = "camelCase")]
 pub struct JifenRule {
     pub id: u32,
     pub key: String,
     pub name: String,
     pub jifen: i32,
-    pub cycle: i32,
-    pub maxCount: i32,
+    pub cycle: u32,
+    pub max_count: u32,
+    pub is_show: bool,
 }
 /// name 和 key 是模糊查询。如果传 None 则表示不限制该字段
 pub async fn get_jifen_rule_list(
@@ -312,9 +360,9 @@ pub async fn get_jifen_rule_list(
     name: Option<String>,
     page: u32,
     page_size: u32,
+    is_show: bool,
 ) -> AppResult<Vec<JifenRule>> {
-    let res = sqlx::query_as!(
-        JifenRule,
+    let res = sqlx::query!(
         r#"
         SELECT 
             id,
@@ -322,24 +370,36 @@ pub async fn get_jifen_rule_list(
             name,
             jifen,
             cycle,
-            maxCount
+            maxCount,
+            isShow
         From 
             jifen_rules
         WHERE 
-            `key` LIKE ? AND name LIKE ? AND enabled = 1
+            `key` LIKE ? AND name LIKE ? AND isShow = ?
             AND deletedAt IS NULL
-        ORDER BY 
-            id DESC
-        LIMIT 
-            ?, ?
+        ORDER BY id DESC
+        LIMIT ?
+        OFFSET ?
         "#,
         format!("%{}%", key.unwrap_or_default()),
         format!("%{}%", name.unwrap_or_default()),
+        is_show as u32,
+        page_size,
         (page - 1) * page_size,
-        page_size
     )
     .fetch_all(get_db_pool().await)
-    .await?;
+    .await?
+    .into_iter()
+    .map(|row| JifenRule {
+        id: row.id,
+        key: row.key,
+        name: row.name,
+        jifen: row.jifen,
+        cycle: row.cycle,
+        max_count: row.maxCount,
+        is_show: row.isShow != 0,
+    })
+    .collect();
     Ok(res)
 }
 
@@ -347,8 +407,7 @@ pub async fn get_jifen_rule_list(
 pub async fn get_jifen_rule(
     key: &str,
 ) -> AppResult<Option<JifenRule>> {
-    let res = sqlx::query_as!(
-        JifenRule,
+    let res = sqlx::query!(
         r#"
         SELECT 
             id,
@@ -356,7 +415,8 @@ pub async fn get_jifen_rule(
             name,
             jifen,
             cycle,
-            maxCount
+            maxCount,
+            isShow
         From 
             jifen_rules
         WHERE 
@@ -366,6 +426,15 @@ pub async fn get_jifen_rule(
         key
     )
     .fetch_optional(get_db_pool().await)
-    .await?;
+    .await?
+    .map(|row| JifenRule {
+        id: row.id,
+        key: row.key,
+        name: row.name,
+        jifen: row.jifen,
+        cycle: row.cycle,
+        max_count: row.maxCount,
+        is_show: row.isShow != 0,
+    });
     Ok(res)
 }

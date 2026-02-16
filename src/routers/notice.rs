@@ -1,4 +1,3 @@
-use crate::result::AppError;
 use crate::result::RouterResult;
 use crate::service::notice::Notice;
 use crate::utils::serde::empty_string_as_none;
@@ -15,27 +14,30 @@ pub fn routers() -> Router {
         .push(Router::with_path("{id}").put(put_notice_by_id))
 }
 
-#[derive(Deserialize, Debug)]
-#[expect(non_snake_case)]
-struct GetNoticeReq {
-    #[serde(default)]
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub page: Option<u32>,
-    #[serde(default)]
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub pageSize: Option<u32>,
-}
-#[derive(Serialize, Debug)]
-struct NoticeRes {
-    pub count: u32,
-    pub rows: Vec<Notice>,
-}
 #[handler]
 async fn get_notice(req: &mut Request) -> RouterResult {
-    let (_, stu_id) = utils::jwt::auth(req)?;
-    let GetNoticeReq { page, pageSize, .. } = req.parse_queries()?;
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(
+        default_source(from = "query"),
+        rename_all = "camelCase"
+    ))]
+    struct GetNoticeReq {
+        #[serde(default)]
+        #[serde(deserialize_with = "empty_string_as_none")]
+        pub page: Option<u32>,
+        #[serde(default)]
+        #[serde(deserialize_with = "empty_string_as_none")]
+        pub page_size: Option<u32>,
+    }
+    #[derive(Serialize, Debug)]
+    struct NoticeRes {
+        pub count: u32,
+        pub rows: Vec<Notice>,
+    }
+    let stu_id = utils::jwt::auth(req)?;
+    let GetNoticeReq { page, page_size } = req.extract().await?;
     let page = page.unwrap_or(1);
-    let page_size = pageSize.unwrap_or(10);
+    let page_size = page_size.unwrap_or(10);
     let res =
         service::notice::get_notice_list(&stu_id, page, page_size)
             .await?;
@@ -46,29 +48,16 @@ async fn get_notice(req: &mut Request) -> RouterResult {
     .into())
 }
 
-#[derive(Deserialize, Debug, Extractible)]
-#[salvo(extract(default_source(from = "body")))]
-struct PutNoticeByIdReq {
-    #[salvo(extract(source(from = "param")))]
-    pub id: u32,
-    #[serde(default)]
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub result: Option<String>,
-    #[serde(default)]
-    #[serde(deserialize_with = "empty_string_as_none")]
-    pub status: Option<i32>,
-}
 #[handler]
 async fn put_notice_by_id(req: &mut Request) -> RouterResult {
-    let PutNoticeByIdReq { id, result, status } =
-        req.extract().await?;
-    if let Some(status) = status
-        && status != 0
-        && status != 1
-    {
-        return Err(AppError::ParseError());
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "body")))]
+    struct PutNoticeByIdReq {
+        #[salvo(extract(source(from = "param")))]
+        pub id: u32,
+        pub status: u32,
     }
-    service::notice::update_notice(id, result.as_ref(), status)
-        .await?;
+    let PutNoticeByIdReq { id, status } = req.extract().await?;
+    service::notice::update_notice(id, status).await?;
     Ok("更新通知状态成功".into())
 }

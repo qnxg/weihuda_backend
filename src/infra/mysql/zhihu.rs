@@ -1,28 +1,25 @@
 use super::get_db_pool;
 use crate::result::AppResult;
-use crate::utils::serde::deserialize_option_naive_datetime;
 use chrono::NaiveDateTime;
-use salvo::macros::Extractible;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Extractible)]
-#[expect(non_snake_case)]
-#[salvo(extract(default_source(from = "body")))]
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct ZhihuListItem {
-    pub id: Option<i32>,
+    pub id: u32,
+    pub stu_id: String,
+    pub created_at: NaiveDateTime,
     pub title: String,
-    #[serde(rename = "type")]
-    pub _type: Option<String>,
-    pub content: Option<String>,
-    pub tags: Option<String>,
+    pub typ: String,
+    pub content: String,
+    pub tags: String,
     pub cover: Option<String>,
-    pub status: Option<i32>,
-    #[serde(deserialize_with = "deserialize_option_naive_datetime")]
-    pub publishTime: Option<NaiveDateTime>,
-    pub stuId: Option<String>,
+    pub top: bool,
+    pub status: u32,
 }
 
 /// title，typ，tags 是模糊匹配，如果传 None 则不进行过滤
+/// 仅显示已发布状态的，或是自己发布的知湖
 pub async fn get_zhihu_list(
     title: Option<String>,
     typ: Option<String>,
@@ -31,23 +28,23 @@ pub async fn get_zhihu_list(
     offset: u32,
     count: u32,
 ) -> AppResult<Vec<ZhihuListItem>> {
-    let res: Vec<ZhihuListItem> = sqlx::query_as!(
-        ZhihuListItem,
+    let res: Vec<ZhihuListItem> = sqlx::query!(
         r#"
         SELECT 
             id, 
             title, 
-            type AS _type, 
+            typ, 
             tags, 
-            cover, 
-            IF(type = 'link', content, NULL) AS content, 
+            content,
+            cover,  
             status, 
-            publishTime, 
-            stuId 
+            stuId,
+            createdAt,
+            top
         FROM 
             zhihus 
         WHERE 
-            (title LIKE ? AND type LIKE ? AND tags LIKE ?) 
+            (title LIKE ? AND typ LIKE ? AND tags LIKE ?) 
             AND (status = 1 OR stuId = ?)
             AND deletedAt IS NULL
         ORDER BY 
@@ -63,7 +60,21 @@ pub async fn get_zhihu_list(
         count
     )
     .fetch_all(get_db_pool().await)
-    .await?;
+    .await?
+    .into_iter()
+    .map(|r| ZhihuListItem {
+        id: r.id,
+        title: r.title,
+        typ: r.typ,
+        content: r.content,
+        tags: r.tags,
+        cover: r.cover,
+        status: r.status,
+        top: r.top == 1,
+        stu_id: r.stuId,
+        created_at: r.createdAt,
+    })
+    .collect();
     Ok(res)
 }
 
@@ -80,7 +91,7 @@ pub async fn get_zhihu_count(
         FROM 
             zhihus 
         WHERE 
-            (title LIKE ? AND type LIKE ? AND tags LIKE ?) 
+            (title LIKE ? AND typ LIKE ? AND tags LIKE ?) 
             AND (status = 1 OR stuId = ?)
             AND deletedAt IS NULL
         "#,
@@ -97,19 +108,19 @@ pub async fn get_zhihu_count(
 pub async fn get_zhihu_by_id(
     id: u32,
 ) -> AppResult<Option<ZhihuListItem>> {
-    let res: Option<ZhihuListItem> = sqlx::query_as!(
-        ZhihuListItem,
+    let res: Option<ZhihuListItem> = sqlx::query!(
         r#"
         SELECT 
             id, 
             title, 
-            type AS _type, 
+            typ, 
             tags, 
+            content,
             cover, 
-            content, 
             status, 
-            publishTime, 
-            stuId 
+            stuId,
+            createdAt,
+            top
         FROM 
             zhihus 
         WHERE 
@@ -118,85 +129,18 @@ pub async fn get_zhihu_by_id(
         id
     )
     .fetch_optional(get_db_pool().await)
-    .await?;
+    .await?
+    .map(|r| ZhihuListItem {
+        id: r.id,
+        title: r.title,
+        typ: r.typ,
+        content: r.content,
+        tags: r.tags,
+        cover: r.cover,
+        status: r.status,
+        top: r.top == 1,
+        stu_id: r.stuId,
+        created_at: r.createdAt,
+    });
     Ok(res)
-}
-
-pub async fn add_zhihu(item: ZhihuListItem) -> AppResult<u32> {
-    let now = chrono::Local::now();
-    let res = sqlx::query!(
-        r#"
-        INSERT INTO zhihus 
-            (title, type, tags, cover, content, status, publishTime, stuId, createdAt, updatedAt) 
-        VALUES 
-            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#,
-        item.title,
-        item._type,
-        item.tags,
-        item.cover,
-        item.content,
-        item.status,
-        item.publishTime,
-        item.stuId,
-        now,
-        now
-    )
-    .execute(get_db_pool().await)
-    .await?;
-    Ok(res.last_insert_id() as u32)
-}
-
-pub async fn update_zhihu(
-    id: u32,
-    item: ZhihuListItem,
-) -> AppResult<()> {
-    let now = chrono::Local::now();
-    // 插入到数据库中
-    let _ = sqlx::query!(
-        r#"
-        UPDATE zhihus 
-        SET 
-            title = ?, 
-            type = ?, 
-            tags = ?, 
-            cover = ?, 
-            content = ?, 
-            status = ?, 
-            publishTime = ?, 
-            stuId = ?, 
-            updatedAt = ? 
-        WHERE 
-            id = ? AND deletedAt IS NULL;
-        "#,
-        item.title,
-        item._type,
-        item.tags,
-        item.cover,
-        item.content,
-        item.status,
-        item.publishTime,
-        item.stuId,
-        now,
-        id,
-    )
-    .execute(get_db_pool().await)
-    .await?;
-    Ok(())
-}
-
-pub async fn delete_zhihu(id: u32) -> AppResult<()> {
-    let now = chrono::Local::now();
-    let _ = sqlx::query!(
-        r#"
-        Update zhihus
-        SET deletedAt = ?
-        WHERE id = ? AND deletedAt IS NULL;
-        "#,
-        now,
-        id
-    )
-    .execute(get_db_pool().await)
-    .await?;
-    Ok(())
 }

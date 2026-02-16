@@ -2,19 +2,20 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::anyhow;
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     infra::{self, spider::hdjw},
     result::AppResult,
+    service,
 };
 
 pub use infra::mysql::course::CustomizeCourseInfo;
 pub use infra::mysql::course::add_course as add_customize_course;
 pub use infra::mysql::course::delete_course as delete_customize_course;
 pub use infra::mysql::course::get_course_list as get_customize_course;
-pub use infra::mysql::flex_time::FlexTime;
-pub use infra::mysql::flex_time::get_flex_time_list;
+
+const FLEX_TIME_CONFIG_KEY: &str = "flexTime";
 
 // 除了 extra 字段外，其他的 Option 字段都是由于支持自定义课程
 #[derive(Serialize, Debug, Default, Clone)]
@@ -245,13 +246,12 @@ fn apply_flex_time(
 /// 这个函数会生成一个 `Vec<CourseInfo>` 表示课表。`Vec<CourseInfo>` 内的每个元素表示前端课表页面上的一个格子
 pub async fn get_classtable(
     stu_id: &str,
-    mini_bind_id: u32,
     xn: u32,
     xq: u32,
 ) -> AppResult<Vec<CourseInfo>> {
     let mut classtable = Vec::new();
     let customize_course =
-        get_customize_course(mini_bind_id, xn, xq).await?;
+        get_customize_course(stu_id, xn, xq).await?;
     for item in customize_course {
         push_customize_course(&mut classtable, item)?;
     }
@@ -274,4 +274,50 @@ pub async fn get_classtable(
         item.weeks.sort_unstable();
     }
     Ok(classtable)
+}
+
+/// 调休的结构体
+/// 将会将 from 的课程全部转移到 to 上去，且 to 的课程全部毙掉
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FlexTime {
+    // 如果这里是 None，表示仅 to 那天的课停上，不会有课程转移
+    pub from: Option<FlexDay>,
+    pub to: FlexDay,
+    pub desc: String, // 描述，将会返回给前端用作展示
+    pub time: XnXq,   // 学年学期
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FlexDay {
+    pub week: u8, // 第几周
+    pub day: u8,  // 星期几
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct XnXq {
+    pub xn: u32, // 学年
+    pub xq: u32, // 学期
+}
+pub async fn get_flex_time_list() -> AppResult<Vec<FlexTime>> {
+    let config = service::config::get_config(FLEX_TIME_CONFIG_KEY)
+        .await?
+        .expect("获取调休信息失败");
+    let flex_time: Vec<FlexTime> =
+        serde_json::from_str(&config.value)
+            .expect("解析调休信息失败");
+    Ok(flex_time)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const STUID: &str = "202318110404";
+
+    #[tokio::test]
+    async fn test_get_classtable() {
+        let classtable =
+            get_classtable(STUID, 2025, 1).await.unwrap();
+        println!("{:#?}", classtable);
+    }
 }

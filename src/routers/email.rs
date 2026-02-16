@@ -11,7 +11,7 @@ pub fn routers() -> Router {
 async fn get_campus_email_unread_count(
     req: &mut Request,
 ) -> RouterResult {
-    let (_, stu_id) = utils::jwt::auth(req)?;
+    let stu_id = utils::jwt::auth(req)?;
     let res =
         service::email::get_campus_email_unread_count(&stu_id).await;
     match res {

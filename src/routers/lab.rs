@@ -1,4 +1,4 @@
-use salvo::{Request, Router, handler};
+use salvo::{Request, Router, handler, macros::Extractible};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -19,19 +19,20 @@ pub fn routers() -> Router {
         )
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct SetLabPasswordReq {
-    password: String,
-}
-#[derive(Serialize)]
-struct SetLabPasswordRes {
-    pub success: bool,
-    pub msg: Option<String>,
-}
 #[handler]
 async fn set_lab_password(req: &mut Request) -> RouterResult {
-    let SetLabPasswordReq { password } = req.parse_json().await?;
-    let (_, stu_id) = utils::jwt::auth(req)?;
+    #[derive(Serialize, Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "body")))]
+    struct SetLabPasswordReq {
+        password: String,
+    }
+    #[derive(Serialize)]
+    struct SetLabPasswordRes {
+        pub success: bool,
+        pub msg: Option<String>,
+    }
+    let SetLabPasswordReq { password } = req.extract().await?;
+    let stu_id = utils::jwt::auth(req)?;
     if let Some(err) =
         service::lab::check_lab_pass(&stu_id, &password).await?
     {
@@ -52,7 +53,7 @@ async fn set_lab_password(req: &mut Request) -> RouterResult {
 
 #[handler]
 async fn get_lab_arrange(req: &mut Request) -> RouterResult {
-    let (_, stu_id) = utils::jwt::auth(req)?;
+    let stu_id = utils::jwt::auth(req)?;
     match service::lab::get_lab_arrange(&stu_id).await {
         Ok(res) => Ok(res.into()),
         Err(AppError::PasswordError) => Ok(Value::Null.into()),
@@ -62,7 +63,7 @@ async fn get_lab_arrange(req: &mut Request) -> RouterResult {
 
 #[handler]
 async fn get_lab_sem_info(req: &mut Request) -> RouterResult {
-    let (_, stu_id) = utils::jwt::auth(req)?;
+    let stu_id = utils::jwt::auth(req)?;
     match service::lab::get_sem_info(&stu_id).await {
         Ok(res) => Ok(res.into()),
         Err(AppError::PasswordError) => Ok(Value::Null.into()),
@@ -70,14 +71,15 @@ async fn get_lab_sem_info(req: &mut Request) -> RouterResult {
     }
 }
 
-#[derive(Deserialize, Debug)]
-struct GetLabGradeReq {
-    sem_id: String,
-}
 #[handler]
 async fn get_lab_grade(req: &mut Request) -> RouterResult {
-    let GetLabGradeReq { sem_id } = req.parse_queries()?;
-    let (_, stu_id) = utils::jwt::auth(req)?;
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "query")))]
+    struct GetLabGradeReq {
+        sem_id: String,
+    }
+    let GetLabGradeReq { sem_id } = req.extract().await?;
+    let stu_id = utils::jwt::auth(req)?;
     match service::lab::get_course(&stu_id, &sem_id).await {
         Ok(res) => Ok(res.into()),
         Err(AppError::PasswordError) => Ok(Value::Null.into()),
@@ -87,7 +89,7 @@ async fn get_lab_grade(req: &mut Request) -> RouterResult {
 
 #[handler]
 async fn get_virtual_lab_grade(req: &mut Request) -> RouterResult {
-    let (_, stu_id) = utils::jwt::auth(req)?;
+    let stu_id = utils::jwt::auth(req)?;
     match service::lab::get_virtual_lab_grade(&stu_id).await {
         Ok(res) => Ok(res.into()),
         Err(AppError::PasswordError) => Ok(Value::Null.into()),

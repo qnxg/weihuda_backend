@@ -1,12 +1,23 @@
-use crate::infra;
 use crate::result::AppResult;
+use crate::service;
 use crate::utils;
+
+const SEMESTER_CONFIG_KEY: &str = "classStartDateTable";
+const VACATION_DATE_CONFIG_KEY: &str = "nextVacationDate";
 
 /// 获取学期开始日期表
 pub async fn get_class_start_date_table()
 -> AppResult<Vec<(String, String)>> {
+    let config = service::config::get_config(SEMESTER_CONFIG_KEY)
+        .await?
+        .expect("学期开始日期表配置不存在");
     let mut table: Vec<(String, String)> =
-        infra::mysql::semester::get_class_start_date_table().await?;
+        serde_json::from_str(&config.value)
+            .expect("学期开始日期表配置有误");
+    for (xnxq, date) in &table {
+        assert!(utils::time::is_well_formed_xnxq(xnxq));
+        assert!(utils::time::is_well_formed_date(date));
+    }
     // 按学年学期排序，便于二分查找
     table.sort();
     // 验证日期递增，这样两个字段都能二分查找
@@ -14,7 +25,16 @@ pub async fn get_class_start_date_table()
     Ok(table)
 }
 
-pub use infra::mysql::semester::get_vacation_date;
+/// 获取下一假期时间
+pub async fn get_vacation_date() -> AppResult<String> {
+    let config =
+        service::config::get_config(VACATION_DATE_CONFIG_KEY)
+            .await?
+            .expect("假期时间配置不存在");
+    let res = config.value;
+    assert!(utils::time::is_well_formed_date(&res));
+    Ok(res)
+}
 
 /// 给定某个学年-学期，获取该学期的开始日期
 pub async fn get_class_start_date_by_xnxq(

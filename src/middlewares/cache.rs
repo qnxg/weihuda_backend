@@ -158,7 +158,7 @@ pub async fn cache_middleware(
             ctrl.call_next(req, depot, resp).await;
             return;
         };
-        let Ok((_, stu_id)) = utils::jwt::parse(jwt) else {
+        let Ok(stu_id) = utils::jwt::parse(jwt) else {
             ctrl.call_next(req, depot, resp).await;
             return;
         };

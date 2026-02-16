@@ -1,4 +1,4 @@
-use salvo::{Request, Router, handler};
+use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
 
 use crate::{result::RouterResult, service, utils};
@@ -19,28 +19,29 @@ pub fn routers() -> Router {
 
 #[handler]
 async fn get_netflow_info(req: &mut Request) -> RouterResult {
-    let (_, stu_id) = utils::jwt::auth(req)?;
+    let stu_id = utils::jwt::auth(req)?;
     let res = service::netflow::get_netflow_info(&stu_id).await?;
     Ok(res.into())
 }
 
 #[handler]
 async fn get_netflow_order(req: &mut Request) -> RouterResult {
-    let (_, stu_id) = utils::jwt::auth(req)?;
+    let stu_id = utils::jwt::auth(req)?;
     let res = service::netflow::get_netflow_order(&stu_id).await?;
     Ok(res.into())
 }
 
-#[derive(Deserialize, Debug)]
-struct GetNetflowMonthDetailReq {
-    pub year: String,
-    pub month: String,
-}
 #[handler]
 async fn get_netflow_month_detail(req: &mut Request) -> RouterResult {
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "query")))]
+    struct GetNetflowMonthDetailReq {
+        pub year: String,
+        pub month: String,
+    }
     let GetNetflowMonthDetailReq { year, month } =
-        req.parse_queries()?;
-    let (_, stu_id) = utils::jwt::auth(req)?;
+        req.extract().await?;
+    let stu_id = utils::jwt::auth(req)?;
     let res = service::netflow::get_netflow_month_detail(
         &stu_id, &year, &month,
     )
@@ -48,17 +49,18 @@ async fn get_netflow_month_detail(req: &mut Request) -> RouterResult {
     Ok(res.into())
 }
 
-#[derive(Deserialize, Debug)]
-struct GetNetflowDayDetailReq {
-    pub year: String,
-    pub month: String,
-    pub day: String,
-}
 #[handler]
 async fn get_netflow_day_detail(req: &mut Request) -> RouterResult {
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "query")))]
+    struct GetNetflowDayDetailReq {
+        pub year: String,
+        pub month: String,
+        pub day: String,
+    }
     let GetNetflowDayDetailReq { year, month, day } =
-        req.parse_queries()?;
-    let (_, stu_id) = utils::jwt::auth(req)?;
+        req.extract().await?;
+    let stu_id = utils::jwt::auth(req)?;
     let res = service::netflow::get_netflow_day_detail(
         &stu_id, &year, &month, &day,
     )

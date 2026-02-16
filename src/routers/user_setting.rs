@@ -11,17 +11,16 @@ pub fn routers() -> Router {
 
 #[handler]
 async fn get_all_user_settings(req: &mut Request) -> RouterResult {
-    let (_, stu_id) = utils::jwt::auth(req)?;
-    let res =
-        service::user_setting::get_user_setting(&stu_id).await?;
+    let stu_id = utils::jwt::auth(req)?;
+    let res = service::user_info::get_user_setting(&stu_id).await?;
     Ok(res.into())
 }
 
 #[handler]
 async fn post_all_user_settings(req: &mut Request) -> RouterResult {
-    let (_, stu_id) = utils::jwt::auth(req)?;
+    let stu_id = utils::jwt::auth(req)?;
     let settings: Value = req.parse_json().await?;
-    service::user_setting::update_user_setting(&stu_id, &settings)
+    service::user_info::update_user_setting(&stu_id, &settings)
         .await?;
     Ok("设置提交成功".into())
 }
