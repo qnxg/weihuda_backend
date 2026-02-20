@@ -203,6 +203,34 @@ pub async fn get_grade_detail(
     Ok(spider_res)
 }
 
+#[derive(Deserialize, Debug)]
+pub struct SpiderExtraCourseInfo {
+    pub kch: String,          // 课程代码
+    pub kc_mc: String,        // 课程名称
+    pub jg0101mc: String,     // 教师名称
+    pub fzmc: Option<String>, // 分组名称
+    pub kcxz: String,         // 课程性质（通识必修/专业核心等）
+    pub kt_mc: String,        // 上课班级
+    pub xkrs: u16,            // 上课人数
+    pub skxqmc: String,       // 上课校区
+    pub xf: f32,              // 学分
+}
+
+pub async fn get_class_table_extra(
+    stu_id: &str,
+    xn: u32,
+    xq: u32,
+) -> AppResult<Vec<SpiderExtraCourseInfo>> {
+    let params = [
+        ("stuid", stu_id.to_string()),
+        ("xn", xn.to_string()),
+        ("xq", xq.to_string()),
+    ];
+    let spider_res: Vec<SpiderExtraCourseInfo> =
+        spider_data("/bks/class-table-extra", &params).await?;
+    Ok(spider_res)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

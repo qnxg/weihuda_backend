@@ -38,6 +38,21 @@ pub struct CourseInfo {
     pub people: u16,       // 上课人数
 }
 
+#[derive(Serialize, Debug, Default, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtraCourseInfo {
+    pub class_name: String,  // 上课班级
+    pub course_id: String,   // 课程代码
+    pub course_name: String, // 课程名称
+    #[serde(rename = "type")]
+    pub _type: String, // 课程类型
+    pub area: String,        // 上课校区
+    pub teacher: String,     // 授课教师
+    pub credit: f32,         // 学分
+    pub people: u16,         // 上课人数
+    pub extra: Option<String>, // 额外备注信息
+}
+
 // 将 CustomizeCourseInfo 解析，并放入课表
 fn push_customize_course(
     classtable: &mut Vec<CourseInfo>,
@@ -276,6 +291,31 @@ pub async fn get_classtable(
     Ok(classtable)
 }
 
+pub async fn get_extra_course(
+    stu_id: &str,
+    xn: u32,
+    xq: u32,
+) -> AppResult<Vec<ExtraCourseInfo>> {
+    let spider_res =
+        infra::spider::hdjw::get_class_table_extra(stu_id, xn, xq)
+            .await?;
+    let mut res = Vec::new();
+    for item in spider_res {
+        res.push(ExtraCourseInfo {
+            class_name: item.kt_mc,
+            course_id: item.kch,
+            course_name: item.kc_mc,
+            _type: item.kcxz,
+            area: item.skxqmc,
+            teacher: item.jg0101mc,
+            credit: item.xf,
+            people: item.xkrs,
+            extra: item.fzmc,
+        });
+    }
+    Ok(res)
+}
+
 /// 调休的结构体
 /// 将会将 from 的课程全部转移到 to 上去，且 to 的课程全部毙掉
 #[derive(Debug, Serialize, Deserialize)]
@@ -312,7 +352,7 @@ pub async fn get_flex_time_list() -> AppResult<Vec<FlexTime>> {
 mod tests {
     use super::*;
 
-    const STUID: &str = "202318110404";
+    const STUID: &str = "";
 
     #[tokio::test]
     async fn test_get_classtable() {

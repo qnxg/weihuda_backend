@@ -18,6 +18,10 @@ pub fn routers() -> Router {
         .push(
             Router::with_path("hdjw/class-table").get(get_classtable),
         )
+        .push(
+            Router::with_path("hdjw/class-table-extra")
+                .get(get_extra_course),
+        )
 }
 
 #[handler]
@@ -85,4 +89,19 @@ async fn get_classtable(req: &mut Request) -> RouterResult {
     let classtable =
         service::course::get_classtable(&stu_id, xn, xq).await?;
     Ok(classtable.into())
+}
+
+#[handler]
+async fn get_extra_course(req: &mut Request) -> RouterResult {
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "query")))]
+    struct GetExtraCourseReq {
+        pub xn: u32,
+        pub xq: u32,
+    }
+    let GetExtraCourseReq { xn, xq } = req.extract().await?;
+    let stu_id = utils::jwt::auth(req)?;
+    let extra_course =
+        service::course::get_extra_course(&stu_id, xn, xq).await?;
+    Ok(extra_course.into())
 }
