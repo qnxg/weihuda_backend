@@ -3,7 +3,6 @@ use crate::service::jifen::{JifenGoods, JifenRecord, JifenRule};
 use crate::utils;
 use crate::utils::serde::empty_string_as_none;
 use crate::{result::RouterResult, service};
-use anyhow::anyhow;
 use salvo::macros::Extractible;
 use salvo::{Request, Router, handler};
 use serde::{Deserialize, Serialize};
@@ -167,43 +166,17 @@ async fn post_record(req: &mut Request) -> RouterResult {
     #[salvo(extract(default_source(from = "body")))]
     struct PostRecordReq {
         pub key: String,
+        #[expect(unused)]
         pub param: String,
     }
-    let PostRecordReq { key, param } = req.extract().await?;
+    let PostRecordReq { key, .. } = req.extract().await?;
     let stu_id = utils::jwt::auth(req)?;
-    let jifen_rule = service::jifen::get_jifen_rule(&key)
-        .await?
-        .ok_or(anyhow!("没有积分规则：{}", key))?;
-    // 查询是否重复添加
-    if service::jifen::get_jifen_record(&stu_id, &key, &param)
-        .await?
-        .is_some()
-    {
-        return Err("已经添加过积分记录".into());
-    }
-    // 查询周期内的积分记录
-    let now = utils::time::now_time();
-    let create_time_greater_than =
-        now - chrono::Duration::days(jifen_rule.cycle as i64 - 1);
-    let count = service::jifen::get_jifen_record_count(
-        &stu_id,
-        &key,
-        create_time_greater_than,
-    )
-    .await?;
-    if count >= jifen_rule.max_count {
-        return Err("超过周期内最大次数".into());
-    }
-    // 添加积分
-    let new_jifen = service::jifen::add_jifen(
-        &stu_id,
-        &key,
-        &param,
-        &jifen_rule.name,
-        jifen_rule.jifen,
-    )
-    .await?;
-    Ok(new_jifen.into())
+    // 这里这么做主要是兼容当前前端
+    let res = match key.as_str() {
+        "qiandao" => service::jifen::sign_in(&stu_id).await?,
+        _ => return Err("不支持的积分类型".into()),
+    };
+    Ok(res.into())
 }
 
 // 兑换商品
@@ -215,28 +188,11 @@ async fn exchange_goods(req: &mut Request) -> RouterResult {
         rename_all = "camelCase"
     ))]
     struct ExchangeGoodsReq {
-        pub goods_id: i32,
+        pub goods_id: u32,
     }
     let ExchangeGoodsReq { goods_id } = req.extract().await?;
     let stu_id = utils::jwt::auth(req)?;
-    let goods = service::jifen::get_goods(goods_id as u32)
-        .await?
-        .ok_or(anyhow!("没有找到商品：{}", goods_id))?;
-    // 检查商品库存
-    if !goods.enabled {
-        return Err("商品已下架".into());
-    }
-    if goods.count == 0 {
-        return Err("商品库存不足".into());
-    }
-    let user_jifen = service::jifen::get_jifen(&stu_id)
-        .await?
-        .ok_or(AppError::Unauthorized)?;
-    if user_jifen < goods.price {
-        return Err("积分不足".into());
-    }
-    // 扣除积分并添加记录
-    service::jifen::exchange_goods(&stu_id, goods).await?;
+    service::jifen::exchange_goods(&stu_id, goods_id).await?;
     Ok("兑换成功".into())
 }
 
@@ -272,41 +228,8 @@ async fn get_webview_read(req: &mut Request) -> RouterResult {
     }
     let GetWebviewReq { url } = req.extract().await?;
     let stu_id = utils::jwt::auth(req)?;
-    let key = String::from("yuedu");
-    let param = url;
-    let jifen_rule = service::jifen::get_jifen_rule(&key)
-        .await?
-        .ok_or(anyhow!("没有积分规则：{}", key))?;
-    // 查询是否重复添加
-    if service::jifen::get_jifen_record(&stu_id, &key, &param)
-        .await?
-        .is_some()
-    {
-        return Err("已经添加过积分记录".into());
-    }
-    // 查询周期内的积分记录
-    let now = utils::time::now_time();
-    let create_time_greater_than =
-        now - chrono::Duration::days(jifen_rule.cycle as i64 - 1);
-    let count = service::jifen::get_jifen_record_count(
-        &stu_id,
-        &key,
-        create_time_greater_than,
-    )
-    .await?;
-    if count >= jifen_rule.max_count {
-        return Err("超过周期内最大次数".into());
-    }
-    // 添加积分
-    let new_jifen = service::jifen::add_jifen(
-        &stu_id,
-        &key,
-        &param,
-        &jifen_rule.name,
-        jifen_rule.jifen,
-    )
-    .await?;
-    Ok(new_jifen.into())
+    let res = service::jifen::read_zhihu(&stu_id, &url).await?;
+    Ok(res.into())
 }
 
 #[handler]

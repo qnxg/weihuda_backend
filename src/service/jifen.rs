@@ -1,10 +1,11 @@
 use crate::{
     infra::{self},
-    result::AppResult,
-    service,
+    result::{AppError, AppResult},
+    service, utils,
 };
 use anyhow::anyhow;
 
+use dashmap::DashMap;
 pub use infra::mysql::jifen::get_exchange_record_list;
 pub use infra::mysql::jifen::get_goods;
 pub use infra::mysql::jifen::get_goods_list;
@@ -15,8 +16,41 @@ pub use infra::mysql::jifen::get_jifen_record_list;
 pub use infra::mysql::jifen::get_jifen_rule;
 pub use infra::mysql::jifen::get_jifen_rule_list;
 pub use infra::mysql::jifen::{JifenGoods, JifenRecord, JifenRule};
+use once_cell::sync::OnceCell;
+use tokio::sync::Mutex;
 
-const JIFEN_DESC_CONFIG_KEY: &str = "jifenDesc";
+pub struct JifenLockGuard(String);
+impl JifenLockGuard {
+    pub fn new(key: String) -> Self {
+        Self(key)
+    }
+}
+impl Drop for JifenLockGuard {
+    fn drop(&mut self) {
+        let lock = JIFEN_LOCK.get_or_init(DashMap::new);
+        lock.remove(&self.0);
+    }
+}
+static JIFEN_LOCK: OnceCell<DashMap<String, ()>> = OnceCell::new();
+/// 尝试获得某 key 对应的锁，如果已经有线程持有锁，则返回 None
+fn get_jifen_lock(key: String) -> Option<JifenLockGuard> {
+    let lock = JIFEN_LOCK.get_or_init(DashMap::new);
+    let mut inserted = false; // 是否已经有线程持有锁
+    lock.entry(key.clone()).or_insert_with(|| {
+        inserted = true;
+    });
+    if inserted {
+        Some(JifenLockGuard::new(key))
+    } else {
+        None
+    }
+}
+
+type GoodsLock = [Mutex<()>; 64];
+static GOODS_LOCK: OnceCell<GoodsLock> = OnceCell::new();
+fn goods_lock() -> &'static GoodsLock {
+    GOODS_LOCK.get_or_init(|| std::array::from_fn(|_| Mutex::new(())))
+}
 
 /// 增加积分，返回添加后用户的积分
 /// 调用前请确保学号是存在的，否则会抛出错误
@@ -37,41 +71,152 @@ pub async fn add_jifen(
     // 获取增加后的积分数值
     let res = infra::mysql::jifen::get_jifen(stu_id)
         .await?
-        .ok_or(anyhow!("学号不存在"))?;
+        .ok_or(AppError::Unauthorized)?;
     Ok(res)
 }
 
+/// 兑换商品，返回减少后的积分数值
 pub async fn exchange_goods(
     stu_id: &str,
-    goods: JifenGoods,
-) -> AppResult<()> {
+    goods_id: u32,
+) -> AppResult<i32> {
+    const EXCHANGE_GOODS_KEY: &str = "exchange";
+    let goods = service::jifen::get_goods(goods_id)
+        .await?
+        .ok_or(anyhow!("没有找到商品：{}", goods_id))?;
+    // 学号和 goods_id 均加锁
+    let Some(_guard1) =
+        get_jifen_lock(format!("{}-{}", EXCHANGE_GOODS_KEY, stu_id))
+    else {
+        return Err(
+            anyhow!("请求过于频繁，请稍后再试(NO_TOAST)").into()
+        );
+    };
+    let _guard2 = goods_lock()[goods_id as usize % 64].lock().await;
+    // 检查商品库存
+    if !goods.enabled {
+        return Err("商品已下架".into());
+    }
+    if goods.count == 0 {
+        return Err("商品库存不足".into());
+    }
+    let user_jifen = service::jifen::get_jifen(stu_id)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+    if user_jifen < goods.price {
+        return Err("积分不足".into());
+    }
     // 减少库存
     infra::mysql::jifen::update_goods_count(goods.id, 1).await?;
-    // 减少用户积分
-    infra::mysql::jifen::update_jifen(stu_id, -goods.price).await?;
-    // 添加兑换记录
-    let key = "exchange".to_string();
-    let param = goods.id.to_string();
-    let desc = format!("兑换商品{}", goods.name);
-    infra::mysql::jifen::add_jifen_record(
-        stu_id,
-        &key,
-        &param,
-        -goods.price,
-        &desc,
-    )
-    .await?;
     // 添加商品兑换记录
     infra::mysql::jifen::add_exchange_record(stu_id, goods.id)
         .await?;
-    Ok(())
+    // 减少用户积分
+    let res = add_jifen(
+        stu_id,
+        EXCHANGE_GOODS_KEY,
+        &goods.id.to_string(),
+        &format!("兑换商品{}", goods.name),
+        -goods.price,
+    )
+    .await?;
+    Ok(res)
 }
 
 pub async fn get_jifen_desc() -> AppResult<String> {
+    const JIFEN_DESC_CONFIG_KEY: &str = "jifenDesc";
     let res = service::config::get_config(JIFEN_DESC_CONFIG_KEY)
         .await?
         .expect("积分额外描述信息配置不存在");
     Ok(res.value)
+}
+
+/// 检查积分记录是否存在，以及是否超出规则限制
+/// 返回 true 说明积分记录不存在且没超出限制，可以添加
+async fn check_jifen_record(
+    stu_id: &str,
+    key: &str,
+    param: &str,
+) -> AppResult<bool> {
+    let jifen_rule = service::jifen::get_jifen_rule(key)
+        .await?
+        .ok_or(anyhow!("没有积分规则：{}", key))?;
+    // 查询是否重复添加
+    if service::jifen::get_jifen_record(stu_id, key, param)
+        .await?
+        .is_some()
+    {
+        return Ok(false);
+    }
+    // 查询周期内的积分记录
+    let base_time = utils::time::now_time()
+        .date()
+        .and_hms_opt(0, 0, 0)
+        .expect("获取当日零点失败");
+    // 取当日零点就相当于已经过了一个周期，所以只需要再去减去 cycle - 1 天
+    let create_time_greater_than = base_time
+        - chrono::Duration::days(jifen_rule.cycle as i64 - 1);
+    let count = service::jifen::get_jifen_record_count(
+        stu_id,
+        key,
+        create_time_greater_than,
+    )
+    .await?;
+    if count >= jifen_rule.max_count {
+        return Ok(false);
+    }
+    Ok(true)
+}
+
+/// 签到，返回增加后，当前的积分
+pub async fn sign_in(stu_id: &str) -> AppResult<i32> {
+    const SIGN_IN_KEY: &str = "qiandao";
+    let lock_key = format!("{}-{}", SIGN_IN_KEY, stu_id);
+    let param =
+        utils::time::now_time().format("%Y-%m-%d").to_string();
+    let Some(_guard) = get_jifen_lock(lock_key) else {
+        return Err(
+            anyhow!("请求过于频繁，请稍后再试(NO_TOAST)").into()
+        );
+    };
+    if !check_jifen_record(stu_id, SIGN_IN_KEY, &param).await? {
+        return Err(anyhow!("已经签到过了").into());
+    }
+    let rule = service::jifen::get_jifen_rule(SIGN_IN_KEY)
+        .await?
+        .ok_or(anyhow!("没有 qiandao 规则"))?;
+    let res = add_jifen(
+        stu_id,
+        SIGN_IN_KEY,
+        &param,
+        &rule.name,
+        rule.jifen,
+    )
+    .await?;
+    Ok(res)
+}
+
+/// 阅读知湖，返回本次积分增量
+pub async fn read_zhihu(stu_id: &str, url: &str) -> AppResult<i32> {
+    const READ_ZHIHU_KEY: &str = "yuedu";
+    let lock_key = format!("{}-{}", READ_ZHIHU_KEY, stu_id);
+    let Some(_guard) = get_jifen_lock(lock_key) else {
+        return Err(
+            anyhow!("请求过于频繁，请稍后再试(NO_TOAST)").into()
+        );
+    };
+    if !check_jifen_record(stu_id, READ_ZHIHU_KEY, url).await? {
+        // 前端会特判 NO_TOAST，然后就不会弹出错误提示框
+        return Err(
+            anyhow!("已经阅读或超过单日上限(NO_TOAST)").into()
+        );
+    }
+    let rule = service::jifen::get_jifen_rule(READ_ZHIHU_KEY)
+        .await?
+        .ok_or(anyhow!("没有 yuedu 规则"))?;
+    add_jifen(stu_id, READ_ZHIHU_KEY, url, &rule.name, rule.jifen)
+        .await?;
+    Ok(rule.jifen)
 }
 
 #[cfg(test)]

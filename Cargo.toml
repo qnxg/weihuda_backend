@@ -51,6 +51,7 @@ cbc = { version = "0.1.2", features = ["alloc", "std"] }
 base64 = "0.22.1"
 rand_core = { version = "0.6.4", features = ["std"] }
 md5 = "0.8.0"
+dashmap = "6.1.0"
 
 #[dev-dependencies]
 

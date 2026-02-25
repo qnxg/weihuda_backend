@@ -1,5 +1,5 @@
 use super::get_db_pool;
-use crate::result::AppResult;
+use crate::{result::AppResult, utils};
 use chrono::NaiveDateTime;
 
 pub async fn add_left_message(
@@ -10,12 +10,13 @@ pub async fn add_left_message(
     send_time: NaiveDateTime,
     is_send: bool,
 ) -> AppResult<u64> {
+    let now = utils::time::now_time();
     let res = sqlx::query!(
         r#"
         INSERT INTO 
-            message_lefts (stuId, `desc`, isAgree, sendTime,isSend, email)
+            message_lefts (stuId, `desc`, isAgree, sendTime, isSend, email, createdAt, updatedAt)
         VALUES 
-            (?, ?, ?, ?, ?, ?)
+            (?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         stu_id,
         desc,
@@ -23,6 +24,8 @@ pub async fn add_left_message(
         send_time,
         is_send,
         email,
+        now,
+        now,
     )
     .execute(get_db_pool().await)
     .await?;
