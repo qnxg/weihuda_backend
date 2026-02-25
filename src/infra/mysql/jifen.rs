@@ -312,12 +312,13 @@ pub async fn add_exchange_record(
     let now = utils::time::now_time();
     let res = sqlx::query!(
         r#"
-        INSERT INTO jifen_exchange (goodsId, stuId, status, createdAt)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO jifen_exchange (goodsId, stuId, status, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?)
         "#,
         goods_id,
         stu_id,
         0,
+        now,
         now
     )
     .execute(get_db_pool().await)
