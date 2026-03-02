@@ -74,8 +74,7 @@ async fn get_now_table_index() -> AppResult<usize> {
     let res = get_class_start_date_table()
         .await?
         .binary_search_by_key(&&date, |(_, start_date)| start_date)
-        .unwrap_or_else(|idx| idx)
-        - 1;
+        .unwrap_or_else(|idx| idx - 1);
     Ok(res)
 }
 
@@ -104,14 +103,14 @@ mod test {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_now_xnxq() {
-        assert_eq!(get_now_xnxq().await.unwrap(), (2024, 2));
+        assert_eq!(get_now_xnxq().await.unwrap(), (2025, 2));
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_this_semester_start_date() {
         assert_eq!(
             get_this_semester_start_date().await.unwrap(),
-            "2025-02-16".to_string()
+            "2026-03-01".to_string()
         );
     }
 
@@ -119,7 +118,7 @@ mod test {
     async fn test_get_next_semester_start_date() {
         assert_eq!(
             get_next_semester_start_date().await.unwrap(),
-            "2025-06-22".to_string()
+            "2026-07-05".to_string()
         );
     }
 
@@ -127,7 +126,7 @@ mod test {
     async fn test_get_vacation() {
         assert_eq!(
             get_vacation_date().await.unwrap(),
-            "2025-01-19".to_string()
+            "2026-07-05".to_string()
         );
     }
 }
