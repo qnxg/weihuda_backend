@@ -13,7 +13,8 @@ use crate::{
 pub use infra::mysql::course::CustomizeCourseInfo;
 pub use infra::mysql::course::add_course as add_customize_course;
 pub use infra::mysql::course::delete_course as delete_customize_course;
-pub use infra::mysql::course::get_course_list as get_customize_course;
+use infra::mysql::course::get_course_list as get_customize_course;
+pub use infra::mysql::course::get_custom_course_details_by_id;
 
 const FLEX_TIME_CONFIG_KEY: &str = "flexTime";
 

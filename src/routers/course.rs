@@ -13,7 +13,11 @@ pub fn routers() -> Router {
         .push(
             Router::with_path("course")
                 .post(add_course) // 添加自定义课表课程
-                .delete(delete_course), // 删除自定义课表课程
+                .delete(delete_course) // 删除自定义课表课程
+                .push(
+                    Router::with_path("get-custom-details-by-id")
+                        .get(get_custom_course_details_by_id), // 根据id查询自定义课程详情
+                ),
         )
         .push(
             Router::with_path("hdjw/class-table").get(get_classtable),
@@ -73,6 +77,23 @@ async fn delete_course(req: &mut Request) -> RouterResult {
     let stu_id = utils::jwt::auth(req)?;
     service::course::delete_customize_course(id, &stu_id).await?;
     Ok("删除成功".into())
+}
+
+#[handler]
+async fn get_custom_course_details_by_id(
+    req: &mut Request,
+) -> RouterResult {
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "query")))]
+    struct GetCustomCourseDetailsReq {
+        pub id: u32,
+    }
+    let GetCustomCourseDetailsReq { id } = req.extract().await?;
+    let stu_id = utils::jwt::auth(req)?;
+    let details =
+        service::course::get_custom_course_details_by_id(id, &stu_id)
+            .await?;
+    Ok(details.into())
 }
 
 /// 获取课表
