@@ -79,3 +79,26 @@ pub async fn delete_course(
     .await?;
     Ok(())
 }
+
+pub async fn get_custom_course_details_by_id(
+    course_id: u32,
+    stu_id: &str,
+) -> AppResult<CustomizeCourseInfo> {
+    let res = sqlx::query_as!(
+        CustomizeCourseInfo,
+        r#"
+            SELECT 
+            id, classname, location, teachers, week, day, section 
+            FROM mini_course 
+            WHERE id = ? 
+            AND stuId = ? 
+            AND deletedAt IS NULL 
+            LIMIT 1
+        "#,
+        course_id,
+        stu_id
+    )
+    .fetch_one(get_db_pool().await)
+    .await?;
+    Ok(res)
+}
