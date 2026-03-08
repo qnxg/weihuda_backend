@@ -11,6 +11,7 @@ mod gym;
 mod jifen;
 mod lab;
 mod left_message;
+mod metrics;
 mod netflow;
 mod notice;
 mod ping;
@@ -37,6 +38,7 @@ pub fn routers() -> Router {
         .push(jifen::routers())
         .push(lab::routers())
         .push(left_message::routers())
+        .push(metrics::routers())
         .push(netflow::routers())
         .push(notice::routers())
         .push(ping::routers())
