@@ -1,11 +1,6 @@
-/old
+.vscode
 /target
-/migrations
-/.vscode
 /.idea
 /logs
-docker-compose.yml
-/lib/cache_map
-/lib/analytics
-/config/config.toml
-.env
+_config.toml
+_.env

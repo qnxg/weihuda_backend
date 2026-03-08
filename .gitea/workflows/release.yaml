@@ -13,41 +13,53 @@ jobs:
       - name: Setup Toolchain
         uses: ./.gitea/workflows/setup-toolchain
 
-      - name: Build
+      - name: Build All Binaries
         run: |
-          cargo build --release --bin ${{ github.event.repository.name }} --target x86_64-unknown-linux-musl
+          cargo build --release --bins --target x86_64-unknown-linux-musl
       
       - uses: https://gitee.com/skr2005/gitea-release-action@v1
         with:
           files: |-
-            target/x86_64-unknown-linux-musl/release/${{ github.event.repository.name }}
+            target/x86_64-unknown-linux-musl/release/back_2024
+            target/x86_64-unknown-linux-musl/release/spider_2024
       
-      - name: Setup SSH
+      - name: Setup SSH for Uploading back_2024
         uses: https://gitee.com/greyCloud/ssh-key-action.git@v2
         with:
           key: ${{ secrets.SSH_KEY_118 }}
           known_hosts: unnecessary
 
-      - name: Deploy to Server
+      - name: Deploy back_2024 to Server
         run: |
           apt-get install -y sshpass
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME_118 }}@${{ secrets.SSH_SERVER_118 }} << 'EOF'
           systemctl stop back
           EOF
           sshpass scp -o StrictHostKeyChecking=no \
-            -P 22 target/x86_64-unknown-linux-musl/release/${{ github.event.repository.name }} \
-            ${{ secrets.SSH_USERNAME_118 }}@${{ secrets.SSH_SERVER_118 }}:${{ vars.DEPLOY_DIR }}/
+            -P 22 target/x86_64-unknown-linux-musl/release/back_2024 \
+            ${{ secrets.SSH_USERNAME_118 }}@${{ secrets.SSH_SERVER_118 }}:${{ vars.BACK_DEPLOY_DIR }}/
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME_118 }}@${{ secrets.SSH_SERVER_118 }} << 'EOF'
-          chmod +x ${{ vars.DEPLOY_DIR }}/${{ github.event.repository.name }}
+          chmod +x ${{ vars.BACK_DEPLOY_DIR }}/back_2024
           systemctl restart back
           EOF
-      
-      # - name: Upload release file to server
-      #   uses: https://github.com/appleboy/scp-action@v1
-      #   with:
-      #     host: ${{ secrets.HOST }}
-      #     username: root
-      #     password: ${{ secrets.PASSWORD }}
-      #     port: 22
-      #     source: target/x86_64-unknown-linux-musl/release/${{ github.event.repository.name }}
-      #     target: /root/rust-spider-2024/
+
+      - name: Setup SSH for Uploading spider_2024
+        uses: https://gitee.com/greyCloud/ssh-key-action.git@v2
+        with:
+          key: ${{ secrets.SSH_KEY_30 }}
+          known_hosts: unnecessary
+          if_key_exists: replace
+
+      - name: Deploy spider_2024 to Server
+        run: |
+          apt-get install -y sshpass
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME_30 }}@${{ secrets.SSH_SERVER_30 }} << 'EOF'
+          systemctl stop spider
+          EOF
+          sshpass scp -o StrictHostKeyChecking=no \
+            -P 22 target/x86_64-unknown-linux-musl/release/spider_2024 \
+            ${{ secrets.SSH_USERNAME_30 }}@${{ secrets.SSH_SERVER_30 }}:${{ vars.SPIDER_DEPLOY_DIR }}/
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USERNAME_30 }}@${{ secrets.SSH_SERVER_30 }} << 'EOF'
+          chmod +x ${{ vars.SPIDER_DEPLOY_DIR }}/spider_2024
+          systemctl restart spider
+          EOF
