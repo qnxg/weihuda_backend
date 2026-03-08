@@ -22,7 +22,8 @@ use crate::{
     config::CFG,
     middlewares::{
         cache::cache_middleware, cors::cors_middleware,
-        count::count_middleware, default::default_middleware,
+        default::default_middleware,
+        prometheus::prometheus_middleware,
         timeout::timeout_middleware,
     },
 };
@@ -61,8 +62,8 @@ async fn run() {
     let service = Service::new(routers)
         .hoop(default_middleware)
         .hoop(Logger::new())
+        .hoop(prometheus_middleware)
         .hoop(cors_middleware())
-        .hoop(count_middleware)
         .hoop(cache_middleware)
         .hoop(timeout_middleware);
     Server::new(listener).serve(service).await;
