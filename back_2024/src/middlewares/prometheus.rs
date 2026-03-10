@@ -60,7 +60,14 @@ fn normalize_path(path: &str) -> String {
             (*seg).to_string()
         })
         .collect();
-    "/".to_string() + &normalized.join("/")
+    let normalized = "/".to_string() + &normalized.join("/");
+    if normalized.starts_with("/auth-qrcode/status") {
+        return "/auth-qrcode/status/:id".to_string();
+    }
+    if normalized.starts_with("/auth-qrcode/info") {
+        return "/auth-qrcode/info/:id".to_string();
+    }
+    normalized
 }
 
 #[handler]
@@ -77,25 +84,31 @@ pub async fn prometheus_middleware(
     }
 
     let method = req.method().as_str().to_string();
-    let path_normalized = normalize_path(&path);
     let start = Instant::now();
 
     ctrl.call_next(req, depot, resp).await;
 
     let elapsed = start.elapsed();
     let (counter, histogram) = metrics().await;
-    let status = resp
-        .status_code
-        .map(|c| c.as_u16().to_string())
+    let status_code_u16 = resp.status_code.map(|c| c.as_u16());
+    let status = status_code_u16
+        .map(|c| c.to_string())
         .unwrap_or_else(|| "unknown".to_string());
 
+    // Prevent label cardinality explosion on random/unmatched paths.
+    // Most attacks that spray non-existent endpoints will end up as 404.
+    let path_label = match status_code_u16 {
+        Some(404) | Some(405) => "__not_found__".to_string(),
+        _ => normalize_path(&path),
+    };
+
     histogram
-        .with_label_values(&[&method, &path_normalized])
+        .with_label_values(&[&method, &path_label])
         .observe(elapsed.as_secs_f64());
     counter
         .with_label_values(&[
             method.as_str(),
-            path_normalized.as_str(),
+            path_label.as_str(),
             status.as_str(),
         ])
         .inc();
