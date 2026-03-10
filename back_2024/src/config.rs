@@ -41,6 +41,7 @@ pub struct Log {
     pub directory: String,
     pub file_name: String,
     pub rolling: String,
+    pub format: String,
 }
 
 #[derive(Deserialize, Debug)]

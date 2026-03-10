@@ -70,9 +70,9 @@ async fn spider_data_with_timeout<
         .await
         .map_err(|e| {
             tracing::error!(
-                "请求爬虫失败，错误信息：{}，请求目标：{}",
-                e,
-                url
+                error = ?e,
+                url = %url,
+                "请求爬虫失败",
             );
             AppError::SpiderRequestError(
                 "内部错误：内部请求失败".to_string(),
@@ -90,9 +90,9 @@ async fn spider_data_with_timeout<
             .map_err(|e| AppError::SpiderRequestError(format!("爬虫请求要求重定向，但重定向目标地址解析失败。错误信息:{}, 请求目标:{}", e, url)))?;
         res = CLIENT.get(redirect_url).send().await.map_err(|e| {
             tracing::error!(
-                "请求爬虫失败，错误信息：{}，请求目标：{}",
-                e,
-                url
+                error = ?e,
+                url = %url,
+                "请求爬虫失败",
             );
             AppError::SpiderRequestError(
                 "内部错误：内部请求失败".to_string(),
@@ -105,26 +105,27 @@ async fn spider_data_with_timeout<
         status => {
             let res_obj = res.text().await.map_err(|e| {
                 tracing::error!(
-                    "解析爬虫响应体失败，错误信息：{}，请求目标：{}",
-                    e,
-                    url
+                    error = ?e,
+                    url = %url,
+                    "解析爬虫响应体失败",
                 );
                 AppError::SpiderRequestError(
                     "内部错误：内部请求失败。".to_string(),
                 )
             })?;
 
-            let mut res_obj: Value =
-                serde_json::from_str(&res_obj).map_err(|e| {
-                    tracing::error!(
-                    "解析爬虫响应内容到 json 失败，错误信息：{}，请求目标：{}",
-                    e,
-                    url
+            let mut res_obj: Value = serde_json::from_str(&res_obj)
+                .map_err(|e| {
+                tracing::error!(
+                    error = ?e,
+                    url = %url,
+                    response = %res_obj,
+                    "解析爬虫响应内容到 json 失败",
                 );
-                    AppError::SpiderRequestError(
-                        "内部错误：内部请求失败。".to_string(),
-                    )
-                })?;
+                AppError::SpiderRequestError(
+                    "内部错误：内部请求失败。".to_string(),
+                )
+            })?;
 
             let msg = res_obj
                 .get("msg")
@@ -143,23 +144,25 @@ async fn spider_data_with_timeout<
                     //     ));
                     // }
                     // take()方法将json_res的所有权转移给res
-                    let res: U = serde_json::from_value(res_obj["data"].take())
-                        .map_err(|e| {
-                            tracing::error!(
-                                "解析爬虫信息失败，错误信息：{}，请求目标：{}",
-                                e,
-                                url
-                            );
-                            anyhow!("解析爬虫信息失败")
-                        })?;
+                    let res: U = serde_json::from_value(
+                        res_obj["data"].take(),
+                    )
+                    .map_err(|e| {
+                        tracing::error!(
+                            error = ?e,
+                            url = %url,
+                            response = %res_obj,
+                            "解析爬虫信息失败",
+                        );
+                        anyhow!("解析爬虫信息失败")
+                    })?;
                     Ok(res)
                 }
                 _ => {
                     tracing::error!(
-                        "爬虫请求失败，状态码：{}，错误信息：{}，请求目标：{}",
-                        status,
-                        msg,
-                        url
+                        error = ?msg,
+                        url = %url,
+                        "爬虫请求失败",
                     );
                     Err(AppError::SpiderRequestError(msg.to_string()))
                 }

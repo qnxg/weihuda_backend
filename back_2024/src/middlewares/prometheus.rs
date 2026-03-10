@@ -107,7 +107,7 @@ pub async fn render_metrics(res: &mut Response) {
     let metric_families = prometheus::gather();
     let mut buffer = Vec::with_capacity(4096);
     if let Err(e) = encoder.encode(&metric_families, &mut buffer) {
-        tracing::error!("prometheus encode error: {}", e);
+        tracing::error!(error = ?e, "prometheus encode error");
         res.status_code(
             salvo::http::StatusCode::INTERNAL_SERVER_ERROR,
         );
@@ -116,7 +116,7 @@ pub async fn render_metrics(res: &mut Response) {
     let body = match String::from_utf8(buffer) {
         Ok(s) => s,
         Err(e) => {
-            tracing::error!("prometheus metrics utf8 error: {}", e);
+            tracing::error!(error = ?e, "prometheus metrics utf8 error");
             res.status_code(
                 salvo::http::StatusCode::INTERNAL_SERVER_ERROR,
             );
