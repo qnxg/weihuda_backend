@@ -44,7 +44,7 @@ const GYM_URL_FROM_CAS: &str = "http://cas.hnu.edu.cn/application/sso.zf?login=8
 const GRADUATE_URL: &str = "http://cas.hnu.edu.cn/cas/login?service=http://yjsxt.hnu.edu.cn/gmis/oauthLogin/hndxnew";
 const CA_URL: &str = "http://cas.hnu.edu.cn/cas/login?service=https://ca.hnu.edu.cn/student/";
 const LIBRARY_URL: &str = "http://cas.hnu.edu.cn/cas/login?service=https://opac.hnu.edu.cn/opac/special/toOpac";
-const XGXT_URL: &str = "https://cas.hnu.edu.cn/cas/login?service=https://xgxt.hnu.edu.cn/zftal-xgxt-web/teacher/xtgl/index/check.zf";
+const XGXT_URL: &str = "http://cas.hnu.edu.cn/cas/login?service=http://xgxt.hnu.edu.cn/zftal-xgxt-web/teacher/xtgl/index/check.zf";
 
 pub struct LoginParams {
     modulus: String,
@@ -608,7 +608,11 @@ pub async fn xgxt_headers(stu_id: &str) -> AppResult<HeaderMap> {
         .try_get_with((XGXTCookie, stu_id.into()), async {
             let ticket_url = get_ticket_url(stu_id, XGXT_URL).await?;
             debug!("{stu_id} 尝试通过 {} 访问学工系统", ticket_url);
-            let res = client.get(&ticket_url).send().await?;
+            // cas 下发的 ticket_url 是 http 的，但是学工系统要用 https
+            let res = client
+                .get(ticket_url.replace("http://", "https://"))
+                .send()
+                .await?;
             if res.status() != StatusCode::FOUND {
                 return Err(anyhow!(
                     "获取学工系统失败，HTTP代码 {}",
