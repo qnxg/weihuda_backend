@@ -22,13 +22,12 @@ use crate::{
     config::CFG,
     middlewares::{
         cache::cache_middleware, cors::cors_middleware,
-        default::default_middleware,
+        default::default_middleware, logging::logging_middleware,
         prometheus::prometheus_middleware,
         timeout::timeout_middleware,
     },
 };
 use salvo::Service;
-use salvo::logging::Logger;
 use salvo::prelude::*;
 
 #[tokio::main]
@@ -49,6 +48,7 @@ async fn run() {
         .with_thread_ids(false) // 无需打开，线程模型有tokio调度
         .with_thread_names(false) // 无需打开，线程模型有tokio调度
         .with_target(false) // 无需打开，打开后日志很累赘
+        .format(&CFG.log.format)
         .init();
 
     // Mark the log level
@@ -61,7 +61,7 @@ async fn run() {
     let routers = routers::routers();
     let service = Service::new(routers)
         .hoop(default_middleware)
-        .hoop(Logger::new())
+        .hoop(logging_middleware)
         .hoop(prometheus_middleware)
         .hoop(cors_middleware())
         .hoop(cache_middleware)

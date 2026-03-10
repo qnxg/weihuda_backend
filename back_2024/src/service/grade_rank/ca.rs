@@ -86,10 +86,10 @@ async fn ca_task_worker() {
     let queue = ca_task_queue().await;
     loop {
         let stu_id = queue.pop().await;
-        tracing::debug!("获取 CA 排名任务: {}", stu_id);
+        tracing::info!(stu_id = %stu_id, "获取 CA 排名任务");
         let res = fetch(&stu_id).await;
         if let Err(e) = res {
-            tracing::error!("获取 CA 排名失败: {:?}", e);
+            tracing::error!(error = ?e, stu_id = %stu_id, "获取 CA 排名失败");
         }
         // 无论成功与否，都要从队列中移除，防止重复处理
         queue.remove(&stu_id).await;
