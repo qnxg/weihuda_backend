@@ -2,6 +2,7 @@ use crate::result::{AppError, RouterResult};
 use crate::service::feedback::FeedbackInfo;
 use crate::utils::serde::empty_string_as_none;
 use crate::{service, utils};
+use anyhow::anyhow;
 use salvo::macros::Extractible;
 use salvo::{Request, Router, handler};
 use serde::{Deserialize, Serialize};
@@ -94,8 +95,15 @@ async fn get_feedback_msg(req: &mut Request) -> RouterResult {
         pub feedback_id: u32,
     }
     let GetFeedbackMsgReq { feedback_id } = req.extract().await?;
+    let Some(feedback) =
+        service::feedback::get_feedback(feedback_id).await?
+    else {
+        return Err(anyhow!("反馈不存在").into());
+    };
+    if feedback.stu_id != Some(stu_id) {
+        return Err(anyhow!("反馈不存在").into());
+    }
     let res =
-        service::feedback::get_feedback_msg(&stu_id, feedback_id)
-            .await?;
+        service::feedback::get_feedback_msg(feedback_id).await?;
     Ok(res.into())
 }

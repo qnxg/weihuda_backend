@@ -4,6 +4,7 @@ use crate::{
 };
 
 pub use infra::mysql::feedback::FeedbackInfo;
+pub use infra::mysql::feedback::get_feedback;
 pub use infra::mysql::feedback::get_feedback_list;
 pub use infra::mysql::feedback::get_feedback_msg;
 
