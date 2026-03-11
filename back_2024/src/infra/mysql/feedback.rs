@@ -38,6 +38,21 @@ pub async fn get_feedback_list(
     Ok(res)
 }
 
+pub async fn get_feedback(
+    feedback_id: u32,
+) -> AppResult<Option<FeedbackInfo>> {
+    let res: Option<FeedbackInfo> = sqlx::query_as!(
+        FeedbackInfo,
+        r#"
+        SELECT id, stuId as stu_id, contact, status, imgUrl as img_url, createdAt as created_at, updatedAt as updated_at, `desc` FROM feedbacks WHERE id = ?
+        "#,
+        feedback_id
+    )
+    .fetch_optional(get_db_pool().await)
+    .await?;
+    Ok(res)
+}
+
 pub async fn add_feedback(
     desc: &str,
     contact: Option<&String>,
@@ -74,7 +89,6 @@ pub struct FeedbackMsg {
     pub created_at: NaiveDateTime,
 }
 pub async fn get_feedback_msg(
-    stu_id: &str,
     feedback_id: u32,
 ) -> AppResult<Vec<FeedbackMsg>> {
     let res: Vec<FeedbackMsg> = sqlx::query_as!(
@@ -83,11 +97,10 @@ pub async fn get_feedback_msg(
         SELECT 
         id, typ, msg, stuId as stu_id, createdAt as created_at
         FROM feedback_msg 
-        WHERE feedbackId = ? AND stuId = ? AND deletedAt IS NULL
+        WHERE feedbackId = ? AND deletedAt IS NULL
         ORDER BY id DESC
         "#,
-        feedback_id,
-        stu_id,
+        feedback_id
     )
     .fetch_all(get_db_pool().await)
     .await?;
