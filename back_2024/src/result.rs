@@ -116,7 +116,7 @@ impl Scribe for AppError {
                     Json(serde_json::json!({
                         "code": 401,
                         "data": null,
-                        "msg": "密码错误"
+                        "msg": "密码错误(NO_TOAST)"
                     })),
                 );
             }

@@ -75,3 +75,18 @@ impl Expiry<CacheKey, CacheVal> for ExpiryPolicy {
         key.0.expire_after_fetch()
     }
 }
+
+pub async fn invalidate_stuid_cache(stu_id: &str) {
+    use CacheEnum::*;
+    CACHE.invalidate(&(Hdjw, stu_id.into())).await;
+    CACHE.invalidate(&(CasCookie, stu_id.into())).await;
+    CACHE.invalidate(&(PtCookie, stu_id.into())).await;
+    CACHE.invalidate(&(NetflowCookie, stu_id.into())).await;
+    CACHE.invalidate(&(GymCookie, stu_id.into())).await;
+    CACHE
+        .invalidate(&(GraduateCookieAndId, stu_id.into()))
+        .await;
+    CACHE.invalidate(&(LibraryCookie, stu_id.into())).await;
+    CACHE.invalidate(&(XGXTCookie, stu_id.into())).await;
+    CACHE.invalidate(&(LabCookie, stu_id.into())).await;
+}

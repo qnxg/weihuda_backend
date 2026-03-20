@@ -31,7 +31,6 @@ pub struct VerifyResult {
     pub code: u32,
     #[expect(unused)]
     pub status: String,
-    #[expect(unused)]
     pub message: String,
 }
 pub async fn verify_password(
