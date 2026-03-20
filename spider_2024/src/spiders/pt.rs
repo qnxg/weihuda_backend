@@ -1,5 +1,8 @@
 use crate::{
-    app_result::AppResult, spiders::login::pt_headers, utils::client,
+    app_error::AppError,
+    app_result::AppResult,
+    spiders::login::{self, pt_headers},
+    utils::{cache::invalidate_stuid_cache, client},
 };
 use anyhow::anyhow;
 use log::debug;
@@ -20,6 +23,8 @@ const CSRF_TOKEN_URL: &str =
 const PASSWORD_CHECK_URL: &str =
     "http://authority.hnu.cn/authority/services/simpleAuthWS?wsdl";
 
+// 这个函数已经废弃，不使用，改用 check_password_with_cas 代替
+#[cfg_attr(not(test), expect(unused))]
 pub async fn check_password(
     stu_id: &str,
     password: &str,
@@ -67,13 +72,40 @@ pub async fn check_password(
     }
 }
 
+#[derive(Debug)]
+pub enum CasPasswordStatus {
+    Success,      // 密码正确
+    Fail,         // 密码错误
+    ShouldChange, // 需要更换密码
+    Lock,         // 账号被锁定
+}
+pub async fn check_password_with_cas(
+    stu_id: &str,
+    password: &str,
+) -> AppResult<CasPasswordStatus> {
+    let res = login::pt_headers(stu_id, Some(password)).await;
+    match res {
+        Ok(_) => {
+            // 把缓存全部重置
+            invalidate_stuid_cache(stu_id).await;
+            Ok(CasPasswordStatus::Success)
+        }
+        Err(AppError::PasswordError) => Ok(CasPasswordStatus::Fail),
+        Err(AppError::PasswordShouldChange) => {
+            Ok(CasPasswordStatus::ShouldChange)
+        }
+        Err(AppError::PasswordLocked) => Ok(CasPasswordStatus::Lock),
+        Err(e) => Err(e),
+    }
+}
+
 // 暂时不用这里的user_info
 #[cfg_attr(not(test), expect(unused))]
 pub async fn get_user_info(stu_id: &str) -> AppResult<Value> {
     let now = SystemTime::now();
     let duration = now.duration_since(UNIX_EPOCH)?;
     let url = format!("{USER_INFO_URL}?_={}", duration.as_millis());
-    let pt_headers = pt_headers(stu_id).await?;
+    let pt_headers = pt_headers(stu_id, None).await?;
     debug!("{stu_id} 请求用户信息：{}", &url);
     let res = client.get(url).headers(pt_headers).send().await?;
     if res.status() != StatusCode::OK {
@@ -84,7 +116,7 @@ pub async fn get_user_info(stu_id: &str) -> AppResult<Value> {
 }
 
 pub async fn get_unread_email(stu_id: &str) -> AppResult<Value> {
-    let pt_headers = pt_headers(stu_id).await?;
+    let pt_headers = pt_headers(stu_id, None).await?;
     let res = client
         .get(UNREAD_EMAIL_URL)
         .headers(pt_headers)
@@ -98,7 +130,7 @@ pub async fn get_unread_email(stu_id: &str) -> AppResult<Value> {
 }
 
 pub async fn get_card_info(stu_id: &str) -> AppResult<Value> {
-    let pt_headers = pt_headers(stu_id).await?;
+    let pt_headers = pt_headers(stu_id, None).await?;
     let res = client
         .get(CARD_INFO_URL)
         .headers(pt_headers)
@@ -120,7 +152,7 @@ pub async fn get_card_history(
     month: &str,
     _type: &str,
 ) -> AppResult<Value> {
-    let pt_headers = pt_headers(stu_id).await?;
+    let pt_headers = pt_headers(stu_id, None).await?;
     // 字符串格式化默认是左对齐，这里要手动改成右对齐，并且两位宽左侧补0
     let begin_date = format!("{}-{:0>2}-01", year, month);
     // 这里没有必要精确查询日历好像是？直接取31号
@@ -170,6 +202,12 @@ mod tests {
     #[tokio::test]
     async fn test_check_password() {
         let res = check_password(&STU_ID, "").await;
+        dbg!(&res.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_check_password_with_cas() {
+        let res = check_password_with_cas(&STU_ID, "").await;
         dbg!(&res.unwrap());
     }
 

@@ -27,7 +27,9 @@ impl Scribe for Success {
 impl Scribe for AppError {
     fn render(self, res: &mut Response) {
         match self {
-            AppError::PasswordError => res.stuff(
+            AppError::PasswordError
+            | AppError::PasswordShouldChange
+            | AppError::PasswordLocked => res.stuff(
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({
                     "code": 401,

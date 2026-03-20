@@ -3,6 +3,7 @@ use crate::{
     service::{self, auth::qrcode::AuthQrCodeStatus},
     utils,
 };
+use anyhow::anyhow;
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
 use serde_json::json;
@@ -54,8 +55,7 @@ async fn bind_user(req: &mut Request) -> RouterResult {
 
     match verify_res.code {
         0 => {} // 验证成功
-        1 => return Err("个人门户密码错误".into()),
-        _ => return Err("密码验证服务返回值错误".into()),
+        _ => return Err(anyhow!(verify_res.message).into()),
     }
 
     service::auth::user::clear_openid(&openid).await?;

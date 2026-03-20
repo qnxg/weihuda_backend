@@ -16,6 +16,10 @@ pub enum AppError {
     // 登录服务时提供的账号密码错误，前端可能需要重新处理
     #[error("password error")]
     PasswordError,
+    #[error("password should change")]
+    PasswordShouldChange,
+    #[error("password is locked")]
+    PasswordLocked,
     #[error("timeout error")]
     Timeout,
     #[error("salvo::http::ParseError:`{0}`")]
@@ -63,6 +67,10 @@ impl From<Arc<AppError>> for AppError {
                 AppError::AnyHow(anyhow::anyhow!(err))
             }
             AppError::PasswordError => AppError::PasswordError,
+            AppError::PasswordShouldChange => {
+                AppError::PasswordShouldChange
+            }
+            AppError::PasswordLocked => AppError::PasswordLocked,
             AppError::Timeout => AppError::Timeout,
         }
     }

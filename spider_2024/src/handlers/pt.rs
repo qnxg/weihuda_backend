@@ -1,37 +1,39 @@
 #![allow(deprecated)] // 用于忽略deprecated的警告
 use anyhow::anyhow;
-use salvo::{
-    FlowCtrl, Request, Response, handler, prelude::StatusCode,
-    writing::Json,
-};
+use salvo::{Request, Response, handler, writing::Json};
 use serde_json::json;
 
 use crate::{
-    app_result::HandlerResult, dtos::pt::CardHistoryReq, spiders,
+    app_result::HandlerResult,
+    dtos::pt::CardHistoryReq,
+    spiders::{self, pt::CasPasswordStatus},
 };
 
 #[handler]
 pub async fn check_password_handler(
     req: &mut Request,
     res: &mut Response,
-    ctrl: &mut FlowCtrl,
 ) {
     let stuid: String = req.form("stuid").await.unwrap();
     let password: String = req.form("ptpass").await.unwrap();
-    let result = spiders::pt::check_password(&stuid, &password).await;
-    let success = json!({"code": 0, "status": "success", "message": "密码正确"});
-    let error =
-        json!({"code": 1, "status": "error", "message": "密码错误"});
-    if let Ok(result) = result {
-        if result {
-            res.render(Json(success));
-        } else {
-            res.render(Json(error));
+    let result =
+        spiders::pt::check_password_with_cas(&stuid, &password).await;
+    match result {
+        Ok(CasPasswordStatus::Success) => {
+            res.render(Json(json!({"code": 0, "status": "success", "message": "密码正确"})));
         }
-    } else {
-        // 直接不返回任何内容，只返回状态码
-        res.status_code(StatusCode::NO_CONTENT);
-        ctrl.skip_rest();
+        Ok(CasPasswordStatus::Fail) => {
+            res.render(Json(json!({"code": 1, "status": "error", "message": "密码错误"})));
+        }
+        Ok(CasPasswordStatus::ShouldChange) => {
+            res.render(Json(json!({"code": 1, "status": "error", "message": "请前往个人门户修改密码后重试"})));
+        }
+        Ok(CasPasswordStatus::Lock) => {
+            res.render(Json(json!({"code": 1, "status": "error", "message": "账号被锁定，请10分钟之后再试"})));
+        }
+        Err(e) => {
+            res.render(Json(json!({"code": 1, "status": "error", "message": format!("服务器错误: {}", e)})));
+        }
     }
 }
 

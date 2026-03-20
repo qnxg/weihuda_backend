@@ -149,11 +149,32 @@ pub async fn get_login_params(
 }
 
 /// 获取带有ticket的跳转链接，打开即可登录对应平台
+///
+/// # Arguments
+///
+/// - `stu_id`: 学号
+/// - `service_url`: cas 回调地址
+/// - `password`: 密码，可选，若不提供，则自动从数据库拉取密码。
+///
+/// # Returns
+///
+/// 跳转链接
+///
+/// # Side Effects
+///
+/// 如果函数执行成功，则会把函数内部获取到的 CasCookie 进行缓存，后续调用会尝试使用 CasCookie 减少登录流程。
+///
+/// 如果 `password` 不为 None，则该函数执行的整个过程都不会使用或者是设置 CasCookie 缓存
 pub async fn get_ticket_url(
     stu_id: &str,
     service_url: &str,
+    password: Option<&str>,
 ) -> AppResult<String> {
-    let cas_cache = CACHE.get(&(CasCookie, stu_id.into())).await;
+    let mut cas_cache = CACHE.get(&(CasCookie, stu_id.into())).await;
+    if password.is_some() {
+        // 提供密码则不适用 CasCookie 缓存
+        cas_cache = None;
+    }
     let login_params =
         match get_login_params(service_url, cas_cache.as_deref())
             .await?
@@ -165,9 +186,12 @@ pub async fn get_ticket_url(
             GetLoginParamsRes::Success(v) => v,
         };
 
-    let password = fetch_password(stu_id).await?;
+    let pending_password = match password {
+        Some(v) => v.to_string(),
+        None => fetch_password(stu_id).await?,
+    };
     let rsa_password = rsa_encrypt(
-        &password,
+        &pending_password,
         &login_params.exponent,
         &login_params.modulus,
     );
@@ -188,7 +212,7 @@ pub async fn get_ticket_url(
         .send()
         .await?;
     if login.status() == StatusCode::FORBIDDEN {
-        return Err(anyhow!("账号因多次输错密码被锁定").into());
+        return Err(AppError::PasswordLocked);
     }
     debug!("{stu_id} 发送了登录请求");
     // login_params里面的pv0在后面的请求也会有用(netflow)
@@ -206,9 +230,16 @@ pub async fn get_ticket_url(
         .ok_or(AppError::PasswordError)?
         .to_str()?
         .to_string();
+    const PASSWORD_SHOULD_CHANGE_PAT: &str =
+        "cas.hnu.edu.cn/securitycenter/modifyPwd/index.zf";
+    if location.contains(PASSWORD_SHOULD_CHANGE_PAT) {
+        return Err(AppError::PasswordShouldChange);
+    }
     let to_store = cookies.join("; ");
     let to_return = Ok(location);
-    CACHE.insert((CasCookie, stu_id.into()), to_store).await;
+    if password.is_none() {
+        CACHE.insert((CasCookie, stu_id.into()), to_store).await;
+    }
     to_return
 }
 
@@ -228,7 +259,8 @@ pub async fn hdjw_headers(stu_id: &str) -> AppResult<HeaderMap> {
             )
             .join("; ");
             let ticket_url =
-                get_ticket_url(stu_id, HDJW_FROM_CAS_URL).await?;
+                get_ticket_url(stu_id, HDJW_FROM_CAS_URL, None)
+                    .await?;
             debug!("{stu_id} 尝试通过 {} 访问教务系统", ticket_url);
             // 这里需要带着之前拿到的 cookies 去访问 ticket_url，不然会返回 500 internal server
             // error
@@ -280,13 +312,37 @@ pub async fn hdjw_headers(stu_id: &str) -> AppResult<HeaderMap> {
 }
 
 /// 个人门户登录
-pub async fn pt_headers(stu_id: &str) -> AppResult<HeaderMap> {
-    let cookies = if let Some(v) =
+///
+/// 这个函数还有个作用是可以用来进行密码检查
+///
+/// # Arguments
+///
+/// - `stu_id`: 学号
+/// - `password`: 密码，可选，若不提供，则自动从数据库拉取密码。
+///
+/// # Returns
+///
+/// 后续请求个人门户所需的 HeaderMap
+///
+/// # Side Effects
+///
+/// 如果函数执行成功，则会把函数内部获取到的 PtCookie 进行缓存
+///
+/// 如果 `password` 不为 None，则该函数执行的整个过程都不会使用或者是设置 PtCookie 缓存
+pub async fn pt_headers(
+    stu_id: &str,
+    password: Option<&str>,
+) -> AppResult<HeaderMap> {
+    let cached_cookies = if password.is_none() {
         CACHE.get(&(PtCookie, stu_id.into())).await
-    {
+    } else {
+        None
+    };
+    let cookies = if let Some(v) = cached_cookies {
         v
     } else {
-        let ticket_url = get_ticket_url(stu_id, PT_URL).await?;
+        let ticket_url =
+            get_ticket_url(stu_id, PT_URL, password).await?;
         debug!("{stu_id} 尝试通过 {} 访问个人门户", ticket_url);
         let res = client
             .get(ticket_url)
@@ -298,7 +354,11 @@ pub async fn pt_headers(stu_id: &str) -> AppResult<HeaderMap> {
         }
         let res = cookie_parser(res.headers().get_all(SET_COOKIE))
             .join("; ");
-        CACHE.insert((PtCookie, stu_id.into()), res.clone()).await;
+        if password.is_none() {
+            CACHE
+                .insert((PtCookie, stu_id.into()), res.clone())
+                .await;
+        }
         res
     };
     let mut headers = HeaderMap::new();
@@ -324,7 +384,7 @@ async fn get_sticket(
     url: &str,
 ) -> AppResult<(String, String)> {
     // 先请求一下，防止还没登录。拿到登录后的 cookies
-    get_ticket_url(stu_id, SERVICE_URL).await?;
+    get_ticket_url(stu_id, SERVICE_URL, None).await?;
     let cas_cache = CACHE
         .get(&(CasCookie, stu_id.into()))
         .await
@@ -497,7 +557,7 @@ pub async fn graduate_headers_and_id(
     let result = CACHE
         .try_get_with((GraduateCookieAndId, stu_id.into()), async {
             let ticket_url =
-                get_ticket_url(stu_id, GRADUATE_URL).await?;
+                get_ticket_url(stu_id, GRADUATE_URL, None).await?;
             debug!("{stu_id} 尝试通过 {} 访问研究生系统", ticket_url);
             // 获取id，就是ticket_url的/gmis/和/之间的内容
             let res = client
@@ -545,7 +605,7 @@ pub async fn graduate_headers_and_id(
 
 /// 可信电子凭证登录
 pub async fn ca_headers(stu_id: &str) -> AppResult<HeaderMap> {
-    let ticket_url = get_ticket_url(stu_id, CA_URL).await?;
+    let ticket_url = get_ticket_url(stu_id, CA_URL, None).await?;
     debug!("{stu_id} 尝试通过 {} 访问可信电子凭证", ticket_url);
     client.get(&ticket_url).send().await?.error_for_status()?;
     let ticket =
@@ -572,7 +632,7 @@ pub async fn library_headers(stu_id: &str) -> AppResult<HeaderMap> {
     let cookies = CACHE
         .try_get_with((LibraryCookie, stu_id.into()), async {
             let ticket_url =
-                get_ticket_url(stu_id, LIBRARY_URL).await?;
+                get_ticket_url(stu_id, LIBRARY_URL, None).await?;
             debug!(
                 "{stu_id} 尝试通过 {} 访问图书借阅系统",
                 ticket_url
@@ -606,7 +666,8 @@ pub async fn library_headers(stu_id: &str) -> AppResult<HeaderMap> {
 pub async fn xgxt_headers(stu_id: &str) -> AppResult<HeaderMap> {
     let cookies = CACHE
         .try_get_with((XGXTCookie, stu_id.into()), async {
-            let ticket_url = get_ticket_url(stu_id, XGXT_URL).await?;
+            let ticket_url =
+                get_ticket_url(stu_id, XGXT_URL, None).await?;
             debug!("{stu_id} 尝试通过 {} 访问学工系统", ticket_url);
             // cas 下发的 ticket_url 是 http 的，但是学工系统要用 https
             let res = client
@@ -692,11 +753,11 @@ mod tests {
     #[tokio::test]
     async fn test_pt() {
         let (pt1, pt2, pt3, pt4, pt5) = tokio::join!(
-            pt_headers(&STU_ID),
-            pt_headers(&STU_ID),
-            pt_headers(&STU_ID),
-            pt_headers(&STU_ID),
-            pt_headers(&STU_ID)
+            pt_headers(&STU_ID, None),
+            pt_headers(&STU_ID, None),
+            pt_headers(&STU_ID, None),
+            pt_headers(&STU_ID, None),
+            pt_headers(&STU_ID, None)
         );
         println!(
             "{:#?} {:#?} {:#?} {:#?} {:#?}",
