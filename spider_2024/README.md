@@ -18,7 +18,6 @@
 ```text
 |-- .gitea          // gitea 的 action 配置
 |-- Cargo.toml      // 项目依赖配置
-|-- config          // 配置文件
 |-- logs            // 日志文件
 |-- rustfmt.toml    // rust代码格式化配置
 |-- src             // 源代码
@@ -28,7 +27,7 @@
 ```text
 |-- app_error.rs    // 自定义的错误类型
 |-- app_result.rs   // 自定义的结果类型
-|-- config.rs       // 配置文件的解析
+|-- config.rs       // 配置文件的定义
 |-- main.rs         // 入口文件
 |-- middlerwares.rs // 各种中间件
 |-- router.rs       // 定义路由
@@ -51,13 +50,11 @@
 
 ## 2. 快速开始
 
-关于 Rust 的配置等说明参考后端的文档，这里不再赘述。这里只大概讲一下配置文件的填写。
+爬虫的配置应由调用方（通常为后端）传递。可查看 [config.rs](./src/config.rs) 确认有哪些配置项。
 
-需要自己安装 Redis 和 MySQL，然后在 `config/config.toml` 中填写相关信息。注意后端和爬虫需要使用一个数据库和 Redis。
+目前只有大物实验平台需要用到验证码解析服务，如果你不需要调试大物实验平台相关代码，那么 `captcha_url` 无需配置。否则，你需要根据 captcha_service 配置验证码解析服务。
 
-目前只有大物实验平台需要用到验证码解析服务，如果你不需要调试大物实验平台相关代码，那么 `config/config.toml` 里的 `captcha_url` 无需配置。否则，你需要根据 captcha_service 配置验证码解析服务。
-
-然后建议将 `config/config.toml` 中的 `filter_level` 设为 `debug`，`with_ansi` 设为 `true`，`to_stdout` 设为 `true`，以方便调试。
+建议将 `config/config.toml` 中的 `filter_level` 设为 `debug`，`with_ansi` 设为 `true`，`to_stdout` 设为 `true`，以方便调试。
 
 ## 3. 开发
 

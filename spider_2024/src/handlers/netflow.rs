@@ -1,21 +1,27 @@
 use anyhow::anyhow;
-use salvo::{Request, handler};
-use serde_json::{Value, json};
 
 use crate::{
-    app_result::HandlerResult,
-    dtos::netflow::{NetflowDayDetailReq, NetflowMonthDetailReq},
+    app_result::AppResult,
+    dtos::netflow::{
+        NetflowDayDetailReq, NetflowDetailRes, NetflowMonthDetailReq,
+        NetflowOrderRes, NetflowOrderReturnItem, NetflowPayInfoRes,
+        NetflowThisMonthRes, NetflowUnlockStatusRes,
+    },
     spiders,
 };
 
-#[handler]
-pub async fn get_netflow_handler(req: &mut Request) -> HandlerResult {
-    let stuid = req
-        .query::<String>("stuid")
-        .ok_or(anyhow!("stuid is required"))?;
-    let mut res = spiders::netflow::get_netflow(&stuid).await?;
-    let data =
-        res["data"].as_object_mut().expect("netflow data不是对象");
+pub async fn get_netflow_handler(
+    stu_id: &str,
+) -> AppResult<NetflowThisMonthRes> {
+    let mut res = spiders::netflow::get_netflow(stu_id).await?;
+
+    if !&res["data"].is_object() {
+        return Err(anyhow!("netflow data不是对象").into());
+    }
+
+    let mut data: NetflowThisMonthRes =
+        serde_json::from_value(res["data"].take())
+            .map_err(|e| anyhow!("netflow data解析失败 {e}"))?;
 
     // 给流量数据加上单位
     // 流量字符串可能返回"小于0.01GB"，此时不重复添加单位
@@ -26,109 +32,137 @@ pub async fn get_netflow_handler(req: &mut Request) -> HandlerResult {
         }
     }
 
-    fn try_add_gb_to_str_value(place: &mut Value) {
-        let mut orig = place.as_str().unwrap().to_string();
+    fn try_add_gb_to_str_value(place: &mut String) {
+        let mut orig = place.clone();
         try_add_suffix(&mut orig, "GB");
-        *place = Value::String(orig);
+        *place = orig;
     }
 
-    try_add_gb_to_str_value(&mut data["downloadTraffic"]);
-    try_add_gb_to_str_value(&mut data["uploadTraffic"]);
-    try_add_gb_to_str_value(&mut data["allTraffic"]);
+    try_add_gb_to_str_value(&mut data.downloadTraffic);
+    try_add_gb_to_str_value(&mut data.uploadTraffic);
+    try_add_gb_to_str_value(&mut data.allTraffic);
 
-    Ok(data.into())
+    Ok(data)
 }
 
-#[handler]
 pub async fn get_netflow_pay_info_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let stuid = req
-        .query::<String>("stuid")
-        .ok_or(anyhow!("stuid is required"))?;
-    let res = spiders::netflow::get_pay_status(&stuid).await?;
-    let res = &res["data"];
-    Ok(res.into())
+    stu_id: &str,
+) -> AppResult<NetflowPayInfoRes> {
+    let mut res = spiders::netflow::get_pay_status(stu_id).await?;
+
+    let data: NetflowPayInfoRes =
+        serde_json::from_value(res["data"].take())
+            .map_err(|e| anyhow!("netflow pay info 解析失败 {e}"))?;
+
+    Ok(data)
 }
 
-#[handler]
 pub async fn get_unlock_status_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let stuid = req
-        .query::<String>("stuid")
-        .ok_or(anyhow!("stuid is required"))?;
-    let res = spiders::netflow::get_user_status(&stuid).await?;
-    let status = res["data"]["IsLocked"].as_i64().unwrap();
-    let status = match status {
+    stu_id: &str,
+) -> AppResult<NetflowUnlockStatusRes> {
+    let res = spiders::netflow::get_user_status(stu_id).await?;
+
+    let is_locked = &res["data"]["IsLocked"];
+    if !is_locked.is_i64() {
+        return Err(
+            anyhow!("校园网锁定状态不是 i64: `{is_locked}`").into()
+        );
+    }
+
+    let is_locked = is_locked.as_i64().unwrap();
+    let status = match is_locked {
         0 => "未锁定",
         1 => "已锁定",
         _ => "未知",
     };
-    let res = json!({
-        "status": status,
-    });
-    Ok(res.into())
+
+    Ok(NetflowUnlockStatusRes {
+        status: status.to_string(),
+    })
 }
 
-#[handler]
 pub async fn get_netflow_month_detail_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let req: NetflowMonthDetailReq = req.parse_queries()?;
-    let res = spiders::netflow::get_netflow_month_detail(
-        &req.stuid, &req.year, &req.month,
+    req: NetflowMonthDetailReq,
+) -> AppResult<NetflowDetailRes> {
+    let mut res = spiders::netflow::get_netflow_month_detail(
+        &req.stu_id,
+        &req.year,
+        &req.month,
     )
     .await?;
-    let res = &res["data"];
-    Ok(res.into())
+
+    let data: NetflowDetailRes =
+        serde_json::from_value(res["data"].take()).map_err(|e| {
+            anyhow!("netflow month detail 解析失败 {e}")
+        })?;
+
+    Ok(data)
 }
 
-#[handler]
 pub async fn get_netflow_day_detail_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let req: NetflowDayDetailReq = req.parse_queries()?;
-    let res = spiders::netflow::get_netflow_day_detail(
-        &req.stuid, &req.year, &req.month, &req.day,
+    req: NetflowDayDetailReq,
+) -> AppResult<NetflowDetailRes> {
+    let mut res = spiders::netflow::get_netflow_day_detail(
+        &req.stu_id,
+        &req.year,
+        &req.month,
+        &req.day,
     )
     .await?;
-    let res = &res["data"];
-    Ok(res.into())
+
+    let data: NetflowDetailRes =
+        serde_json::from_value(res["data"].take()).map_err(|e| {
+            anyhow!("netflow day detail 解析失败 {e}")
+        })?;
+
+    Ok(data)
 }
 
-#[handler]
 pub async fn get_netflow_order_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let stuid = req
-        .query::<String>("stuid")
-        .ok_or(anyhow!("stuid is required"))?;
-    let mut res = spiders::netflow::get_order(&stuid).await?;
-    let res = res["data"].as_array_mut().unwrap();
-    for item in res.iter_mut() {
-        let upload = item["Upload"].as_f64().unwrap_or_default();
-        let upload_name = if upload == 0.0 {
-            Value::String("0 GB".to_string())
-        } else {
-            Value::String(format!(
-                "{:.2} GB",
-                upload / 1024.0 / 1024.0 / 1024.0
-            ))
-        };
+    stu_id: &str,
+) -> AppResult<Vec<NetflowOrderReturnItem>> {
+    let mut res = spiders::netflow::get_order(stu_id).await?;
 
-        let download = item["Download"].as_f64().unwrap_or_default();
-        let download_name = if download == 0.0 {
-            Value::String("0 GB".to_string())
-        } else {
-            Value::String(format!(
-                "{:.2} GB",
-                download / 1024.0 / 1024.0 / 1024.0
-            ))
-        };
-
-        item["UploadName"] = upload_name;
-        item["DownloadName"] = download_name;
+    if !res["data"].is_array() {
+        return Err(anyhow!("netflow order data不是数组").into());
     }
-    Ok(res.into())
+
+    let res: Vec<NetflowOrderRes> =
+        serde_json::from_value(res["data"].take())
+            .map_err(|e| anyhow!("netflow order data解析失败 {e}"))?;
+
+    let return_values = res
+        .iter()
+        .map(|item| {
+            let upload = item.Upload.unwrap_or_default();
+            let upload_name = if upload == 0.0 {
+                "0 GB".to_string()
+            } else {
+                format!("{:.2} GB", upload / 1024.0 / 1024.0 / 1024.0)
+            };
+
+            let download = item.Download.unwrap_or_default();
+            let download_name = if download == 0.0 {
+                "0 GB".to_string()
+            } else {
+                format!(
+                    "{:.2} GB",
+                    download / 1024.0 / 1024.0 / 1024.0
+                )
+            };
+
+            NetflowOrderReturnItem {
+                DownloadName: download_name,
+                UploadName: upload_name,
+                Download: item.Download,
+                Upload: item.Upload,
+                Month: item.Month.clone(),
+                RealOverTraffic: item.RealOverTraffic,
+                ShouldPay: item.ShouldPay,
+                UpdateTime: item.UpdateTime.clone(),
+            }
+        })
+        .collect();
+
+    Ok(return_values)
 }

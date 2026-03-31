@@ -1,30 +1,36 @@
 use anyhow::anyhow;
 use chrono::Datelike;
-use salvo::{Request, handler};
-use serde_json::json;
+use serde_json::Value;
 
 use crate::{
-    app_result::HandlerResult,
-    dtos::hdjw::{EmptyRoomReq, GradeReq, HdjwGradeRankReq},
+    app_result::AppResult,
+    dtos::hdjw::{
+        CourseInfoRes, EmptyRoomReq, ExamArrangeItemRes,
+        ExtraCourseInfoRes, GradeInfoRes, GradeReq, HdjwGradeRankReq,
+        RankRes,
+    },
     spiders::{self},
 };
 
-#[handler]
-pub async fn get_grade_handler(req: &mut Request) -> HandlerResult {
-    let req: GradeReq = req.parse_queries()?;
-    let res =
-        spiders::hdjw::get_grade(&req.stuid, req.xn, req.xq).await?;
-    let res = &res["data"]; // 取里面的data字段返回，引用减少开销
-    Ok(res.into())
+pub async fn get_grade_handler(
+    req: GradeReq,
+) -> AppResult<Vec<GradeInfoRes>> {
+    let mut raw_res =
+        spiders::hdjw::get_grade(&req.stu_id, req.xn, req.xq).await?;
+
+    // 取 data 字段返回
+    let res: Vec<GradeInfoRes> =
+        serde_json::from_value(raw_res["data"].take())
+            .map_err(|e| anyhow!("成绩数据解析错误 {}", e))?;
+
+    Ok(res)
 }
 
-#[handler]
 pub async fn get_empty_classroom_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let req: EmptyRoomReq = req.parse_queries()?;
+    req: EmptyRoomReq,
+) -> AppResult<Value> {
     let res = spiders::hdjw::get_empty_classroom(
-        &req.stuid,
+        &req.stu_id,
         req.xn,
         req.xq,
         &req.week,
@@ -33,54 +39,65 @@ pub async fn get_empty_classroom_handler(
         &req.build_id,
     )
     .await?;
-    Ok(res.into())
+    Ok(res)
 }
 
-#[handler]
 pub async fn get_class_table_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let req: GradeReq = req.parse_queries()?;
+    req: GradeReq,
+) -> AppResult<Vec<CourseInfoRes>> {
     // 如果学号第一个是S或者B，就是属于研究生系统
-    // TODO： 研究生系统
-    if req.stuid.starts_with('S') || req.stuid.starts_with('B') {
-        let res = spiders::graduate::get_class_table(
-            &req.stuid, req.xn, req.xq,
+    // TODO: 研究生系统
+    if req.stu_id.starts_with('S') || req.stu_id.starts_with('B') {
+        let mut raw_res = spiders::graduate::get_class_table(
+            &req.stu_id,
+            req.xn,
+            req.xq,
         )
         .await?;
-        return Ok(res.into());
+
+        // 取 data 字段返回
+        let res: Vec<CourseInfoRes> =
+            serde_json::from_value(raw_res["data"].take())
+                .map_err(|e| anyhow!("获取课表数据失败 {}", e))?;
+
+        return Ok(res);
     }
-    let res =
-        spiders::hdjw::get_class_table(&req.stuid, req.xn, req.xq)
+
+    let mut raw_res =
+        spiders::hdjw::get_class_table(&req.stu_id, req.xn, req.xq)
             .await?;
-    match res.get("count").and_then(|c| c.as_u64()) {
+
+    match raw_res.get("count").and_then(|c| c.as_u64()) {
         None => Err(anyhow!("获取课表数据失败").into()),
-        Some(0) => Ok(json!([]).into()), // 有可能 count 是 0 但是不带 data 字段
-        Some(_) => Ok(res
-            .get("data")
-            .ok_or(anyhow!("获取课表数据失败"))?
-            .into()),
+        Some(0) => Ok(vec![]), // 有可能 count 是 0 但是不带 data 字段
+        Some(_) => {
+            // 取 data 字段返回
+            let res: Vec<CourseInfoRes> =
+                serde_json::from_value(raw_res["data"].take())
+                    .map_err(|e| anyhow!("获取课表数据失败 {}", e))?;
+
+            Ok(res)
+        }
     }
 }
 
-#[handler]
 pub async fn get_exam_schedule_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let req: GradeReq = req.parse_queries()?; // 复用结构体，因为字段完成相同
-    let res =
-        spiders::hdjw::get_exam_schedule(&req.stuid, req.xn, req.xq)
+    req: GradeReq,
+) -> AppResult<Vec<ExamArrangeItemRes>> {
+    let mut raw_res =
+        spiders::hdjw::get_exam_schedule(&req.stu_id, req.xn, req.xq)
             .await?;
-    let res = res.get("data").ok_or(anyhow!("获取考试安排失败"))?;
-    Ok(res.into())
+
+    let res: Vec<ExamArrangeItemRes> =
+        serde_json::from_value(raw_res["data"].take())
+            .map_err(|e| anyhow!("获取考试安排失败 {}", e))?;
+    Ok(res)
 }
 
-#[handler]
 pub async fn get_rank_from_hdjw_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let req: HdjwGradeRankReq = req.parse_queries()?;
-    let enter_year = req.stuid[0..4]
+    req: HdjwGradeRankReq,
+) -> AppResult<RankRes> {
+    let enter_year = req.stu_id[0..4]
         .parse::<u16>()
         .map_err(|_| anyhow!("暂时仅支持本科生"))?;
     let mut selection = Vec::new();
@@ -123,60 +140,56 @@ pub async fn get_rank_from_hdjw_handler(
         _ => return Err(anyhow!("rank参数错误").into()),
     };
     let res = spiders::hdjw::get_grade_rank_common(
-        &req.stuid,
+        &req.stu_id,
         &selection,
         range.to_string(),
         rank,
     )
     .await?;
-    let res = json!({
-        "score": res.1,
-        "rank": res.0
-    });
-    Ok(res.into())
+    Ok(RankRes {
+        score: res.1,
+        rank: res.0,
+    })
 }
 
-#[handler]
 pub async fn get_grade_from_ca_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let stuid = req
-        .query::<String>("stuid")
-        .ok_or(anyhow!("stuid is required"))?;
-    let res = spiders::hdjw::get_grade_from_ca(&stuid).await?;
-    Ok(res.into())
+    stu_id: &str,
+) -> AppResult<String> {
+    let res = spiders::hdjw::get_grade_from_ca(stu_id).await?;
+    Ok(res)
 }
 
-#[handler]
 pub async fn get_grade_detail_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let stuid = req
-        .query::<String>("stuid")
-        .ok_or(anyhow!("stuid is required"))?;
-    let jx0404id = req
-        .query::<String>("jx0404id")
-        .ok_or(anyhow!("jx0404id is required"))?;
+    stu_id: &str,
+    jx0404id: &str,
+) -> AppResult<String> {
     let res =
-        spiders::hdjw::get_grade_detail(&stuid, &jx0404id).await?;
-    Ok(res.into())
+        spiders::hdjw::get_grade_detail(stu_id, jx0404id).await?;
+    Ok(res)
 }
 
-#[handler]
 pub async fn get_class_table_extra_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let req: GradeReq = req.parse_queries()?;
-    let res = spiders::hdjw::get_class_table_extra(
-        &req.stuid, req.xn, req.xq,
+    req: GradeReq,
+) -> AppResult<Vec<ExtraCourseInfoRes>> {
+    let mut raw_res = spiders::hdjw::get_class_table_extra(
+        &req.stu_id,
+        req.xn,
+        req.xq,
     )
     .await?;
-    match res.get("count").and_then(|c| c.as_u64()) {
+
+    match raw_res.get("count").and_then(|c| c.as_u64()) {
         None => Err(anyhow!("获取无课表课程失败").into()),
-        Some(0) => Ok(json!([]).into()), // 有可能 count 是 0 但是不带 data 字段
-        Some(_) => Ok(res
-            .get("data")
-            .ok_or(anyhow!("获取无课表课程失败"))?
-            .into()),
+        Some(0) => Ok(vec![]), // 有可能 count 是 0 但是不带 data 字段
+        Some(_) => {
+            // 取 data 字段返回
+            let res: Vec<ExtraCourseInfoRes> =
+                serde_json::from_value(raw_res["data"].take())
+                    .map_err(|e| {
+                        anyhow!("获取无课表课程失败 {}", e)
+                    })?;
+
+            Ok(res)
+        }
     }
 }

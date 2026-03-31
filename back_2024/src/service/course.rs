@@ -3,9 +3,10 @@ use std::collections::{HashMap, HashSet};
 use anyhow::anyhow;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use spider_2024::dtos::hdjw::CourseInfoRes;
 
 use crate::{
-    infra::{self, spider::hdjw},
+    infra::{self},
     result::AppResult,
     service,
 };
@@ -103,7 +104,7 @@ fn push_customize_course(
 #[expect(clippy::too_many_lines, reason = "REFACTOR ME")]
 fn push_hdjw_course(
     classtable: &mut Vec<CourseInfo>,
-    item: hdjw::SpiderCourseInfo,
+    item: CourseInfoRes,
 ) -> AppResult<()> {
     let re = Regex::new(r"周(.)第(.*)节.*\{第(.*)周\}")
         .expect("创建正则表达式失败");

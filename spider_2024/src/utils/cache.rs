@@ -13,7 +13,6 @@ pub enum CacheEnum {
     NetflowCookie,
     GymCookie,
     GraduateCookieAndId,
-    LibraryCookie,
     #[expect(unused)]
     HdjwFailureRecord,
     XGXTCookie,
@@ -31,7 +30,6 @@ impl CacheEnum {
             NetflowCookie => Some(Duration::from_secs(1800)),
             GymCookie => Some(Duration::from_secs(600)),
             GraduateCookieAndId => Some(Duration::from_secs(600)),
-            LibraryCookie => Some(Duration::from_secs(600)),
             HdjwFailureRecord => Some(Duration::from_secs(1800)),
             XGXTCookie => Some(Duration::from_secs(600)),
             LabCookie => Some(Duration::from_secs(600)),
@@ -86,7 +84,6 @@ pub async fn invalidate_stuid_cache(stu_id: &str) {
     CACHE
         .invalidate(&(GraduateCookieAndId, stu_id.into()))
         .await;
-    CACHE.invalidate(&(LibraryCookie, stu_id.into())).await;
     CACHE.invalidate(&(XGXTCookie, stu_id.into())).await;
     CACHE.invalidate(&(LabCookie, stu_id.into())).await;
 }

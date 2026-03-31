@@ -1,6 +1,7 @@
 use crate::{
     app_error::AppError,
     app_result::AppResult,
+    dtos::pt::CasPasswordStatus,
     spiders::login::{self, pt_headers},
     utils::{cache::invalidate_stuid_cache, client},
 };
@@ -72,13 +73,6 @@ pub async fn check_password(
     }
 }
 
-#[derive(Debug)]
-pub enum CasPasswordStatus {
-    Success,      // 密码正确
-    Fail,         // 密码错误
-    ShouldChange, // 需要更换密码
-    Lock,         // 账号被锁定
-}
 pub async fn check_password_with_cas(
     stu_id: &str,
     password: &str,
@@ -99,9 +93,8 @@ pub async fn check_password_with_cas(
     }
 }
 
-// 暂时不用这里的user_info
-#[cfg_attr(not(test), expect(unused))]
-pub async fn get_user_info(stu_id: &str) -> AppResult<Value> {
+/// 暂时不用这里的user_info
+pub(crate) async fn get_user_info(stu_id: &str) -> AppResult<Value> {
     let now = SystemTime::now();
     let duration = now.duration_since(UNIX_EPOCH)?;
     let url = format!("{USER_INFO_URL}?_={}", duration.as_millis());

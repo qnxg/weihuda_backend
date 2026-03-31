@@ -1,30 +1,25 @@
 use crate::{
-    app_result::HandlerResult,
+    app_result::AppResult,
     dtos::electricity::GetElectricityReq,
     spiders,
     utils::redis::{add_cookie_to_redis, get_cookie_from_redis},
 };
-use salvo::{Request, handler};
 
 const CACHE_TIMEOUT: i64 = 60 * 60 * 16;
 
-#[handler]
 pub async fn get_electricity_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let param: GetElectricityReq = req.parse_queries()?;
+    req: GetElectricityReq,
+) -> AppResult<String> {
     let key = format!(
         "e{}{}{}",
-        param.park.clone(),
-        param.build.clone(),
-        param.room.clone()
+        req.park.clone(),
+        req.build.clone(),
+        req.room.clone()
     );
     let mut res = get_cookie_from_redis(key.as_str(), "").await;
-    if res.is_err() || param.refresh.unwrap_or(0) == 1 {
+    if res.is_err() || req.refresh {
         let t = spiders::electricity::get_electricity(
-            param.park,
-            param.build,
-            param.room,
+            req.park, req.build, req.room,
         )
         .await?;
         add_cookie_to_redis(
@@ -36,6 +31,5 @@ pub async fn get_electricity_handler(
         .await?;
         res = Ok(t);
     }
-    let res = res?;
-    Ok(res.into())
+    Ok(res?)
 }

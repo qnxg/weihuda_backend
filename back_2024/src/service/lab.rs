@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 
 use crate::{
-    infra::{self, spider::lab::SpiderLabCourse},
+    infra::{self},
     result::AppResult,
     utils,
 };
 use anyhow::anyhow;
 use serde::Serialize;
 use tokio::try_join;
+
+use spider_2024::dtos::lab::LabCourseItem;
 
 pub async fn set_lab_pass(
     stu_id: &str,
@@ -230,7 +232,7 @@ pub async fn get_course(
 ) -> AppResult<Option<LabCourse>> {
     let spider_res =
         infra::spider::lab::get_course_list(stu_id, sem_id).await?;
-    if let Some(SpiderLabCourse {
+    if let Some(LabCourseItem {
         CourseName: course_name,
         CourseFinalScore: course_score,
         CourseID: course_id,

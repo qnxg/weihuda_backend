@@ -43,7 +43,6 @@ const GYM_URL_DIRECT_LOGIN: &str = "http://gymos.hnu.edu.cn/bdlp_api_fitness_tes
 const GYM_URL_FROM_CAS: &str = "http://cas.hnu.edu.cn/application/sso.zf?login=898A822E9695C137E053026B3E0A65D7";
 const GRADUATE_URL: &str = "http://cas.hnu.edu.cn/cas/login?service=http://yjsxt.hnu.edu.cn/gmis/oauthLogin/hndxnew";
 const CA_URL: &str = "http://cas.hnu.edu.cn/cas/login?service=https://ca.hnu.edu.cn/student/";
-const LIBRARY_URL: &str = "http://cas.hnu.edu.cn/cas/login?service=https://opac.hnu.edu.cn/opac/special/toOpac";
 const XGXT_URL: &str = "http://cas.hnu.edu.cn/cas/login?service=http://xgxt.hnu.edu.cn/zftal-xgxt-web/teacher/xtgl/index/check.zf";
 
 pub struct LoginParams {
@@ -627,42 +626,6 @@ pub async fn ca_headers(stu_id: &str) -> AppResult<HeaderMap> {
     Ok(headers)
 }
 
-// 图书馆相关
-pub async fn library_headers(stu_id: &str) -> AppResult<HeaderMap> {
-    let cookies = CACHE
-        .try_get_with((LibraryCookie, stu_id.into()), async {
-            let ticket_url =
-                get_ticket_url(stu_id, LIBRARY_URL, None).await?;
-            debug!(
-                "{stu_id} 尝试通过 {} 访问图书借阅系统",
-                ticket_url
-            );
-            let res = client.get(&ticket_url).send().await?;
-            debug!("{:?}", res);
-            if res.status() != StatusCode::FOUND {
-                return Err(anyhow!(
-                    "获取图书借阅系统失败，HTTP代码 {}",
-                    res.status()
-                )
-                .into());
-            }
-            let cookies: String =
-                cookie_parser(res.headers().get_all(SET_COOKIE))
-                    .join("; ");
-            if cookies.is_empty() {
-                return Err(anyhow!(
-                    "获取图书借阅系统失败，接收到空的 cookie"
-                )
-                .into());
-            }
-            Ok(cookies)
-        })
-        .await?;
-    let mut headers = HeaderMap::new();
-    headers.insert(COOKIE, cookies.parse()?);
-    Ok(headers)
-}
-
 pub async fn xgxt_headers(stu_id: &str) -> AppResult<HeaderMap> {
     let cookies = CACHE
         .try_get_with((XGXTCookie, stu_id.into()), async {
@@ -804,12 +767,6 @@ mod tests {
     async fn test_ca() {
         let ca = ca_headers(&STU_ID).await;
         println!("{:#?}", ca.unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_library() {
-        let library = library_headers(&STU_ID).await;
-        println!("{:#?}", library.unwrap());
     }
 
     #[tokio::test]
