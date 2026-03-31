@@ -5,6 +5,8 @@ use serde::Serialize;
 use serde_json::Value;
 use thiserror::Error;
 
+use spider_2024::app_error::AppError as SpiderAppError;
+
 /// 自定义的错误处理类型，支持多种错误类型，可以通过?操作符链式传播，传播链的初始类型必须是可转换为AppError的分支的类型
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -24,8 +26,8 @@ pub enum AppError {
     JwtError(#[from] jsonwebtoken::errors::Error),
     #[error("密码错误")]
     PasswordError,
-    #[error("{0}")]
-    SpiderRequestError(String),
+    #[error("爬虫错误: {0}")]
+    SpiderAppError(#[from] SpiderAppError),
     #[error("解析JSON错误: {0}")]
     JsonParseError(#[from] serde_json::Error),
     #[error("内部请求错误: {0}")]
@@ -120,14 +122,14 @@ impl Scribe for AppError {
                     })),
                 );
             }
-            AppError::SpiderRequestError(e) => {
-                // 爬虫请求的错误信息在爬虫请求时打印，这里拿到的 e 是简单信息
+            AppError::SpiderAppError(e) => {
                 res.stuff(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(serde_json::json!({
                         "code": 500,
                         "data": null,
-                        "msg": e
+                        // TODO: 爬虫错误信息展示优化？
+                        "msg": e.to_string()
                     })),
                 );
             }

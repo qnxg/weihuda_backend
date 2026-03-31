@@ -311,3 +311,51 @@ pub async fn get_score_detail(
     let res = request_lab(&url, stu_id, RequestMethod::GET).await?;
     Ok(res)
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::utils::request::STU_ID;
+
+    use super::*;
+
+    const SEM_ID: &str = "18";
+    const COURSE_ID: &str = "68";
+
+    #[tokio::test]
+    async fn test_get_sem_info() {
+        let res = get_sem_info(&STU_ID).await.unwrap();
+        dbg!(&res);
+    }
+
+    #[tokio::test]
+    async fn test_get_course_list() {
+        let res = get_course_list(&STU_ID, SEM_ID).await.unwrap();
+        dbg!(&res);
+    }
+
+    #[tokio::test]
+    async fn test_get_lab_score() {
+        let res =
+            get_lab_score(&STU_ID, SEM_ID, COURSE_ID).await.unwrap();
+        dbg!(&res);
+    }
+
+    #[tokio::test]
+    async fn test_get_virtual_lab_score() {
+        let res = get_virtual_lab_score(&STU_ID).await.unwrap();
+        dbg!(&res);
+    }
+
+    #[tokio::test]
+    async fn test_get_score_structure() {
+        let res =
+            get_score_structure(&STU_ID, COURSE_ID).await.unwrap();
+        dbg!(&res);
+    }
+
+    #[tokio::test]
+    async fn test_get_score_detail() {
+        let res = get_score_detail(&STU_ID, COURSE_ID).await.unwrap();
+        dbg!(&res);
+    }
+}

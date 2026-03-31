@@ -1,30 +1,8 @@
-use once_cell::sync::Lazy;
-use reqwest::{
-    Client,
-    header::{AUTHORIZATION, HeaderMap},
-};
 use serde::Deserialize;
-use std::time::Duration;
 
-use crate::{config::CFG, result::AppResult};
+use spider_2024::dtos::pt::CasPasswordStatus;
 
-static CLIENT: Lazy<Client> = Lazy::new(|| {
-    Client::builder()
-        .connection_verbose(false)
-        .timeout(Duration::from_secs(6))
-        .default_headers({
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                AUTHORIZATION,
-                "OUJhbGciOiJIUzU(x7)iIsImlhdCI6MTYxNzQy$jAwMiwiZXh#IjoxNjUzNDI2MDAyfQ@eyI6ImFkbWhjXzxcwEiT7dlm9sFeSRlgY7rnJKpBA"
-                    .parse()
-                    .expect("解析给定的 Authorization 请求头失败"),
-            );
-            headers
-        })
-        .build()
-        .expect("构建用于密码验证服务的 reqwest client 失败")
-});
+use crate::result::AppResult;
 
 #[derive(Deserialize, Debug)]
 pub struct VerifyResult {
@@ -37,18 +15,30 @@ pub async fn verify_password(
     stu_id: &str,
     password: &str,
 ) -> AppResult<VerifyResult> {
-    let res = CLIENT
-        .post(&CFG.service.verify_url)
-        .form(&[
-            ("stuid", stu_id),
-            ("hdjwpass", password),
-            ("ptpass", password),
-        ])
-        .send()
-        .await
-        .map_err(|_| anyhow::anyhow!("密码验证服务请求失败"))?
-        .text()
-        .await?;
-    let verify_res = serde_json::from_str(&res)?;
-    Ok(verify_res)
+    let password_check_status =
+        spider_2024::pt::check_password_handler(stu_id, password)
+            .await?;
+
+    match password_check_status {
+        CasPasswordStatus::Success => Ok(VerifyResult {
+            code: 0,
+            status: "success".to_string(),
+            message: "密码正确".to_string(),
+        }),
+        CasPasswordStatus::Fail => Ok(VerifyResult {
+            code: 1,
+            status: "error".to_string(),
+            message: "密码错误".to_string(),
+        }),
+        CasPasswordStatus::ShouldChange => Ok(VerifyResult {
+            code: 1,
+            status: "error".to_string(),
+            message: "请前往个人门户修改密码后重试".to_string(),
+        }),
+        CasPasswordStatus::Lock => Ok(VerifyResult {
+            code: 1,
+            status: "error".to_string(),
+            message: "账号被锁定，请10分钟之后再试".to_string(),
+        }),
+    }
 }

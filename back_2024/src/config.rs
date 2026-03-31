@@ -2,17 +2,16 @@
 
 use once_cell::sync::Lazy;
 use serde::Deserialize;
-use std::{fs::File, io::Read};
+use std::{env, fs::read_to_string};
 
 #[derive(Deserialize, Debug)]
 pub struct Configs {
     pub server: Server,
-    pub database: DataBase,
+    pub database: Database,
     pub redis: Redis,
     pub log: Log,
     pub jwt: Jwt,
     pub wechat: Wechat,
-    pub service: Service,
     pub rabbitmq: RabbitMq,
 }
 
@@ -23,7 +22,7 @@ pub struct Server {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct DataBase {
+pub struct Database {
     pub max_connections: u32,
     pub database_url: String,
 }
@@ -56,46 +55,57 @@ pub struct Wechat {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct Service {
-    pub verify_url: String,
-    pub spider_url: String,
-}
-
-#[derive(Deserialize, Debug)]
 pub struct RabbitMq {
     pub url: String,
     pub feedback_exchange: String,
 }
 
-const CONFIG_FILE: &str = "config/config.toml";
-
 pub static CFG: Lazy<Configs> = Lazy::new(self::Configs::init);
+
+fn try_config_file(config_file: &str) -> Result<Configs, String> {
+    let cfg_contents = read_to_string(config_file).map_err(|e| {
+        format!("Cannot read configuration file: {}", e)
+    })?;
+
+    toml::from_str(&cfg_contents).map_err(|e| {
+        format!("Cannot parse configuration file: {}", e)
+    })
+}
 
 impl Configs {
     pub fn init() -> Self {
-        let mut file = match File::open(CONFIG_FILE) {
-            Ok(f) => f,
-            Err(e) => {
-                panic!(
-                    "Configuration file does not exist: {}, error message: {}",
-                    CONFIG_FILE, e
-                )
+        let config_file_candidates = vec![
+            "config/config.toml",
+            concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/config/config.toml"
+            ),
+            "../config/config.toml",
+            concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../config/config.toml"
+            ),
+        ];
+
+        for config_file in config_file_candidates {
+            println!(
+                "[?] Trying configuration file: {}",
+                config_file
+            );
+
+            match try_config_file(config_file) {
+                Ok(cfg) => {
+                    println!(
+                        "[i] Using configuration file: {}",
+                        config_file
+                    );
+                    return cfg;
+                }
+                Err(e) => println!("[!] {}", e),
             }
-        };
-        let mut cfg_contents = String::new();
-        match file.read_to_string(&mut cfg_contents) {
-            Ok(s) => s,
-            Err(e) => panic!(
-                "Failed to read configuration file, error message: {}",
-                e
-            ),
-        };
-        match toml::from_str(&cfg_contents) {
-            Ok(c) => c,
-            Err(e) => panic!(
-                "Failed to parse configuration file, error message: {}",
-                e
-            ),
         }
+
+        // 若到达此处，说明 for 循环已完成且未返回，即所有候选配置文件都不可用
+        panic!("[!] No valid configuration file found!");
     }
 }

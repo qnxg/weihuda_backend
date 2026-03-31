@@ -1,78 +1,77 @@
-use crate::{app_result::HandlerResult, dtos::gym::GymReq, spiders};
+use crate::{
+    app_result::AppResult,
+    dtos::gym::{
+        FitnessAppointDetailRes, FitnessAppointRes, FitnessRawRes,
+        FitnessRes, GymReq,
+    },
+    spiders,
+};
 use anyhow::anyhow;
-use salvo::{Request, handler};
 
-#[handler]
 pub async fn get_gym_grade_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let req: GymReq = req.parse_queries()?;
-    let res = spiders::gym::get_data(&req.stuid, req.xn).await?;
+    req: GymReq,
+) -> AppResult<FitnessRes> {
+    let mut res = spiders::gym::get_data(&req.stu_id, req.xn).await?;
+
     let res_data = &res["data"];
-    if res_data.is_object() {
-        Ok(res_data.into())
-    } else {
+    if !res_data.is_object() {
         return Err(anyhow!("意料之外的体测平台数据：{res}").into());
     }
+
+    let res_data: FitnessRes =
+        serde_json::from_value(res["data"].take())?;
+
+    Ok(res_data)
 }
 
-#[handler]
 pub async fn get_gym_raw_grade_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let req: GymReq = req.parse_queries()?;
-    let res = spiders::gym::get_raw_data(&req.stuid, req.xn).await?;
+    req: GymReq,
+) -> AppResult<FitnessRawRes> {
+    let mut res =
+        spiders::gym::get_raw_data(&req.stu_id, req.xn).await?;
+
     let res_data = &res["data"];
-    if res_data.is_object() {
-        Ok(res_data.into())
-    } else {
+    if !res_data.is_object() {
         return Err(anyhow!("意料之外的体测平台数据：{res}").into());
     }
+
+    let res_data: FitnessRawRes =
+        serde_json::from_value(res["data"].take())?;
+
+    Ok(res_data)
 }
 
-#[handler]
 pub async fn get_gym_appoint_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let stuid = req
-        .query::<String>("stuid")
-        .ok_or(anyhow!("stuid is required"))?;
-    let res = spiders::gym::get_appoint(&stuid).await?;
+    stu_id: &str,
+) -> AppResult<Vec<FitnessAppointRes>> {
+    let mut res = spiders::gym::get_appoint(stu_id).await?;
     let res_data = &res["data"];
-    if res_data.is_array() {
-        Ok(res_data.into())
-    } else {
+    if !res_data.is_array() {
         return Err(anyhow!("意料之外的体测平台数据：{res}").into());
     }
+
+    let res_data: Vec<FitnessAppointRes> =
+        serde_json::from_value(res["data"].take())?;
+    Ok(res_data)
 }
 
-#[handler]
 pub async fn get_gym_appoint_detail_handler(
-    req: &mut Request,
-) -> HandlerResult {
-    let stuid = req
-        .query::<String>("stuid")
-        .ok_or(anyhow!("stuid is required"))?;
-    let class_id = req
-        .query::<String>("class_id")
-        .ok_or(anyhow!("class_id is required"))?;
-    let class_time = req
-        .query::<String>("class_time")
-        .ok_or(anyhow!("class_time is required"))?;
-    let test_time = req
-        .query::<String>("test_time")
-        .ok_or(anyhow!("test_time is required"))?;
-    let res = spiders::gym::get_appoint_detail(
-        &stuid,
-        &class_id,
-        &class_time,
-        &test_time,
+    stu_id: &str,
+    class_id: &str,
+    class_time: &str,
+    test_time: &str,
+) -> AppResult<FitnessAppointDetailRes> {
+    let mut res = spiders::gym::get_appoint_detail(
+        stu_id, class_id, class_time, test_time,
     )
     .await?;
+
     let res_data = &res["data"];
-    if res_data.is_object() {
-        Ok(res_data.into())
-    } else {
+    if !res_data.is_object() {
         return Err(anyhow!("意料之外的体测平台数据：{res}").into());
     }
+
+    let res_data: FitnessAppointDetailRes =
+        serde_json::from_value(res["data"].take())?;
+    Ok(res_data)
 }
