@@ -1,8 +1,6 @@
 use std::{collections::HashMap, time::Duration};
 
 use crate::{
-    app_error::AppError,
-    app_result::AppResult,
     spiders::login::{ca_headers, hdjw_headers},
     utils::{
         cache::{CACHE, CacheEnum},
@@ -41,7 +39,7 @@ async fn request_hdjw(
     url: &str,
     stu_id: &str,
     method: RequestMethod,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     if stu_id.starts_with('S') {
         // 研究生就先别凑热闹了
         return Err(anyhow!("暂不支持研究生教务系统").into());
@@ -62,9 +60,9 @@ async fn request_hdjw(
         }
         let hdjw_headers = match hdjw_headers(stu_id).await {
             Ok(data) => data,
-            Err(AppError::PasswordError) => {
+            Err(crate::Error::PasswordError) => {
                 // 密码错误直接返回，不重试了
-                return Err(AppError::PasswordError);
+                return Err(crate::Error::PasswordError);
             }
             Err(e) => {
                 tried += 1;
@@ -159,7 +157,7 @@ pub async fn get_class_table(
     stu_id: &str,
     xn: u16,
     xq: u8,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let url = format!(
         "{}&xnxq01id={}-{}-{}",
         CLASS_TABLE_URL,
@@ -176,7 +174,7 @@ pub async fn get_grade(
     stu_id: &str,
     xn: u16,
     xq: u8,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let url = format!("{}&kksj={}-{}-{}", GRADE_URL, xn, xn + 1, xq);
     let res = request_hdjw(&url, stu_id, RequestMethod::Get).await?;
     Ok(res)
@@ -211,7 +209,7 @@ pub async fn get_grade_rank_common(
     selection: &[String],
     range: String,
     rank: u8,
-) -> AppResult<(String, String)> {
+) -> Result<(String, String), crate::Error> {
     // 暂时不使用缓存
     // // 缓存数据到redis，减少对教务系统的压力，到这里了说明数据已经获取到了，可以直接缓存
     // let key = format!("grade_rank_{selection:?}_{range}_{rank}");
@@ -297,7 +295,7 @@ pub async fn get_exam_schedule(
     stu_id: &str,
     xn: u16,
     xq: u8,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     //xnxqid=2025-2026-1
     let url = format!(
         "{}&xnxqid={}-{}-{}",
@@ -322,7 +320,7 @@ pub async fn get_empty_classroom(
     day: u8,
     jc: &str,
     build_id: &str,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let mut form_data = HashMap::new();
     let day = if day == 0 { 7 } else { day };
     form_data.insert("xnxqh", format!("{}-{}-{}", xn, xn + 1, xq));
@@ -342,7 +340,9 @@ pub async fn get_empty_classroom(
 
 /// 从可信电子凭证获取成绩
 /// 返回成绩单 pdf 的文本内容，具体解析交给后端
-pub async fn get_grade_from_ca(stu_id: &str) -> AppResult<String> {
+pub async fn get_grade_from_ca(
+    stu_id: &str,
+) -> Result<String, crate::Error> {
     let ca_headers = ca_headers(stu_id).await?;
     let tempelate_url = if stu_id.starts_with('S')
         || stu_id.starts_with('B')
@@ -386,7 +386,7 @@ pub async fn get_grade_from_ca(stu_id: &str) -> AppResult<String> {
 pub async fn get_grade_detail(
     stu_id: &str,
     jx0404id: &str,
-) -> AppResult<String> {
+) -> Result<String, crate::Error> {
     let url = format!("{}{}", GRADE_DETAIL_URL, jx0404id);
     let res = request_hdjw(&url, stu_id, RequestMethod::Get).await?;
     if let Value::String(html) = res {
@@ -401,7 +401,7 @@ pub async fn get_class_table_extra(
     stu_id: &str,
     xn: u16,
     xq: u8,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let url = format!(
         "{}&xnxq01id={}-{}-{}",
         CLASS_TABLE_EXTRA,

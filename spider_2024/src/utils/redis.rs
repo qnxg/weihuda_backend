@@ -8,10 +8,7 @@ use redis::{
 };
 use tokio::sync::OnceCell;
 
-use crate::{
-    app_error::AppError, app_result::AppResult, config::CFG,
-    utils::db::get_lab_password_from_db,
-};
+use crate::{config::CFG, utils::db::get_lab_password_from_db};
 
 use super::db::get_password_from_db;
 
@@ -88,7 +85,9 @@ async fn get_lab_password_from_redis(stu_id: &str) -> Result<String> {
     Ok(res)
 }
 
-pub async fn fetch_password(stu_id: &str) -> AppResult<String> {
+pub async fn fetch_password(
+    stu_id: &str,
+) -> Result<String, crate::Error> {
     if let Ok(password) = get_password_from_redis(stu_id).await {
         Ok(password)
     } else {
@@ -99,7 +98,7 @@ pub async fn fetch_password(stu_id: &str) -> AppResult<String> {
                     "从数据库中获取密码时错误，stu_id: {}, {}",
                     stu_id, e
                 );
-                AppError::PasswordError
+                crate::Error::PasswordError
             })?;
         // 缓存密码到redis
         insert_password_to_redis(stu_id, &password).await?;
@@ -109,7 +108,7 @@ pub async fn fetch_password(stu_id: &str) -> AppResult<String> {
 
 pub async fn fetch_lab_password(
     stu_id: &str,
-) -> AppResult<Option<String>> {
+) -> Result<Option<String>, crate::Error> {
     if let Ok(password) = get_lab_password_from_redis(stu_id).await {
         Ok(Some(password))
     } else {
@@ -119,7 +118,7 @@ pub async fn fetch_lab_password(
                     "获取实验平台密码错误, stuid = {}, {}",
                     stu_id, e
                 );
-                AppError::PasswordError
+                crate::Error::PasswordError
             })?;
         if let Some(password) = password {
             // 缓存密码到redis

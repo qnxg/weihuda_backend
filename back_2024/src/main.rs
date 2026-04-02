@@ -21,8 +21,9 @@ mod utils;
 use crate::{
     config::CFG,
     middlewares::{
-        cache::cache_middleware, cors::cors_middleware,
-        default::default_middleware, logging::logging_middleware,
+        cache::cache_middleware, catch_panic::catch_panic_middleware,
+        cors::cors_middleware, default::default_middleware,
+        logging::logging_middleware,
         prometheus::prometheus_middleware,
         timeout::timeout_middleware,
     },
@@ -62,6 +63,7 @@ async fn run() {
     let listener = TcpListener::new(&CFG.server.address).bind().await;
     let routers = routers::routers();
     let service = Service::new(routers)
+        .hoop(catch_panic_middleware)
         .hoop(default_middleware)
         .hoop(logging_middleware)
         .hoop(prometheus_middleware)

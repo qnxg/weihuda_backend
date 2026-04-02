@@ -1,4 +1,4 @@
-use crate::{app_result::AppResult, utils::client};
+use crate::utils::client;
 use anyhow::anyhow;
 use serde_json::Value;
 
@@ -9,7 +9,7 @@ pub async fn get_electricity(
     park: u8,
     building: String,
     room: String,
-) -> AppResult<String> {
+) -> Result<String, crate::Error> {
     let res = client
         .get(format!(
             "{}?parkNo={}&buildingNo={}&rechargeType=2&roomNo={}",

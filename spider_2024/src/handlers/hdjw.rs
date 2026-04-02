@@ -3,7 +3,6 @@ use chrono::Datelike;
 use serde_json::Value;
 
 use crate::{
-    app_result::AppResult,
     dtos::hdjw::{
         CourseInfoRes, EmptyRoomReq, ExamArrangeItemRes,
         ExtraCourseInfoRes, GradeInfoRes, GradeReq, HdjwGradeRankReq,
@@ -14,7 +13,7 @@ use crate::{
 
 pub async fn get_grade_handler(
     req: GradeReq,
-) -> AppResult<Vec<GradeInfoRes>> {
+) -> Result<Vec<GradeInfoRes>, crate::Error> {
     let mut raw_res =
         spiders::hdjw::get_grade(&req.stu_id, req.xn, req.xq).await?;
 
@@ -28,7 +27,7 @@ pub async fn get_grade_handler(
 
 pub async fn get_empty_classroom_handler(
     req: EmptyRoomReq,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let res = spiders::hdjw::get_empty_classroom(
         &req.stu_id,
         req.xn,
@@ -44,7 +43,7 @@ pub async fn get_empty_classroom_handler(
 
 pub async fn get_class_table_handler(
     req: GradeReq,
-) -> AppResult<Vec<CourseInfoRes>> {
+) -> Result<Vec<CourseInfoRes>, crate::Error> {
     // 如果学号第一个是S或者B，就是属于研究生系统
     // TODO: 研究生系统
     if req.stu_id.starts_with('S') || req.stu_id.starts_with('B') {
@@ -83,7 +82,7 @@ pub async fn get_class_table_handler(
 
 pub async fn get_exam_schedule_handler(
     req: GradeReq,
-) -> AppResult<Vec<ExamArrangeItemRes>> {
+) -> Result<Vec<ExamArrangeItemRes>, crate::Error> {
     let mut raw_res =
         spiders::hdjw::get_exam_schedule(&req.stu_id, req.xn, req.xq)
             .await?;
@@ -96,7 +95,7 @@ pub async fn get_exam_schedule_handler(
 
 pub async fn get_rank_from_hdjw_handler(
     req: HdjwGradeRankReq,
-) -> AppResult<RankRes> {
+) -> Result<RankRes, crate::Error> {
     let enter_year = req.stu_id[0..4]
         .parse::<u16>()
         .map_err(|_| anyhow!("暂时仅支持本科生"))?;
@@ -154,7 +153,7 @@ pub async fn get_rank_from_hdjw_handler(
 
 pub async fn get_grade_from_ca_handler(
     stu_id: &str,
-) -> AppResult<String> {
+) -> Result<String, crate::Error> {
     let res = spiders::hdjw::get_grade_from_ca(stu_id).await?;
     Ok(res)
 }
@@ -162,7 +161,7 @@ pub async fn get_grade_from_ca_handler(
 pub async fn get_grade_detail_handler(
     stu_id: &str,
     jx0404id: &str,
-) -> AppResult<String> {
+) -> Result<String, crate::Error> {
     let res =
         spiders::hdjw::get_grade_detail(stu_id, jx0404id).await?;
     Ok(res)
@@ -170,7 +169,7 @@ pub async fn get_grade_detail_handler(
 
 pub async fn get_class_table_extra_handler(
     req: GradeReq,
-) -> AppResult<Vec<ExtraCourseInfoRes>> {
+) -> Result<Vec<ExtraCourseInfoRes>, crate::Error> {
     let mut raw_res = spiders::hdjw::get_class_table_extra(
         &req.stu_id,
         req.xn,

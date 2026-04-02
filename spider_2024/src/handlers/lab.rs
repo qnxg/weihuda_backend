@@ -1,7 +1,6 @@
 use anyhow::anyhow;
 
 use crate::{
-    app_result::AppResult,
     dtos::lab::{
         LabArrangeItem, LabCourseItem, LabLoginInfoRes,
         LabScoreDetailItem, LabScoreItem, LabScoreStructureItem,
@@ -12,7 +11,7 @@ use crate::{
 
 pub async fn get_lab_list_handler(
     stu_id: &str,
-) -> AppResult<Option<Vec<LabArrangeItem>>> {
+) -> Result<Option<Vec<LabArrangeItem>>, crate::Error> {
     let mut res = spiders::lab::get_lab_list(stu_id).await?;
     if res.is_null() {
         return Ok(None);
@@ -32,7 +31,7 @@ pub async fn get_lab_list_handler(
 pub async fn check_lab_password_handler(
     stu_id: &str,
     password: &str,
-) -> AppResult<LabLoginInfoRes> {
+) -> Result<LabLoginInfoRes, crate::Error> {
     let (res, _) =
         spiders::lab::check_password(stu_id, password).await?;
     Ok(serde_json::from_value(res)?)
@@ -40,7 +39,7 @@ pub async fn check_lab_password_handler(
 
 pub async fn get_lab_sem_info_handler(
     stu_id: &str,
-) -> AppResult<Option<Vec<LabSemInfoRes>>> {
+) -> Result<Option<Vec<LabSemInfoRes>>, crate::Error> {
     let res = spiders::lab::get_sem_info(stu_id).await?;
     Ok(serde_json::from_value(res)?)
 }
@@ -48,7 +47,7 @@ pub async fn get_lab_sem_info_handler(
 pub async fn get_lab_course_list_handler(
     stu_id: &str,
     sem: &str,
-) -> AppResult<Option<Vec<LabCourseItem>>> {
+) -> Result<Option<Vec<LabCourseItem>>, crate::Error> {
     let mut res = spiders::lab::get_course_list(stu_id, sem).await?;
     if res.is_null() {
         return Ok(None);
@@ -69,7 +68,7 @@ pub async fn get_lab_score_handler(
     stu_id: &str,
     course_id: &str,
     sem: &str,
-) -> AppResult<Option<Vec<LabScoreItem>>> {
+) -> Result<Option<Vec<LabScoreItem>>, crate::Error> {
     let mut res =
         spiders::lab::get_lab_score(stu_id, sem, course_id).await?;
 
@@ -90,7 +89,7 @@ pub async fn get_lab_score_handler(
 
 pub async fn get_virtual_lab_score_handler(
     stu_id: &str,
-) -> AppResult<Option<Vec<VirtualLabGradeItem>>> {
+) -> Result<Option<Vec<VirtualLabGradeItem>>, crate::Error> {
     let mut res = spiders::lab::get_virtual_lab_score(stu_id).await?;
     if res.is_null() {
         return Ok(None);
@@ -112,7 +111,7 @@ pub async fn get_virtual_lab_score_handler(
 pub async fn get_lab_score_structure_handler(
     stu_id: &str,
     course_id: &str,
-) -> AppResult<Option<Vec<LabScoreStructureItem>>> {
+) -> Result<Option<Vec<LabScoreStructureItem>>, crate::Error> {
     let mut res =
         spiders::lab::get_score_structure(stu_id, course_id).await?;
     if res.is_null() {
@@ -134,7 +133,7 @@ pub async fn get_lab_score_structure_handler(
 pub async fn get_lab_score_detail_handler(
     stu_id: &str,
     course_id: &str,
-) -> AppResult<Option<Vec<LabScoreDetailItem>>> {
+) -> Result<Option<Vec<LabScoreDetailItem>>, crate::Error> {
     let mut res =
         spiders::lab::get_score_detail(stu_id, course_id).await?;
     if res.is_null() {

@@ -1,5 +1,4 @@
 use crate::{
-    app_result::AppResult,
     spiders::login::{gym_headers, gym_headers_from_cas},
     utils::{client, request::CacheChecker},
 };
@@ -23,7 +22,7 @@ const DETAIL_URL: &str = "http://gymos.hnu.edu.cn/bdlp_api_fitness_test_student_
 pub(crate) async fn get_data(
     stu_id: &str,
     xn: u16,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let gym_headers =
         if let Ok(direct_login) = gym_headers(stu_id).await {
             direct_login
@@ -48,7 +47,7 @@ pub(crate) async fn get_data(
 pub(crate) async fn get_raw_data(
     stu_id: &str,
     xn: u16,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let gym_headers =
         if let Ok(direct_login) = gym_headers(stu_id).await {
             direct_login
@@ -70,7 +69,9 @@ pub(crate) async fn get_raw_data(
 }
 
 /// 获取体测预约数据
-pub(crate) async fn get_appoint(stu_id: &str) -> AppResult<Value> {
+pub(crate) async fn get_appoint(
+    stu_id: &str,
+) -> Result<Value, crate::Error> {
     let gym_headers =
         if let Ok(direct_login) = gym_headers(stu_id).await {
             direct_login
@@ -96,7 +97,7 @@ pub(crate) async fn get_appoint_detail(
     class_id: &str,
     class_time: &str,
     test_time: &str,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let gym_headers =
         if let Ok(direct_login) = gym_headers(stu_id).await {
             direct_login
