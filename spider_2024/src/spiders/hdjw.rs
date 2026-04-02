@@ -60,9 +60,15 @@ async fn request_hdjw(
         }
         let hdjw_headers = match hdjw_headers(stu_id).await {
             Ok(data) => data,
+            // 账号异常直接返回，不重试了
             Err(crate::Error::PasswordError) => {
-                // 密码错误直接返回，不重试了
                 return Err(crate::Error::PasswordError);
+            }
+            Err(crate::Error::PasswordShouldChange) => {
+                return Err(crate::Error::PasswordShouldChange);
+            }
+            Err(crate::Error::PasswordLocked) => {
+                return Err(crate::Error::PasswordLocked);
             }
             Err(e) => {
                 tried += 1;
