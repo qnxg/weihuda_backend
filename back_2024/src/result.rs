@@ -1,11 +1,11 @@
+use anyhow::anyhow;
 use salvo::http::StatusCode;
 use salvo::prelude::Json;
 use salvo::{Response, Scribe};
 use serde::Serialize;
 use serde_json::Value;
+use spider_2024::Error as SpiderError;
 use thiserror::Error;
-
-use spider_2024::app_error::AppError as SpiderAppError;
 
 /// 自定义的错误处理类型，支持多种错误类型，可以通过?操作符链式传播，传播链的初始类型必须是可转换为AppError的分支的类型
 #[derive(Error, Debug)]
@@ -26,8 +26,6 @@ pub enum AppError {
     JwtError(#[from] jsonwebtoken::errors::Error),
     #[error("密码错误")]
     PasswordError,
-    #[error("爬虫错误: {0}")]
-    SpiderAppError(#[from] SpiderAppError),
     #[error("解析JSON错误: {0}")]
     JsonParseError(#[from] serde_json::Error),
     #[error("内部请求错误: {0}")]
@@ -60,6 +58,23 @@ impl Scribe for Success {
 impl From<&str> for AppError {
     fn from(s: &str) -> Self {
         AppError::AnyHow(anyhow::anyhow!(s.to_string()))
+    }
+}
+
+impl From<SpiderError> for AppError {
+    fn from(e: SpiderError) -> Self {
+        match e {
+            SpiderError::AnyHow(error) => Self::AnyHow(error),
+            SpiderError::PasswordError => Self::PasswordError,
+            SpiderError::PasswordShouldChange => Self::PasswordError,
+            SpiderError::PasswordLocked => Self::AnyHow(anyhow!(
+                "账号被锁定，请暂停使用10分钟之后重试。"
+            )),
+            SpiderError::SqlxError(error) => Self::SqlxError(error),
+            SpiderError::RedisErr(redis_error) => {
+                Self::RedisError(redis_error)
+            }
+        }
     }
 }
 
@@ -119,17 +134,6 @@ impl Scribe for AppError {
                         "code": 401,
                         "data": null,
                         "msg": "密码错误(NO_TOAST)"
-                    })),
-                );
-            }
-            AppError::SpiderAppError(e) => {
-                res.stuff(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({
-                        "code": 500,
-                        "data": null,
-                        // TODO: 爬虫错误信息展示优化？
-                        "msg": e.to_string()
                     })),
                 );
             }

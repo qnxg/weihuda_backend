@@ -1,6 +1,4 @@
 use crate::{
-    app_error::AppError,
-    app_result::AppResult,
     dtos::pt::CasPasswordStatus,
     spiders::login::{self, pt_headers},
     utils::{cache::invalidate_stuid_cache, client},
@@ -29,7 +27,7 @@ const PASSWORD_CHECK_URL: &str =
 pub async fn check_password(
     stu_id: &str,
     password: &str,
-) -> AppResult<bool> {
+) -> Result<bool, crate::Error> {
     // 对password进行XML实体编码
     // 事实上好像只编码&和<就行了
     // 为什么防止再有问题，都实体编码一下吧
@@ -76,7 +74,7 @@ pub async fn check_password(
 pub async fn check_password_with_cas(
     stu_id: &str,
     password: &str,
-) -> AppResult<CasPasswordStatus> {
+) -> Result<CasPasswordStatus, crate::Error> {
     let res = login::pt_headers(stu_id, Some(password)).await;
     match res {
         Ok(_) => {
@@ -84,17 +82,23 @@ pub async fn check_password_with_cas(
             invalidate_stuid_cache(stu_id).await;
             Ok(CasPasswordStatus::Success)
         }
-        Err(AppError::PasswordError) => Ok(CasPasswordStatus::Fail),
-        Err(AppError::PasswordShouldChange) => {
+        Err(crate::Error::PasswordError) => {
+            Ok(CasPasswordStatus::Fail)
+        }
+        Err(crate::Error::PasswordShouldChange) => {
             Ok(CasPasswordStatus::ShouldChange)
         }
-        Err(AppError::PasswordLocked) => Ok(CasPasswordStatus::Lock),
+        Err(crate::Error::PasswordLocked) => {
+            Ok(CasPasswordStatus::Lock)
+        }
         Err(e) => Err(e),
     }
 }
 
 /// 暂时不用这里的user_info
-pub(crate) async fn get_user_info(stu_id: &str) -> AppResult<Value> {
+pub(crate) async fn get_user_info(
+    stu_id: &str,
+) -> Result<Value, crate::Error> {
     let now = SystemTime::now();
     let duration = now.duration_since(UNIX_EPOCH)?;
     let url = format!("{USER_INFO_URL}?_={}", duration.as_millis());
@@ -108,7 +112,9 @@ pub(crate) async fn get_user_info(stu_id: &str) -> AppResult<Value> {
     Ok(res)
 }
 
-pub async fn get_unread_email(stu_id: &str) -> AppResult<Value> {
+pub async fn get_unread_email(
+    stu_id: &str,
+) -> Result<Value, crate::Error> {
     let pt_headers = pt_headers(stu_id, None).await?;
     let res = client
         .get(UNREAD_EMAIL_URL)
@@ -122,7 +128,9 @@ pub async fn get_unread_email(stu_id: &str) -> AppResult<Value> {
     Ok(res)
 }
 
-pub async fn get_card_info(stu_id: &str) -> AppResult<Value> {
+pub async fn get_card_info(
+    stu_id: &str,
+) -> Result<Value, crate::Error> {
     let pt_headers = pt_headers(stu_id, None).await?;
     let res = client
         .get(CARD_INFO_URL)
@@ -144,7 +152,7 @@ pub async fn get_card_history(
     year: &str,
     month: &str,
     _type: &str,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let pt_headers = pt_headers(stu_id, None).await?;
     // 字符串格式化默认是左对齐，这里要手动改成右对齐，并且两位宽左侧补0
     let begin_date = format!("{}-{:0>2}-01", year, month);

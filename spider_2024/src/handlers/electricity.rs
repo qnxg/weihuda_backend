@@ -1,5 +1,4 @@
 use crate::{
-    app_result::AppResult,
     dtos::electricity::GetElectricityReq,
     spiders,
     utils::redis::{add_cookie_to_redis, get_cookie_from_redis},
@@ -9,7 +8,7 @@ const CACHE_TIMEOUT: i64 = 60 * 60 * 16;
 
 pub async fn get_electricity_handler(
     req: GetElectricityReq,
-) -> AppResult<String> {
+) -> Result<String, crate::Error> {
     let key = format!(
         "e{}{}{}",
         req.park.clone(),

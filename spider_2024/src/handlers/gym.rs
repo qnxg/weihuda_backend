@@ -1,5 +1,4 @@
 use crate::{
-    app_result::AppResult,
     dtos::gym::{
         FitnessAppointDetailRes, FitnessAppointRes, FitnessRawRes,
         FitnessRes, GymReq,
@@ -10,7 +9,7 @@ use anyhow::anyhow;
 
 pub async fn get_gym_grade_handler(
     req: GymReq,
-) -> AppResult<FitnessRes> {
+) -> Result<FitnessRes, crate::Error> {
     let mut res = spiders::gym::get_data(&req.stu_id, req.xn).await?;
 
     let res_data = &res["data"];
@@ -26,7 +25,7 @@ pub async fn get_gym_grade_handler(
 
 pub async fn get_gym_raw_grade_handler(
     req: GymReq,
-) -> AppResult<FitnessRawRes> {
+) -> Result<FitnessRawRes, crate::Error> {
     let mut res =
         spiders::gym::get_raw_data(&req.stu_id, req.xn).await?;
 
@@ -43,7 +42,7 @@ pub async fn get_gym_raw_grade_handler(
 
 pub async fn get_gym_appoint_handler(
     stu_id: &str,
-) -> AppResult<Vec<FitnessAppointRes>> {
+) -> Result<Vec<FitnessAppointRes>, crate::Error> {
     let mut res = spiders::gym::get_appoint(stu_id).await?;
     let res_data = &res["data"];
     if !res_data.is_array() {
@@ -60,7 +59,7 @@ pub async fn get_gym_appoint_detail_handler(
     class_id: &str,
     class_time: &str,
     test_time: &str,
-) -> AppResult<FitnessAppointDetailRes> {
+) -> Result<FitnessAppointDetailRes, crate::Error> {
     let mut res = spiders::gym::get_appoint_detail(
         stu_id, class_id, class_time, test_time,
     )

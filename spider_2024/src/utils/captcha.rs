@@ -1,4 +1,4 @@
-use crate::{app_result::AppResult, config::CFG, utils::client};
+use crate::{config::CFG, utils::client};
 use anyhow::anyhow;
 use serde::Deserialize;
 
@@ -26,7 +26,7 @@ struct CaptchaResponse {
 pub async fn captcha_solve(
     img_bytes: &[u8],
     captcha_type: CaptchaType,
-) -> AppResult<String> {
+) -> Result<String, crate::Error> {
     let url = format!(
         "{}/ocr?type={}",
         CFG.captcha.captcha_url, captcha_type

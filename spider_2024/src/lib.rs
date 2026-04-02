@@ -9,13 +9,12 @@
     reason = "在`git commit`之前，请确认代码中没有`todo!()`"
 )]
 
-pub mod app_error;
-mod app_result;
 pub mod config;
 pub mod dtos;
+mod error;
 mod handlers;
-mod middlewares;
 mod spiders;
 mod utils;
 
+pub use error::Error;
 pub use handlers::{electricity, gym, hdjw, lab, netflow, pt, xgxt};

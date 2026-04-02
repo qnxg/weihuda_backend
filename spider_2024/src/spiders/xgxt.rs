@@ -1,5 +1,4 @@
 use crate::{
-    app_result::AppResult,
     dtos::xgxt::PersonInfo,
     spiders::login::xgxt_headers,
     utils::{
@@ -22,7 +21,9 @@ const CONTACT_INFO_URL: &str = "https://xgxt.hnu.edu.cn/zftal-xgxt-web/dynamic/f
 // 这个接口请求比较多，且请求一次数据量也比较大（有个接口直接把近十年所有的班级数据全部返回了），
 // 需要进行缓存，且可能是一个性能瓶颈 TODO 考虑并发三个请求
 #[expect(clippy::too_many_lines, reason = "REFACTOR ME")]
-pub async fn get_person_info(stu_id: &str) -> AppResult<PersonInfo> {
+pub async fn get_person_info(
+    stu_id: &str,
+) -> Result<PersonInfo, crate::Error> {
     // 如果有缓存直接提前返回
     if let Ok(res) =
         get_cookie_from_redis("person_info", stu_id).await

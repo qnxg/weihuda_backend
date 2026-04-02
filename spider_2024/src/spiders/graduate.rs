@@ -7,7 +7,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::{
-    app_result::AppResult, spiders::login::graduate_headers_and_id,
+    spiders::login::graduate_headers_and_id,
     utils::crypto::graduate_decrypt,
 };
 
@@ -97,7 +97,7 @@ pub(crate) async fn get_class_table(
     stu_id: &str,
     xn: u16,
     xq: u8,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let new_client = reqwest::Client::builder().no_proxy().build()?;
     let (graduate_headers, id) =
         graduate_headers_and_id(stu_id).await?;

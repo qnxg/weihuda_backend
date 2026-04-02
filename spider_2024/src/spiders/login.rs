@@ -8,8 +8,6 @@
 use std::sync::LazyLock;
 
 use crate::{
-    app_error::AppError,
-    app_result::AppResult,
     spiders,
     utils::{
         cache::{CACHE, CacheEnum::*},
@@ -168,7 +166,7 @@ pub async fn get_ticket_url(
     stu_id: &str,
     service_url: &str,
     password: Option<&str>,
-) -> AppResult<String> {
+) -> Result<String, crate::Error> {
     let mut cas_cache = CACHE.get(&(CasCookie, stu_id.into())).await;
     if password.is_some() {
         // 提供密码则不适用 CasCookie 缓存
@@ -211,7 +209,7 @@ pub async fn get_ticket_url(
         .send()
         .await?;
     if login.status() == StatusCode::FORBIDDEN {
-        return Err(AppError::PasswordLocked);
+        return Err(crate::Error::PasswordLocked);
     }
     debug!("{stu_id} 发送了登录请求");
     // login_params里面的pv0在后面的请求也会有用(netflow)
@@ -226,13 +224,13 @@ pub async fn get_ticket_url(
     let location = login
         .headers()
         .get(LOCATION)
-        .ok_or(AppError::PasswordError)?
+        .ok_or(crate::Error::PasswordError)?
         .to_str()?
         .to_string();
     const PASSWORD_SHOULD_CHANGE_PAT: &str =
         "cas.hnu.edu.cn/securitycenter/modifyPwd/index.zf";
     if location.contains(PASSWORD_SHOULD_CHANGE_PAT) {
-        return Err(AppError::PasswordShouldChange);
+        return Err(crate::Error::PasswordShouldChange);
     }
     let to_store = cookies.join("; ");
     let to_return = Ok(location);
@@ -243,7 +241,9 @@ pub async fn get_ticket_url(
 }
 
 /// 教务系统登录
-pub async fn hdjw_headers(stu_id: &str) -> AppResult<HeaderMap> {
+pub async fn hdjw_headers(
+    stu_id: &str,
+) -> Result<HeaderMap, crate::Error> {
     let cookies = CACHE
         .try_get_with((Hdjw, stu_id.into()), async {
             // 需要先请求 hdjw 的登录页面，获取到相关的 cookie
@@ -331,7 +331,7 @@ pub async fn hdjw_headers(stu_id: &str) -> AppResult<HeaderMap> {
 pub async fn pt_headers(
     stu_id: &str,
     password: Option<&str>,
-) -> AppResult<HeaderMap> {
+) -> Result<HeaderMap, crate::Error> {
     let cached_cookies = if password.is_none() {
         CACHE.get(&(PtCookie, stu_id.into())).await
     } else {
@@ -381,7 +381,7 @@ pub async fn pt_headers(
 async fn get_sticket(
     stu_id: &str,
     url: &str,
-) -> AppResult<(String, String)> {
+) -> Result<(String, String), crate::Error> {
     // 先请求一下，防止还没登录。拿到登录后的 cookies
     get_ticket_url(stu_id, SERVICE_URL, None).await?;
     let cas_cache = CACHE
@@ -443,7 +443,9 @@ async fn get_sticket(
 }
 
 /// 获取校园网流量
-pub async fn netflow_headers(stu_id: &str) -> AppResult<HeaderMap> {
+pub async fn netflow_headers(
+    stu_id: &str,
+) -> Result<HeaderMap, crate::Error> {
     let cookies = CACHE
         .try_get_with((NetflowCookie, stu_id.into()), async {
             let (s_ticket, cookies) =
@@ -483,7 +485,9 @@ pub async fn netflow_headers(stu_id: &str) -> AppResult<HeaderMap> {
 }
 
 /// 体测系统比较特殊，不依赖于cas
-pub async fn gym_headers(stu_id: &str) -> AppResult<HeaderMap> {
+pub async fn gym_headers(
+    stu_id: &str,
+) -> Result<HeaderMap, crate::Error> {
     let cookies = if let Some(v) =
         CACHE.get(&(GymCookie, stu_id.into())).await
     {
@@ -516,7 +520,7 @@ pub async fn gym_headers(stu_id: &str) -> AppResult<HeaderMap> {
 /// 从cas登录体测系统
 pub async fn gym_headers_from_cas(
     stu_id: &str,
-) -> AppResult<HeaderMap> {
+) -> Result<HeaderMap, crate::Error> {
     let cookies = CACHE.try_get_with((GymCookie, stu_id.into()), async {
         let (s_ticket, _) =
                 get_sticket(stu_id, GYM_URL_FROM_CAS).await?;
@@ -552,7 +556,7 @@ pub async fn gym_headers_from_cas(
 /// 个人门户登录
 pub async fn graduate_headers_and_id(
     stu_id: &str,
-) -> AppResult<(HeaderMap, String)> {
+) -> Result<(HeaderMap, String), crate::Error> {
     let result = CACHE
         .try_get_with((GraduateCookieAndId, stu_id.into()), async {
             let ticket_url =
@@ -603,7 +607,9 @@ pub async fn graduate_headers_and_id(
 }
 
 /// 可信电子凭证登录
-pub async fn ca_headers(stu_id: &str) -> AppResult<HeaderMap> {
+pub async fn ca_headers(
+    stu_id: &str,
+) -> Result<HeaderMap, crate::Error> {
     let ticket_url = get_ticket_url(stu_id, CA_URL, None).await?;
     debug!("{stu_id} 尝试通过 {} 访问可信电子凭证", ticket_url);
     client.get(&ticket_url).send().await?.error_for_status()?;
@@ -626,7 +632,9 @@ pub async fn ca_headers(stu_id: &str) -> AppResult<HeaderMap> {
     Ok(headers)
 }
 
-pub async fn xgxt_headers(stu_id: &str) -> AppResult<HeaderMap> {
+pub async fn xgxt_headers(
+    stu_id: &str,
+) -> Result<HeaderMap, crate::Error> {
     let cookies = CACHE
         .try_get_with((XGXTCookie, stu_id.into()), async {
             let ticket_url =
@@ -664,12 +672,14 @@ pub async fn xgxt_headers(stu_id: &str) -> AppResult<HeaderMap> {
 /// 大物实验平台登录
 /// 如果中间出现了密码错误或者是没有密码的情况，当前请求返回数据为 null，后端应该转发这个
 /// null，前端进行相应处理
-pub async fn lab_headers(stu_id: &str) -> AppResult<HeaderMap> {
+pub async fn lab_headers(
+    stu_id: &str,
+) -> Result<HeaderMap, crate::Error> {
     let cookies = CACHE
         .try_get_with((LabCookie, stu_id.into()), async {
             let password = fetch_lab_password(stu_id).await?;
             if password.is_none() {
-                return Err(AppError::PasswordError);
+                return Err(crate::Error::PasswordError);
             }
             let password = password.unwrap();
             let (obj, cookies) =
@@ -677,7 +687,7 @@ pub async fn lab_headers(stu_id: &str) -> AppResult<HeaderMap> {
                     .await?;
             if obj["RTNCode"] == -1 {
                 // 密码错误
-                return Err(AppError::PasswordError);
+                return Err(crate::Error::PasswordError);
             }
             if obj["RTNCode"] != 1 {
                 let msg = obj["Data"].as_str().unwrap_or("未知错误");

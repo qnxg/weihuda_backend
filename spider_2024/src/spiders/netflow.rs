@@ -1,7 +1,4 @@
-use crate::{
-    app_result::AppResult, spiders::login::netflow_headers,
-    utils::client,
-};
+use crate::{spiders::login::netflow_headers, utils::client};
 use serde_json::Value;
 
 const NETFLOW_URL: &str =
@@ -21,7 +18,9 @@ const NETFLOW_ORDER_URL: &str =
 // ;
 
 /// 查询当前月的网络流量使用情况
-pub async fn get_netflow(stu_id: &str) -> AppResult<Value> {
+pub async fn get_netflow(
+    stu_id: &str,
+) -> Result<Value, crate::Error> {
     let netflow_headers = netflow_headers(stu_id).await?;
     let res = client
         .get(NETFLOW_URL)
@@ -39,7 +38,7 @@ pub async fn get_netflow_month_detail(
     stu_id: &str,
     year: &str,
     month: &str,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let netflow_headers = netflow_headers(stu_id).await?;
     let url = format!("{NETFLOW_MONTH_URL}{}-{:0>2}", year, month);
     let res = client
@@ -59,7 +58,7 @@ pub async fn get_netflow_day_detail(
     year: &str,
     month: &str,
     day: &str,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let netflow_headers = netflow_headers(stu_id).await?;
     let url =
         format!("{NETFLOW_DAY_URL}{}{:0>2}{:0>2}", year, month, day);
@@ -75,7 +74,9 @@ pub async fn get_netflow_day_detail(
 }
 
 /// 用户情况查询
-pub async fn get_user_status(stu_id: &str) -> AppResult<Value> {
+pub async fn get_user_status(
+    stu_id: &str,
+) -> Result<Value, crate::Error> {
     let netflow_headers = netflow_headers(stu_id).await?;
     let res = client
         .get(NETFLOW_USER_INFO_URL)
@@ -89,7 +90,9 @@ pub async fn get_user_status(stu_id: &str) -> AppResult<Value> {
 }
 
 /// 支付信息查询
-pub async fn get_pay_status(stu_id: &str) -> AppResult<Value> {
+pub async fn get_pay_status(
+    stu_id: &str,
+) -> Result<Value, crate::Error> {
     let netflow_headers = netflow_headers(stu_id).await?;
     let res = client
         .get(NETFLOW_PAY_INFO_URL)
@@ -103,7 +106,7 @@ pub async fn get_pay_status(stu_id: &str) -> AppResult<Value> {
 }
 
 /// 订单查询
-pub async fn get_order(stu_id: &str) -> AppResult<Value> {
+pub async fn get_order(stu_id: &str) -> Result<Value, crate::Error> {
     let netflow_headers = netflow_headers(stu_id).await?;
     let res = client
         .get(NETFLOW_ORDER_URL)

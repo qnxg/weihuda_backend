@@ -1,8 +1,6 @@
 use std::{collections::HashMap, time::Duration};
 
 use crate::{
-    app_error::AppError,
-    app_result::AppResult,
     spiders::login::lab_headers,
     utils::{
         self,
@@ -47,7 +45,7 @@ async fn request_lab(
     url: &str,
     stu_id: &str,
     method: RequestMethod,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let mut tried = 0;
     let mut err_log = String::new();
     let data;
@@ -64,7 +62,7 @@ async fn request_lab(
         }
         let lab_headers = match lab_headers(stu_id).await {
             Ok(data) => data,
-            Err(AppError::PasswordError) => {
+            Err(crate::Error::PasswordError) => {
                 // 密码错误或是没有密码，直接返回，不重试了
                 // 我们这里不直接往上抛 PasswordError，因为 PasswordError
                 // 会被后端直接转发到前端，而前端目前认为这个错误一律是个人门户密码错误
@@ -148,7 +146,9 @@ async fn request_lab(
 }
 
 /// 获取实验平台的课程列表（当前学期）
-pub async fn get_lab_list(stu_id: &str) -> AppResult<Value> {
+pub async fn get_lab_list(
+    stu_id: &str,
+) -> Result<Value, crate::Error> {
     let mut form_data = HashMap::new();
     form_data.insert("CourseID", "-999".to_string());
     form_data.insert("weeks", "-999".to_string());
@@ -170,7 +170,7 @@ pub async fn get_lab_list(stu_id: &str) -> AppResult<Value> {
 pub async fn check_password(
     stu_id: &str,
     password: &str,
-) -> AppResult<(Value, String)> {
+) -> Result<(Value, String), crate::Error> {
     let password = utils::crypto::lab_encrypt(password);
     let mut tried = 0;
     let mut checkcode = String::new();
@@ -221,7 +221,9 @@ pub async fn check_password(
 }
 
 /// 获取实验平台的学期信息
-pub async fn get_sem_info(stu_id: &str) -> AppResult<Value> {
+pub async fn get_sem_info(
+    stu_id: &str,
+) -> Result<Value, crate::Error> {
     let res =
         request_lab(SEM_INFO_URL, stu_id, RequestMethod::GET).await?;
     Ok(res)
@@ -232,7 +234,7 @@ pub async fn get_sem_info(stu_id: &str) -> AppResult<Value> {
 pub async fn get_course_list(
     stu_id: &str,
     sem: &str,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let mut form_data = HashMap::new();
     form_data.insert("page", "1".to_string());
     form_data.insert("rows", "15".to_string());
@@ -253,7 +255,7 @@ pub async fn get_lab_score(
     stu_id: &str,
     sem: &str,
     course_id: &str,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let mut form_data = HashMap::new();
     form_data.insert("page", "1".to_string());
     form_data.insert("rows", "15".to_string());
@@ -271,7 +273,9 @@ pub async fn get_lab_score(
 
 /// 获取虚拟实验的成绩
 /// 虚拟实验的接口有点奇怪，经过测试，无论学期和课程id怎么给，都会返回一个学期的虚拟实验的成绩
-pub async fn get_virtual_lab_score(stu_id: &str) -> AppResult<Value> {
+pub async fn get_virtual_lab_score(
+    stu_id: &str,
+) -> Result<Value, crate::Error> {
     let mut form_data = HashMap::new();
     form_data.insert("page", "1".to_string());
     form_data.insert("rows", "15".to_string());
@@ -292,7 +296,7 @@ pub async fn get_virtual_lab_score(stu_id: &str) -> AppResult<Value> {
 pub async fn get_score_structure(
     stu_id: &str,
     course_id: &str,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let url =
         format!("{}?CourseID={}", LAB_SCORE_STRUCTURE_URL, course_id);
     let res = request_lab(&url, stu_id, RequestMethod::GET).await?;
@@ -303,7 +307,7 @@ pub async fn get_score_structure(
 pub async fn get_score_detail(
     stu_id: &str,
     course_id: &str,
-) -> AppResult<Value> {
+) -> Result<Value, crate::Error> {
     let url = format!(
         "{}?CourseID={}&StudentID={}",
         LAB_SCORE_DETAIL_URL, course_id, stu_id

@@ -1,7 +1,6 @@
 use anyhow::anyhow;
 
 use crate::{
-    app_result::AppResult,
     dtos::netflow::{
         NetflowDayDetailReq, NetflowDetailRes, NetflowMonthDetailReq,
         NetflowOrderRes, NetflowOrderReturnItem, NetflowPayInfoRes,
@@ -12,7 +11,7 @@ use crate::{
 
 pub async fn get_netflow_handler(
     stu_id: &str,
-) -> AppResult<NetflowThisMonthRes> {
+) -> Result<NetflowThisMonthRes, crate::Error> {
     let mut res = spiders::netflow::get_netflow(stu_id).await?;
 
     if !&res["data"].is_object() {
@@ -47,7 +46,7 @@ pub async fn get_netflow_handler(
 
 pub async fn get_netflow_pay_info_handler(
     stu_id: &str,
-) -> AppResult<NetflowPayInfoRes> {
+) -> Result<NetflowPayInfoRes, crate::Error> {
     let mut res = spiders::netflow::get_pay_status(stu_id).await?;
 
     let data: NetflowPayInfoRes =
@@ -59,7 +58,7 @@ pub async fn get_netflow_pay_info_handler(
 
 pub async fn get_unlock_status_handler(
     stu_id: &str,
-) -> AppResult<NetflowUnlockStatusRes> {
+) -> Result<NetflowUnlockStatusRes, crate::Error> {
     let res = spiders::netflow::get_user_status(stu_id).await?;
 
     let is_locked = &res["data"]["IsLocked"];
@@ -83,7 +82,7 @@ pub async fn get_unlock_status_handler(
 
 pub async fn get_netflow_month_detail_handler(
     req: NetflowMonthDetailReq,
-) -> AppResult<NetflowDetailRes> {
+) -> Result<NetflowDetailRes, crate::Error> {
     let mut res = spiders::netflow::get_netflow_month_detail(
         &req.stu_id,
         &req.year,
@@ -101,7 +100,7 @@ pub async fn get_netflow_month_detail_handler(
 
 pub async fn get_netflow_day_detail_handler(
     req: NetflowDayDetailReq,
-) -> AppResult<NetflowDetailRes> {
+) -> Result<NetflowDetailRes, crate::Error> {
     let mut res = spiders::netflow::get_netflow_day_detail(
         &req.stu_id,
         &req.year,
@@ -120,7 +119,7 @@ pub async fn get_netflow_day_detail_handler(
 
 pub async fn get_netflow_order_handler(
     stu_id: &str,
-) -> AppResult<Vec<NetflowOrderReturnItem>> {
+) -> Result<Vec<NetflowOrderReturnItem>, crate::Error> {
     let mut res = spiders::netflow::get_order(stu_id).await?;
 
     if !res["data"].is_array() {
