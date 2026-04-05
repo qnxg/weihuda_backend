@@ -24,6 +24,11 @@ pub async fn add_feedback(
         img_url: img_url.cloned(),
         id,
     };
-    infra::rabbitmq::publish_message(msg).await?;
+    if let Err(e) = infra::rabbitmq::publish_message(msg).await {
+        tracing::warn!(
+            error = ?e,
+            "反馈消息投递到 RabbitMQ 失败，已忽略"
+        );
+    }
     Ok(id)
 }
