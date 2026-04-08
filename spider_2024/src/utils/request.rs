@@ -25,7 +25,7 @@ pub static CLIENT: LazyLock<Client> = LazyLock::new(|| {
         .danger_accept_invalid_certs(true)
         .connection_verbose(false)
         // 设置超时是重要的，避免超时中间件触发后任务仍在进行
-        .timeout(Duration::from_secs(6))
+        .timeout(Duration::from_secs(60))
         .connect_timeout(Duration::from_secs(2))
         .pool_idle_timeout(Duration::from_secs(20))
         .pool_max_idle_per_host(2000)    // 部署到生产环境一定要适当调整，Linux系统默认TCP上限是1024，本程序大致访问6个host左右，设置一个合理值不要超过上限，如系统没有网络调优情况下可设置为100
