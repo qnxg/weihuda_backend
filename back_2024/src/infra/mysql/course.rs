@@ -15,8 +15,8 @@ pub struct CustomizeCourseInfo {
 
 pub async fn get_course_list(
     stu_id: &str,
-    xn: u32,
-    xq: u32,
+    xn: u16,
+    xq: u8,
 ) -> AppResult<Vec<CustomizeCourseInfo>> {
     let res = sqlx::query_as!(
         CustomizeCourseInfo,

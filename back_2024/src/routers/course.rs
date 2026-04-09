@@ -102,8 +102,8 @@ async fn get_classtable(req: &mut Request) -> RouterResult {
     #[derive(Deserialize, Debug, Extractible)]
     #[salvo(extract(default_source(from = "query")))]
     struct GetClasstableReq {
-        pub xn: u32,
-        pub xq: u32,
+        pub xn: u16,
+        pub xq: u8,
     }
     let GetClasstableReq { xn, xq } = req.extract().await?;
     let stu_id = utils::jwt::auth(req)?;
@@ -117,8 +117,8 @@ async fn get_extra_course(req: &mut Request) -> RouterResult {
     #[derive(Deserialize, Debug, Extractible)]
     #[salvo(extract(default_source(from = "query")))]
     struct GetExtraCourseReq {
-        pub xn: u32,
-        pub xq: u32,
+        pub xn: u16,
+        pub xq: u8,
     }
     let GetExtraCourseReq { xn, xq } = req.extract().await?;
     let stu_id = utils::jwt::auth(req)?;

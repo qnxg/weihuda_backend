@@ -1,15 +1,12 @@
+use crate::service::grade_rank::{HdjwRankMethod, HdjwRankRange};
 use crate::utils::serde::empty_string_as_none;
-use salvo::{Request, Router, handler, macros::Extractible};
-use serde::Deserialize;
-
 use crate::{
     result::{AppError, RouterResult},
-    service::{
-        self,
-        grade_rank::{HdjwRankMethod, HdjwRankRange},
-    },
+    service::{self},
     utils,
 };
+use salvo::{Request, Router, handler, macros::Extractible};
+use serde::{Deserialize, Serialize};
 
 pub fn routers() -> Router {
     Router::with_path("hdjw")
@@ -35,8 +32,8 @@ async fn get_grade(req: &mut Request) -> RouterResult {
     #[derive(Deserialize, Debug, Extractible)]
     #[salvo(extract(default_source(from = "query")))]
     struct GetGradeReq {
-        pub xn: u32,
-        pub xq: u32,
+        pub xn: u16,
+        pub xq: u8,
     }
     let GetGradeReq { xn, xq } = req.extract().await?;
     let stu_id = utils::jwt::auth(req)?;
@@ -51,12 +48,17 @@ async fn get_rank_from_hdjw(req: &mut Request) -> RouterResult {
     struct GetRankFromHdjwReq {
         #[serde(default)]
         #[serde(deserialize_with = "empty_string_as_none")]
-        pub year: Option<u32>,
+        pub year: Option<u16>,
         #[serde(default)]
         #[serde(deserialize_with = "empty_string_as_none")]
-        pub term: Option<u32>,
+        pub term: Option<u8>,
         pub course: u32,
         pub rank: u32,
+    }
+    #[derive(Serialize, Debug)]
+    struct GetRankFromHdjwRes {
+        pub rank: String,
+        pub score: String,
     }
     let query: GetRankFromHdjwReq = req.extract().await?;
     let stu_id = utils::jwt::auth(req)?;
@@ -77,7 +79,16 @@ async fn get_rank_from_hdjw(req: &mut Request) -> RouterResult {
         &stu_id, range, method, query.year, query.term,
     )
     .await?;
-    Ok(res.into())
+    Ok(GetRankFromHdjwRes {
+        rank: res
+            .clone()
+            .and_then(|v| v.rank)
+            .unwrap_or("无数据".to_string()),
+        score: res
+            .and_then(|v| v.score)
+            .unwrap_or("无数据".to_string()),
+    }
+    .into())
 }
 
 #[handler]

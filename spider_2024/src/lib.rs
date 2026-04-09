@@ -9,12 +9,19 @@
     reason = "在`git commit`之前，请确认代码中没有`todo!()`"
 )]
 
+pub mod ca;
 pub mod config;
-pub mod dtos;
 mod error;
-mod handlers;
-mod spiders;
+pub mod gym;
+pub mod hdjw;
+pub mod lab;
+mod login;
+pub mod netflow;
+pub mod pt;
 mod utils;
-
+pub mod wxpay;
+pub mod xgxt;
 pub use error::Error;
-pub use handlers::{electricity, gym, hdjw, lab, netflow, pt, xgxt};
+
+#[cfg(test)]
+pub mod test;

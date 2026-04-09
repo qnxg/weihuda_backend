@@ -18,34 +18,28 @@ pub struct ExamArrange {
 
 pub async fn get_exam_arrange(
     stu_id: &str,
-    xn: u32,
-    xq: u32,
+    xn: u16,
+    xq: u8,
 ) -> AppResult<Vec<ExamArrange>> {
     let spider_res =
-        infra::spider::hdjw::get_exam_arrange(stu_id, xn, xq).await?;
+        spider_2024::hdjw::get_exam_schedule(stu_id, xn, xq).await?;
     let mut res = Vec::new();
     for item in spider_res {
-        let date_time = item.kssj.map(|kssj| {
-            kssj.split(' ').map(|s| s.to_string()).collect::<Vec<_>>()
-        });
         let temp = ExamArrange {
-            id: item.kch,
-            name: item.kskcmc,
-            place: match (item.ksxq, item.js_mc) {
-                (Some(xq), Some(js)) => format!("{} {}", xq, js),
+            id: item.course_id,
+            name: item.course_name,
+            place: match (item.area, item.classroom) {
+                (Some(area), Some(classroom)) => {
+                    format!("{} {}", area, classroom)
+                }
                 _ => "未知".to_string(),
             },
-            date: date_time
-                .as_ref()
-                .and_then(|v| v.first())
-                .unwrap_or(&"未知".to_string())
-                .to_string(),
-            time: date_time
-                .as_ref()
-                .and_then(|v| v.get(1))
-                .unwrap_or(&"未知".to_string())
-                .to_string(),
-            seat: item.zwh.unwrap_or_else(|| "无".to_string()),
+            date: item
+                .date
+                .map(|date| date.format("%Y-%m-%d").to_string())
+                .unwrap_or("未知".to_string()),
+            time: item.time.unwrap_or("未知".to_string()),
+            seat: item.seat.unwrap_or_else(|| "无".to_string()),
         };
         res.push(temp);
     }
