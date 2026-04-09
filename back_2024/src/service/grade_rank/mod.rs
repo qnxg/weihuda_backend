@@ -1,16 +1,7 @@
 pub mod ca;
-use std::collections::HashMap;
 
-use crate::{
-    infra::{self},
-    result::AppResult,
-};
-use anyhow::anyhow;
-use regex::RegexBuilder;
+use crate::{result::AppResult, service};
 use serde::Serialize;
-
-pub use infra::spider::hdjw::RankMethod as HdjwRankMethod;
-pub use infra::spider::hdjw::RankRange as HdjwRankRange;
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -26,29 +17,29 @@ pub struct GradeInfo {
     pub jx0404id: Option<String>, // 用于获取成绩详情
 }
 pub async fn get_grade(
-    xn: u32,
-    xq: u32,
+    xn: u16,
+    xq: u8,
     stu_id: &str,
 ) -> AppResult<Vec<GradeInfo>> {
     let spider_res =
-        infra::spider::hdjw::get_grade(xn, xq, stu_id).await?;
+        spider_2024::hdjw::get_grade(stu_id, xn, xq).await?;
     let mut res = Vec::new();
     for item in spider_res {
         let mut tags = Vec::new();
-        if item.falb != "主修" {
-            tags.push(item.falb);
+        if item.grade_type != "主修" {
+            tags.push(item.grade_type);
         }
-        if let Some(cjbs) = item.cjbs {
-            tags.push(cjbs);
+        if let Some(grade_tag) = item.grade_tag {
+            tags.push(grade_tag);
         }
         let tmp = GradeInfo {
-            course_id: item.kch,
-            course_name: item.kc_mc,
-            credit: item.xf,
-            course_type1: item.kcsx,
-            course_type2: item.kcxzmc,
-            gpa: item.jd,
-            score: item.zcj,
+            course_id: item.course_id,
+            course_name: item.course_name,
+            credit: item.credit,
+            course_type1: item.course_type1,
+            course_type2: item.course_type2,
+            gpa: item.gpa,
+            score: item.score,
             tags,
             jx0404id: item.jx0404id,
         };
@@ -57,8 +48,92 @@ pub async fn get_grade(
     Ok(res)
 }
 
-pub use infra::spider::hdjw::get_rank as get_rank_from_hdjw;
-use serde_json::Value;
+pub enum HdjwRankRange {
+    /// 全部课程
+    All,
+    /// 必修课程
+    Must,
+    /// 核心课程
+    Core,
+}
+
+pub enum HdjwRankMethod {
+    /// 算术平均
+    ArithmeticAvg,
+    /// 加权平均
+    WeightedAvg,
+    /// 绩点
+    Gpa,
+}
+
+pub use spider_2024::hdjw::rank::Rank as HdjwRank;
+use spider_2024::hdjw::rank::{RankMethod, RankRange};
+
+/// 从 hdjw 中获取排名信息
+///
+/// # Arguments
+///
+/// - `stu_id`: 学号
+/// - `range`: 课程范围
+/// - `method`: 排名方法
+/// - `xn`: 学年。如果为 None 则为所有学年，此时 `xq` 参数无效
+/// - `xq`: 学期，如果为 None 则为所有学期
+///
+/// # Returns
+///
+/// 参考爬虫的 `hdjw::get_rank` 的返回值
+pub async fn get_rank_from_hdjw(
+    stu_id: &str,
+    range: HdjwRankRange,
+    method: HdjwRankMethod,
+    xn: Option<u16>,
+    xq: Option<u8>,
+) -> AppResult<Option<HdjwRank>> {
+    let personal_info =
+        service::user_info::get_person_info(stu_id).await?;
+    let selection = match xn {
+        Some(xn) => match xq {
+            Some(xq) => {
+                vec![(xn, xq)]
+            }
+            None => {
+                vec![(xn, 1), (xn, 2), (xn, 3)]
+            }
+        },
+        None => {
+            // 把从入学到现在的所有学年学期都选上
+            let from = personal_info.enter_year;
+            let (to, _) = service::semester::get_now_xnxq().await?;
+            (from..=(to as u16))
+                .flat_map(|xn| vec![(xn, 1), (xn, 2), (xn, 3)])
+                .collect()
+        }
+    };
+    let range = match range {
+        HdjwRankRange::All => RankRange::all_cousrse(),
+        HdjwRankRange::Must => RankRange::must_course(),
+        HdjwRankRange::Core => {
+            if personal_info.enter_year >= 2024 {
+                RankRange::core_v2024_course()
+            } else {
+                RankRange::core_v2020_course()
+            }
+        }
+    };
+    let method = match method {
+        HdjwRankMethod::ArithmeticAvg => RankMethod::ArithmeticAvg,
+        HdjwRankMethod::WeightedAvg => RankMethod::WeightedAvg,
+        HdjwRankMethod::Gpa => RankMethod::Gpa,
+    };
+    let spider_res = spider_2024::hdjw::get_rank(
+        stu_id,
+        selection.as_slice(),
+        range.as_slice(),
+        method,
+    )
+    .await?;
+    Ok(spider_res)
+}
 
 #[derive(Serialize, Debug)]
 pub struct GradeDetailItem {
@@ -71,92 +146,16 @@ pub async fn get_grade_detail(
     jx0404id: &str,
 ) -> AppResult<Vec<GradeDetailItem>> {
     let spider_res =
-        infra::spider::hdjw::get_grade_detail(stu_id, jx0404id)
-            .await?;
-    let regex = RegexBuilder::new(
-        r"let\sarr\s=\s(.*);.*window.initQzTable\(\{.*cols:\s\[(.*)\].*\}\);",
-    )
-    .dot_matches_new_line(true)
-    .build()
-    .expect("构建正则表达式失败");
-    let caps = regex
-        .captures(&spider_res)
-        .ok_or(anyhow!("解析成绩详情数据失败"))?
-        .iter()
-        .map(|c| {
-            c.map(|v| v.as_str().to_string())
-                .ok_or(anyhow!("解析成绩详情数据失败: 字段为空"))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let [_, data, map] = caps
-        .try_into()
-        .map_err(|_| anyhow!("解析成绩详情数据失败: 匹配数量错误"))?;
-    let data = serde_json::from_str::<Vec<Value>>(&data).ok();
-    let data = data.as_ref()
-        .and_then(|v| v.first())
-        .and_then(|v| v.as_object()).map(|v|
-            v.iter().map(|(key, value)|{
-                value.as_str().map(|s| s.to_string()).or(
-                        value
-                            .as_number().map(|num| num.to_string()),
-                    ).ok_or(anyhow!("解析成绩详情数据失败: 字段不是字符串或数字"))
-                    .map(|ok_value| (key, ok_value))
-            }
-            ).collect::<Result<HashMap<_, _>,_>>())
-        .ok_or(anyhow!("解析成绩详情数据失败: data"))??;
-    // map 是 js obj 格式，不是标准 json，我们需要进行一些处理
-    let map = map
-        .replace("//表头", "")
-        .replace("'", "\"")
-        .replace("field", "\"field\"")
-        .replace("title", "\"title\"")
-        .replace("type", "\"type\"");
-    let map = serde_json::from_str::<Value>(map.as_str()).ok();
-    let map = map
-        .as_ref()
-        .and_then(|v| v.as_array())
-        .map(|v| {
-            v.iter()
-                .filter(|item| {
-                    item.get("field")
-                        .and_then(|f| f.as_str())
-                        .is_some()
-                })
-                .map(|item| {
-                    let key =
-                        item.get("field").and_then(|f| f.as_str());
-                    item.get("title")
-                        .and_then(|f| f.as_str())
-                        .and_then(|value| key.map(|key| (key, value)))
-                        .ok_or(anyhow!("解析成绩详情数据失败: map"))
-                })
-                .collect::<Result<HashMap<_, _>, _>>()
-        })
-        .ok_or(anyhow!("解析成绩详情数据失败: map"))??;
-    let res = data
-        .iter()
-        .filter(|(k, _)| k.ends_with("bl"))
-        .map(|(k, v)| {
-            let score = data
-                .get(&k.trim_end_matches("bl").to_string())
-                .ok_or(anyhow!(
-                    "解析成绩详情数据失败: data 缺失 {}",
-                    k.trim_end_matches("bl")
-                ))?;
-            let name = map.get(k.trim_end_matches("bl")).ok_or(
-                anyhow!("解析成绩详情数据失败: map 缺失 {}", k),
-            )?;
-            let percentage = v;
-            Ok::<_, anyhow::Error>(GradeDetailItem {
-                score: score.to_string(),
-                name: name.to_string(),
-                percentage: percentage.to_string(),
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .filter(|item| item.percentage != "0%")
-        .collect::<Vec<_>>();
+        spider_2024::hdjw::get_grade_detail(stu_id, jx0404id).await?;
+    let mut res = Vec::new();
+    for item in spider_res {
+        let tmp = GradeDetailItem {
+            name: item.name,
+            score: item.score,
+            percentage: item.percentage,
+        };
+        res.push(tmp);
+    }
     Ok(res)
 }
 

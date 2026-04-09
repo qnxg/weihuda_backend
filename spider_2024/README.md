@@ -75,7 +75,7 @@
 ```rust
 #[tokio::test]
 async fn test_get_netflow() {
-    let res = get_netflow(&STU_ID).await.unwrap();
+    let res = get_netflow(&TEST_STU_ID).await.unwrap();
     dbg!(res);
 }
 ```

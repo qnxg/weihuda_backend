@@ -1,24 +1,47 @@
-use regex::Regex;
-use serde::{Deserialize, Serialize};
-
 use crate::{
     infra::{self},
     result::AppResult,
 };
+use anyhow::anyhow;
 
 const REDIS_PERSON_INFO_KEY_PREFIX: &str = "person_info-";
+const REDIS_PERSON_INFO_TTL: u64 = 60 * 60 * 24 * 7; // 7天
 
 pub use infra::mysql::user::get_user_setting;
 pub use infra::mysql::user::update_user_setting;
-pub use infra::spider::xgxt::get_person_info;
+pub use spider_2024::xgxt::personal_info::{Dormitory, PersonalInfo};
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Dormitory {
-    pub park: String,
-    pub build: String,
-    pub room: String,
+/// 缓存到 Redis 中
+pub async fn get_person_info(
+    stu_id: &str,
+) -> AppResult<PersonalInfo> {
+    let key = format!("{}{}", REDIS_PERSON_INFO_KEY_PREFIX, stu_id);
+    if let Some(person_info) = infra::redis::get(&key).await? {
+        // TODO 缓存解析失败要主动失效处理
+        return Ok(serde_json::from_str(&person_info)?);
+    }
+    let person_info =
+        spider_2024::xgxt::get_person_info(stu_id).await?;
+    infra::redis::set_with_expire(
+        &key,
+        &serde_json::to_string(&person_info)?,
+        REDIS_PERSON_INFO_TTL,
+    )
+    .await?;
+    Ok(person_info)
 }
-/// 会从数据库中获得信息，如果没有或者数据库中的信息解析失败则返回 None
+
+/// 从数据库中获得宿舍信息
+///
+/// # Returns
+///
+/// - 如果数据库中没有宿舍信息，则返回 None
+/// - 如果数据库中的宿舍信息解析失败，则返回 None
+///     - 数据库中对应的字段如果是由两个 `/` 分割的字符串，则视为解析成功
+///     - 两个 `/` 将字符串分成三部分，分别表示园区、楼栋、房间
+///     - 构造 `Dormitory` 时会将这三部分视为是原来成功解析的 `Dormitory` 的 `park`、`build`、`room` 字段
+///     - 如果数据库被人为修改，或是依赖的爬虫 crate 对 `Dormitory` 字段的约定有变动，则这里会产生未定义行为（TODO）
+/// - 正常情况下，这里返回的 `Dormitory` 满足 `Dormitory::successfully_parsed() == true`
 pub async fn get_dormitory(
     stu_id: &str,
 ) -> AppResult<Option<Dormitory>> {
@@ -32,11 +55,7 @@ pub async fn get_dormitory(
         let [park, build, room] = arr[..] else {
             return Ok(None);
         };
-        Ok(Some(Dormitory {
-            park: park.to_string(),
-            build: build.to_string(),
-            room: room.to_string(),
-        }))
+        Ok(Some(Dormitory::from_parsed_value(park, build, room)))
     } else {
         Ok(None)
     }
@@ -45,112 +64,40 @@ pub async fn get_dormitory(
 /// 重新调用爬虫更新寝室信息
 pub async fn update_dormitory(stu_id: &str) -> AppResult<()> {
     // 先删掉 redis 中之前缓存的个人信息数据，防止宿舍信息没有更新
-    infra::redis::del(&format!(
-        "{}{}",
-        REDIS_PERSON_INFO_KEY_PREFIX, stu_id
-    ))
-    .await?;
-    let person_info = get_person_info(stu_id).await?;
+    let key = format!("{}{}", REDIS_PERSON_INFO_KEY_PREFIX, stu_id);
+    infra::redis::del(&key).await?;
+    let dormitory = get_person_info(stu_id).await?.dormitory;
+    let (Some(park), Some(build), room) =
+        (dormitory.park(), dormitory.build(), dormitory.room())
+    else {
+        return Err(anyhow!("宿舍信息解析失败").into());
+    };
     // 解析宿舍信息为我们需要的格式
-    let dormitory = parse_dormitory_info(
-        &person_info.dormitory,
-        &person_info.room,
-    );
-    let dormitory_str = format!(
-        "{}/{}/{}",
-        dormitory.park, dormitory.build, dormitory.room
-    );
+    let dormitory_str = format!("{}/{}/{}", park, build, room);
     infra::mysql::user::update_room(stu_id, &dormitory_str).await?;
     Ok(())
-}
-/// 将 PersonInfo 的 dormitory 和 room 字段解析为 Dormitory 结构体
-/// 主要是把 dormitory 字段中的园区和楼栋信息提取出来
-fn parse_dormitory_info(dormitory: &str, room: &str) -> Dormitory {
-    let mut park = "";
-    let mut build = "";
-    if dormitory.contains("德智") {
-        park = "德智园区";
-        let re = Regex::new(r"\d+栋").expect("构建正则表达式失败");
-        build = re
-            .find_iter(dormitory)
-            .map(|mat| mat.as_str())
-            .next()
-            .unwrap_or("");
-    }
-    if dormitory.contains("天马") {
-        park = "天马园区";
-        let re = Regex::new(r"[一二三四]区\d+栋")
-            .expect("构建正则表达式失败");
-        build = re
-            .find_iter(dormitory)
-            .map(|mat| mat.as_str())
-            .next()
-            .unwrap_or("");
-    }
-    if dormitory.contains("望麓桥") {
-        park = "望麓桥学生公寓";
-        let re = Regex::new(r"\d+栋").expect("构建正则表达式失败");
-        build = re
-            .find_iter(dormitory)
-            .map(|mat| mat.as_str())
-            .next()
-            .unwrap_or("");
-    }
-    if dormitory.contains("牛头山") {
-        park = "牛头山学生公寓";
-        let re = Regex::new(r"\d+栋").expect("构建正则表达式失败");
-        build = re
-            .find_iter(dormitory)
-            .map(|mat| mat.as_str())
-            .next()
-            .unwrap_or("");
-    }
-    if dormitory.contains("财院校区") {
-        park = "财院校区";
-        let re = Regex::new(r"[1-9AB]").expect("构建正则表达式失败");
-        build = re
-            .find_iter(dormitory)
-            .map(|mat| mat.as_str())
-            .next()
-            .unwrap_or("");
-        // TODO 研楼目前还没有样本，不知道怎么搞
-    }
-    if dormitory.contains("南校区") {
-        park = "南校区";
-        let re = Regex::new(r"[1-9]+舍").expect("构建正则表达式失败");
-        build = re
-            .find_iter(dormitory)
-            .map(|mat| mat.as_str())
-            .next()
-            .unwrap_or("");
-    }
-    Dormitory {
-        park: park.to_string(),
-        build: build.to_string(),
-        room: room.to_string(),
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test::TEST_STU_ID;
+
     #[tokio::test]
     async fn test_get_dormitory() {
-        let stu_id = "";
-        let dormitory = get_dormitory(stu_id).await.unwrap();
+        let dormitory = get_dormitory(&TEST_STU_ID).await.unwrap();
         println!("{:#?}", dormitory);
     }
 
     #[tokio::test]
     async fn test_update_dormitory() {
-        let stu_id = "";
-        update_dormitory(stu_id).await.unwrap();
+        update_dormitory(&TEST_STU_ID).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_get_person_info() {
-        let stu_id = "";
-        let person_info = get_person_info(stu_id).await.unwrap();
+        let person_info =
+            get_person_info(&TEST_STU_ID).await.unwrap();
         println!("{:#?}", person_info);
     }
 }

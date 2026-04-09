@@ -36,14 +36,14 @@ async fn get_netflow_month_detail(req: &mut Request) -> RouterResult {
     #[derive(Deserialize, Debug, Extractible)]
     #[salvo(extract(default_source(from = "query")))]
     struct GetNetflowMonthDetailReq {
-        pub year: String,
-        pub month: String,
+        pub year: u16,
+        pub month: u8,
     }
     let GetNetflowMonthDetailReq { year, month } =
         req.extract().await?;
     let stu_id = utils::jwt::auth(req)?;
     let res = service::netflow::get_netflow_month_detail(
-        &stu_id, &year, &month,
+        &stu_id, year, month,
     )
     .await?;
     Ok(res.into())
@@ -54,15 +54,15 @@ async fn get_netflow_day_detail(req: &mut Request) -> RouterResult {
     #[derive(Deserialize, Debug, Extractible)]
     #[salvo(extract(default_source(from = "query")))]
     struct GetNetflowDayDetailReq {
-        pub year: String,
-        pub month: String,
-        pub day: String,
+        pub year: u16,
+        pub month: u8,
+        pub day: u8,
     }
     let GetNetflowDayDetailReq { year, month, day } =
         req.extract().await?;
     let stu_id = utils::jwt::auth(req)?;
     let res = service::netflow::get_netflow_day_detail(
-        &stu_id, &year, &month, &day,
+        &stu_id, year, month, day,
     )
     .await?;
     Ok(res.into())

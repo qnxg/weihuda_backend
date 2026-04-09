@@ -130,46 +130,6 @@ pub async fn fetch_lab_password(
     }
 }
 
-pub async fn add_cookie_to_redis(
-    key: &str,
-    cookie: &str,
-    stu_id: &str,
-    timeout: i64,
-) -> Result<()> {
-    let con = redis_conn_mgr().await;
-    let key = format!("{}-{}", key, stu_id);
-    let _: () = redis::pipe()
-        .set(&key, cookie)
-        .expire(&key, timeout)
-        .query_async(&mut con.clone())
-        .await?;
-    Ok(())
-}
-
-pub async fn get_cookie_from_redis(
-    key: &str,
-    stu_id: &str,
-) -> Result<String> {
-    let con = redis_conn_mgr().await;
-    let key = format!("{}-{}", key, stu_id);
-    let res: String = con.clone().get(&key).await?;
-    Ok(res)
-}
-
-#[expect(dead_code)]
-pub async fn remove_cookie_from_redis(
-    key: &str,
-    stu_id: &str,
-) -> Result<()> {
-    let con = redis_conn_mgr().await;
-    let key = format!("{}-{}", key, stu_id);
-    let _: () = redis::pipe()
-        .del(&key)
-        .query_async(&mut con.clone())
-        .await?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
 

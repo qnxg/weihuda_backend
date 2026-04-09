@@ -1,5 +1,6 @@
 use salvo::{Request, Router, handler};
 use serde::Serialize;
+use spider_2024::xgxt::personal_info::Gender;
 
 use crate::{result::RouterResult, service, utils};
 
@@ -30,7 +31,11 @@ async fn get_user_info(req: &mut Request) -> RouterResult {
         major: user_info.major,
         enter: user_info.enter_year as u32,
         college: user_info.academy,
-        sex: user_info.gender,
+        sex: match user_info.gender {
+            Gender::Male => "男",
+            Gender::Female => "女",
+        }
+        .to_string(),
         xz: user_info.xz as u32,
         stu_id: user_info.stu_id,
     };

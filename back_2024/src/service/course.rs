@@ -1,9 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use anyhow::anyhow;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
-use spider_2024::dtos::hdjw::CourseInfoRes;
 
 use crate::{
     infra::{self},
@@ -100,119 +98,48 @@ fn push_customize_course(
     Ok(())
 }
 
-/// 将 hdjw::SpiderCourseInfo 解析，并放入课表
-#[expect(clippy::too_many_lines, reason = "REFACTOR ME")]
+/// 将爬虫返回的课程信息解析，放入课表中
 fn push_hdjw_course(
     classtable: &mut Vec<CourseInfo>,
-    item: CourseInfoRes,
+    item: spider_2024::hdjw::class_table::Course,
 ) -> AppResult<()> {
-    let re = Regex::new(r"周(.)第(.*)节.*\{第(.*)周\}")
-        .expect("创建正则表达式失败");
-    // 这里主要处理上课时间，每个时间同时对应一个地点。
-    // 考虑以 周几+节次+地点作为 key，周数作为 value，用 set 存储。这样做是为了合并一些可以合并的时间（hdjw 可能分开写），并且区分不同地点的课程
-    let places = item.skddmc.split(';').collect::<Vec<_>>();
+    // record 中的一个 key 就对应于前端课表上的一个格子
+    // 根据星期几和节次可以定位到前端课表上的一个格子
+    // 一个格子里只显示一个地点。一个课程可能出现上课地点变动的情况，此时需要多个格子来区分
+    // 所以 key 的格式为 (day, time, place)
+    // 一个格子里可以显示多个周次，所以周次信息为 value
     let mut record = HashMap::new();
-    let detail_times = item.sktime.split(';');
-    for (i, time) in detail_times.into_iter().enumerate() {
-        let caps =
-            re.captures(time).ok_or(anyhow!("解析课程时间失败"))?;
-        let day = caps
-            .get(1)
-            .ok_or(anyhow!("解析课程时间失败"))?
-            .as_str()
-            .chars()
-            .next()
-            .ok_or(anyhow!("解析课程时间失败"))?;
-        let day = match day {
-            '一' => 1,
-            '二' => 2,
-            '三' => 3,
-            '四' => 4,
-            '五' => 5,
-            '六' => 6,
-            '日' | '七' => 7,
-            _ => {
-                return Err(anyhow!("未知的星期字符：{}", day).into());
-            }
-        };
-        let times = caps
-            .get(2)
-            .ok_or(anyhow!("解析课程时间失败"))?
-            .as_str()
-            .split('、')
-            .collect::<Vec<_>>();
-        let weeks =
-            caps.get(3).ok_or(anyhow!("解析课程时间失败"))?.as_str();
-        let place =
-            places.get(i).ok_or(anyhow!("解析课程地点失败"))?;
-        for week_range in weeks.split(',') {
-            // week 这里可能是单个数字，也可能是一个范围，用 ',' 分割
-            let parts = week_range.split('-').collect::<Vec<_>>();
-            let week_l = parts
-                .first()
-                .ok_or(anyhow!("解析课程周次失败"))?
-                .parse::<u8>()
-                .map_err(|e| anyhow!("解析课程周次失败 {}", e))?;
-            let week_r = if parts.len() == 1 {
-                week_l
-            } else {
-                parts
-                    .get(1)
-                    .ok_or(anyhow!("解析课程周次失败"))?
-                    .parse::<u8>()
-                    .map_err(|e| anyhow!("解析课程周次失败 {}", e))?
-            };
-            for time in times.iter() {
-                // time 可能是单个数字，也可能是一个范围，用 '、' 分割
-                let parts = time.split('-').collect::<Vec<_>>();
-                let time_l = parts
-                    .first()
-                    .ok_or(anyhow!("解析课程时间失败"))?
-                    .parse::<u8>()
-                    .map_err(|e| anyhow!("解析课程时间失败 {}", e))?;
-                let time_r = if parts.len() == 1 {
-                    time_l
-                } else {
-                    parts
-                        .get(1)
-                        .ok_or(anyhow!("解析课程时间失败"))?
-                        .parse::<u8>()
-                        .map_err(|e| {
-                            anyhow!("解析课程时间失败 {}", e)
-                        })?
-                };
-                for time in time_l..=time_r {
-                    let key = (day, time, *place);
-                    let set = record
-                        .entry(key)
-                        .or_insert_with(HashSet::new);
-                    for week in week_l..=week_r {
-                        set.insert(week);
-                    }
-                }
-            }
+    for schedule_item in item.schedule {
+        for time in schedule_item.time {
+            record
+                .entry((
+                    schedule_item.day,
+                    time,
+                    schedule_item.place.clone(),
+                ))
+                .or_insert(Vec::new())
+                .push(schedule_item.week);
         }
     }
-    // record 里的一个元素就对应于课程表中的一个格子
     for ((day, time, place), weeks) in record {
         let tmp = CourseInfo {
-            course_name: item.kc_mc.clone(),
-            course_id: Some(item.kch.clone()),
-            _type: item.kcxz.clone(),
-            class_name: Some(item.kt_mc.clone()),
-            place: match place {
+            course_name: item.course_name.clone(),
+            course_id: Some(item.course_id.clone()),
+            _type: item.course_type.clone(),
+            class_name: Some(item.class_name.clone()),
+            place: match place.as_str() {
                 "无" => None,
-                _ => Some(place.to_string()),
+                _ => Some(place),
             },
-            area: Some(item.skxqmc.clone()),
-            teacher: Some(item.jg0101mc.clone()),
+            area: Some(item.area.clone()),
+            teacher: Some(item.teacher.clone()),
             weeks: weeks.into_iter().collect(),
-            credit: Some(item.xf),
-            extra: item.fzmc.clone(),
+            credit: Some(item.credit),
+            extra: item.extra.clone(),
             customize_id: -1,
             day,
             time,
-            people: item.xkrs,
+            people: item.people,
         };
         classtable.push(tmp);
     }
@@ -263,8 +190,8 @@ fn apply_flex_time(
 /// 这个函数会生成一个 `Vec<CourseInfo>` 表示课表。`Vec<CourseInfo>` 内的每个元素表示前端课表页面上的一个格子
 pub async fn get_classtable(
     stu_id: &str,
-    xn: u32,
-    xq: u32,
+    xn: u16,
+    xq: u8,
 ) -> AppResult<Vec<CourseInfo>> {
     let mut classtable = Vec::new();
     let customize_course =
@@ -273,7 +200,7 @@ pub async fn get_classtable(
         push_customize_course(&mut classtable, item)?;
     }
     let hdjw_course =
-        infra::spider::hdjw::get_course(xn, xq, stu_id).await?;
+        spider_2024::hdjw::get_class_table(stu_id, xn, xq).await?;
     for item in hdjw_course {
         push_hdjw_course(&mut classtable, item)?;
     }
@@ -295,24 +222,24 @@ pub async fn get_classtable(
 
 pub async fn get_extra_course(
     stu_id: &str,
-    xn: u32,
-    xq: u32,
+    xn: u16,
+    xq: u8,
 ) -> AppResult<Vec<ExtraCourseInfo>> {
     let spider_res =
-        infra::spider::hdjw::get_class_table_extra(stu_id, xn, xq)
+        spider_2024::hdjw::get_class_table_extra(stu_id, xn, xq)
             .await?;
     let mut res = Vec::new();
     for item in spider_res {
         res.push(ExtraCourseInfo {
-            class_name: item.kt_mc,
-            course_id: item.kch,
-            course_name: item.kc_mc,
-            _type: item.kcxz,
-            area: item.skxqmc,
-            teacher: item.jg0101mc,
-            credit: item.xf,
-            people: item.xkrs,
-            extra: item.fzmc,
+            class_name: item.class_name,
+            course_id: item.course_id,
+            course_name: item.course_name,
+            _type: item.course_type,
+            area: item.area,
+            teacher: item.teacher,
+            credit: item.credit,
+            people: item.people,
+            extra: item.extra,
         });
     }
     Ok(res)
@@ -337,8 +264,8 @@ pub struct FlexDay {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct XnXq {
-    pub xn: u32, // 学年
-    pub xq: u32, // 学期
+    pub xn: u16, // 学年
+    pub xq: u8,  // 学期
 }
 pub async fn get_flex_time_list() -> AppResult<Vec<FlexTime>> {
     let config = service::config::get_config(FLEX_TIME_CONFIG_KEY)
@@ -353,13 +280,14 @@ pub async fn get_flex_time_list() -> AppResult<Vec<FlexTime>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const STUID: &str = "";
+    use crate::test::{TEST_STU_ID, TEST_XN, TEST_XQ};
 
     #[tokio::test]
     async fn test_get_classtable() {
         let classtable =
-            get_classtable(STUID, 2025, 1).await.unwrap();
+            get_classtable(&TEST_STU_ID, TEST_XN, TEST_XQ)
+                .await
+                .unwrap();
         println!("{:#?}", classtable);
     }
 }

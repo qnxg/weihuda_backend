@@ -5,19 +5,7 @@ use reqwest::{
     header::{GetAll, HeaderValue},
     redirect::Policy,
 };
-use serde_json::Value;
 use std::{sync::LazyLock, time::Duration};
-
-use super::cache::{CACHE, CacheEnum};
-
-/// 只在Debug模式才生成一个全局的学号信息，方便调试
-///
-/// 本地测试时请注意：确认你使用的是校园网环境，
-/// 没有开启代理，且DNS使用了校园网DNS（例如202.197.96.1）
-#[cfg(debug_assertions)]
-#[cfg_attr(not(test), expect(unused))]
-pub static STU_ID: LazyLock<String> =
-    LazyLock::new(|| "".to_string());
 
 pub static CLIENT: LazyLock<Client> = LazyLock::new(|| {
     Client::builder()
@@ -59,30 +47,6 @@ fn cookie_parser_inner(cookie: &HeaderValue) -> Option<String> {
         return None;
     }
     Some(format!("{}={}", pair[0], pair[1]))
-}
-
-pub trait CacheChecker {
-    async fn check_gym(self, _stu_id: &str) -> Self
-    where
-        Self: Sized,
-    {
-        self
-    }
-}
-
-impl CacheChecker for serde_json::Value {
-    // 典型的异常response body：
-    // {"data":[],"info":"登录失效","status":-1}
-    async fn check_gym(self, stu_id: &str) -> Self {
-        if let Some(Value::String(info)) = self.get("info")
-            && info.contains("登录失效")
-        {
-            CACHE
-                .invalidate(&(CacheEnum::GymCookie, stu_id.into()))
-                .await;
-        }
-        self
-    }
 }
 
 #[cfg(test)]

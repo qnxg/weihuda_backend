@@ -1,3 +1,4 @@
+use crate::service::auth::user::VerifyPasswordResult;
 use crate::{
     result::{AppError, RouterResult},
     service::{self, auth::qrcode::AuthQrCodeStatus},
@@ -7,7 +8,6 @@ use anyhow::anyhow;
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
 use serde_json::json;
-use tokio::try_join;
 
 pub fn routers() -> Router {
     Router::new()
@@ -47,15 +47,25 @@ async fn bind_user(req: &mut Request) -> RouterResult {
         password,
     } = req.extract().await?;
     let stu_id = utils::format_stuid(&stu_id);
+    let openid = service::auth::user::get_openid(&code).await?;
 
-    let (verify_res, openid) = try_join!(
-        service::auth::user::verify_password(&stu_id, &password),
-        service::auth::user::get_openid(&code)
-    )?;
-
-    match verify_res.code {
-        0 => {} // 验证成功
-        _ => return Err(anyhow!(verify_res.message).into()),
+    match service::auth::user::verify_password(&stu_id, &password)
+        .await?
+    {
+        VerifyPasswordResult::Success => {}
+        VerifyPasswordResult::Fail => {
+            return Err(anyhow!("密码错误").into());
+        }
+        VerifyPasswordResult::ShouldChange => {
+            return Err(
+                anyhow!("请前往个人门户修改密码后重试").into()
+            );
+        }
+        VerifyPasswordResult::Lock => {
+            return Err(
+                anyhow!("账号被锁定，请10分钟之后再试").into()
+            );
+        }
     }
 
     service::auth::user::clear_openid(&openid).await?;

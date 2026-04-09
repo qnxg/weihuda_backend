@@ -1,11 +1,11 @@
-use salvo::{Request, Router, handler, macros::Extractible};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
+use crate::service::lab::CheckPasswordResult;
 use crate::{
     result::{AppError, RouterResult},
     service, utils,
 };
+use salvo::{Request, Router, handler, macros::Extractible};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 pub fn routers() -> Router {
     Router::with_path("lab")
@@ -33,21 +33,29 @@ async fn set_lab_password(req: &mut Request) -> RouterResult {
     }
     let SetLabPasswordReq { password } = req.extract().await?;
     let stu_id = utils::jwt::auth(req)?;
-    if let Some(err) =
-        service::lab::check_lab_pass(&stu_id, &password).await?
-    {
-        Ok(SetLabPasswordRes {
+    let res =
+        service::lab::check_password(&stu_id, &password).await?;
+    match res {
+        CheckPasswordResult::Success(_) => {
+            service::lab::set_lab_pass(&stu_id, &password).await?;
+            Ok(SetLabPasswordRes {
+                success: true,
+                msg: None,
+            }
+            .into())
+        }
+        CheckPasswordResult::PasswordError => Ok(SetLabPasswordRes {
             success: false,
-            msg: Some(err),
+            msg: Some("密码错误".to_string()),
         }
-        .into())
-    } else {
-        service::lab::set_lab_pass(&stu_id, &password).await?;
-        Ok(SetLabPasswordRes {
-            success: true,
-            msg: None,
+        .into()),
+        CheckPasswordResult::OtherError(msg) => {
+            Ok(SetLabPasswordRes {
+                success: false,
+                msg: Some(msg.unwrap_or("未知错误".to_string())),
+            }
+            .into())
         }
-        .into())
     }
 }
 

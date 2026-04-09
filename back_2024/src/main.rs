@@ -18,6 +18,9 @@ mod routers;
 mod service;
 mod utils;
 
+#[cfg(test)]
+mod test;
+
 use crate::{
     config::CFG,
     middlewares::{

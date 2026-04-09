@@ -90,8 +90,8 @@ async fn get_exam_arrange(req: &mut Request) -> RouterResult {
     let stu_id = utils::jwt::auth(req)?;
     let (current_xn, current_xq) =
         service::semester::get_now_xnxq().await?;
-    let xn = xn.unwrap_or(current_xn);
-    let xq = xq.unwrap_or(current_xq);
+    let xn = xn.unwrap_or(current_xn) as u16;
+    let xq = xq.unwrap_or(current_xq) as u8;
     let res =
         service::exam::get_exam_arrange(&stu_id, xn, xq).await?;
     Ok(res.into())

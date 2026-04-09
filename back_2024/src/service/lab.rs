@@ -1,15 +1,11 @@
-use std::collections::HashMap;
-
 use crate::{
     infra::{self},
     result::AppResult,
     utils,
 };
-use anyhow::anyhow;
 use serde::Serialize;
-use tokio::try_join;
 
-use spider_2024::dtos::lab::LabCourseItem;
+pub use spider_2024::lab::{CheckPasswordResult, check_password};
 
 pub async fn set_lab_pass(
     stu_id: &str,
@@ -22,26 +18,6 @@ pub async fn set_lab_pass(
     .await?;
     infra::redis::clear_stuid_cache(stu_id).await?;
     Ok(())
-}
-
-/// 如果返回 None 说明没有错误
-/// 如果返回 Some，则表示错误信息
-pub async fn check_lab_pass(
-    stu_id: &str,
-    lab_pass: &str,
-) -> AppResult<Option<String>> {
-    let spider_res =
-        infra::spider::lab::check_lab_pass(stu_id, lab_pass).await?;
-    match spider_res.RTNCode {
-        1 => Ok(None),
-        _ => Ok(Some(
-            spider_res
-                .Data
-                .as_str()
-                .unwrap_or("未知错误")
-                .to_string(),
-        )),
-    }
 }
 
 #[derive(Serialize, Debug)]
@@ -63,37 +39,31 @@ pub async fn get_lab_arrange(
     stu_id: &str,
 ) -> AppResult<Vec<LabArrange>> {
     let spider_res =
-        infra::spider::lab::get_lab_arrange(stu_id).await?;
+        spider_2024::lab::get_lab_schedule(stu_id).await?;
     let mut res = Vec::new();
     for item in spider_res {
+        let day = match item.day {
+            1 => "星期一",
+            2 => "星期二",
+            3 => "星期三",
+            4 => "星期四",
+            5 => "星期五",
+            6 => "星期六",
+            7 => "星期日",
+            _ => "未知",
+        };
         let tmp = LabArrange {
-            seat: item.SeatNo,
-            name: item.LabName,
-            course: item.CourseName,
-            teacher: item.UserName,
-            week: item
-                .Weeks
-                .parse()
-                .map_err(|e| anyhow!("解析周数失败: {}", e))?,
-            day: item.WeekName,
-            date: item
-                .ClassDate
-                .split(' ')
-                .next()
-                .ok_or(anyhow!("解析日期失败"))?
-                .to_string(),
-            time: item.StartTime,
-            place: item.ClassRoom,
-            phone: if item.MobileNum.is_empty() {
-                None
-            } else {
-                Some(item.MobileNum)
-            },
-            email: if item.Email.is_empty() {
-                None
-            } else {
-                Some(item.Email)
-            },
+            seat: item.seat,
+            name: item.name,
+            course: item.course,
+            teacher: item.teacher,
+            week: item.week,
+            day: day.to_string(),
+            date: item.date_time.format("%Y-%m-%d").to_string(),
+            time: item.date_time.format("%H:%M").to_string(),
+            place: item.place,
+            phone: item.phone,
+            email: item.email,
         };
         res.push(tmp);
     }
@@ -109,27 +79,12 @@ pub struct LabSemInfo {
 pub async fn get_sem_info(
     stu_id: &str,
 ) -> AppResult<Vec<LabSemInfo>> {
-    let spider_res = infra::spider::lab::get_sem_info(stu_id).await?;
+    let spider_res = spider_2024::lab::get_semester(stu_id).await?;
     let mut res = Vec::new();
     for item in spider_res {
-        let parts: Vec<&str> = item
-            .text
-            .split(|c| ['-', '_', ' '].contains(&c))
-            .collect();
-        if parts.len() != 3 {
-            return Err(
-                anyhow!("解析学期信息失败：{}", item.text).into()
-            );
-        }
-        let xn = parts[0].parse::<u32>().map_err(|e| {
-            anyhow!("解析学年失败：{}, {}", parts[0], e)
-        })?;
-        let xq = parts[2].parse::<u32>().map_err(|e| {
-            anyhow!("解析学期失败：{}, {}", parts[2], e)
-        })?;
         res.push(LabSemInfo {
-            xn,
-            xq,
+            xn: item.xn as u32,
+            xq: item.xq as u32,
             id: item.id,
         });
     }
@@ -142,62 +97,30 @@ async fn get_lab_grade_detail(
     course_id: &str,
     sem_id: &str,
 ) -> AppResult<Option<Vec<LabScoreItem>>> {
-    let (lab_score, lab_score_detail, lab_score_structure) = try_join!(
-        infra::spider::lab::get_lab_score(stu_id, course_id, sem_id),
-        infra::spider::lab::get_lab_score_detail(stu_id, course_id),
-        infra::spider::lab::get_lab_score_structure(
-            stu_id, course_id
-        ),
-    )?;
-    let score_structure_map: HashMap<i32, String> =
-        lab_score_structure
-            .into_iter()
-            .map(|item| {
-                (item.LabScoreStructureID, item.LabScoreStructureName)
-            })
-            .collect();
-    let mut lab_map: HashMap<i32, usize> = HashMap::new();
+    let spider_res =
+        spider_2024::lab::get_lab_grade(stu_id, course_id, sem_id)
+            .await?;
     let mut labs = Vec::new();
     // 过滤还没有成绩的实验和虚拟实验
-    for item in lab_score.into_iter().filter(|i| {
-        !i.LabScore.is_empty() && !i.ClassRoom.contains("虚拟")
-    }) {
-        let lab_id = item.LabID.parse::<i32>().map_err(|e| {
-            anyhow!("解析实验ID失败：{}, {}", item.LabID, e)
-        })?;
-        let temp = LabScoreItem {
-            lab_name: item.LabName,
-            lab_score: item.LabScore,
-            attendance: if item.AttendanceName.is_empty() {
-                None
-            } else {
-                Some(item.AttendanceName)
-            },
-            details: Vec::new(),
-        };
-        labs.push(temp);
-        lab_map.insert(lab_id, labs.len() - 1);
-    }
-    for item in lab_score_detail
-        .into_iter()
-        .filter(|i| i.LabStructureScore.is_some())
-    {
-        if let Some(index) = lab_map.get(&item.LabID)
-            && let Some(structure_name) =
-                score_structure_map.get(&item.LabScoreStructureID)
-        {
-            // labs 和 lab_map 保证了一一对应关系，这里不会有 None
-            let lab = labs
-                .get_mut(*index)
-                .expect("根据实验 id 获得的 index 无效");
-            lab.details.push(LabScoreDetailItem {
-                name: structure_name.clone(),
-                score: item
-                    .LabStructureScore
+    for item in spider_res {
+        let details = item
+            .details
+            .iter()
+            .map(|i| LabScoreDetailItem {
+                name: i.name.clone(),
+                score: i
+                    .score
                     .map(|v| v.to_string())
                     .unwrap_or("未知".to_string()),
-            });
-        }
+            })
+            .collect();
+        let temp = LabScoreItem {
+            lab_name: item.lab_name,
+            lab_score: item.score,
+            attendance: item.attendance,
+            details,
+        };
+        labs.push(temp);
     }
     labs.iter_mut().for_each(|lab| {
         lab.details.sort_by(|a, b| a.name.cmp(&b.name));
@@ -224,29 +147,23 @@ pub struct LabScoreDetailItem {
     pub score: String, // 分数
 }
 /// 获取某个学期的课程信息，包含了实验成绩详情
+///
 /// 一学期一般只有一个物理实验课程。如果一个人修了多个实验课程的话，这个函数可能会出现问题，目前的行为是只返回第一个课程的信息
+///
 /// 返回 None 说明该学期没有课程
 pub async fn get_course(
     stu_id: &str,
     sem_id: &str,
 ) -> AppResult<Option<LabCourse>> {
     let spider_res =
-        infra::spider::lab::get_course_list(stu_id, sem_id).await?;
-    if let Some(LabCourseItem {
-        CourseName: course_name,
-        CourseFinalScore: course_score,
-        CourseID: course_id,
-    }) = spider_res.first()
+        spider_2024::lab::get_course_list(stu_id, sem_id).await?;
+    if let Some(course) = spider_res.into_iter().next()
         && let Some(labs) =
-            get_lab_grade_detail(stu_id, course_id, sem_id).await?
+            get_lab_grade_detail(stu_id, &course.id, sem_id).await?
     {
         let res = LabCourse {
-            course_name: course_name.clone(),
-            course_score: if course_score.is_empty() {
-                None
-            } else {
-                Some(course_score.clone())
-            },
+            course_name: course.name,
+            course_score: course.score,
             labs,
         };
         Ok(Some(res))
@@ -264,50 +181,44 @@ pub async fn get_virtual_lab_grade(
     stu_id: &str,
 ) -> AppResult<Vec<VirtualLabGrade>> {
     let spider_res =
-        infra::spider::lab::get_virtual_lab_grade(stu_id).await?;
+        spider_2024::lab::get_virtual_lab_grade(stu_id).await?;
     let mut res = Vec::new();
-    for item in
-        spider_res.into_iter().filter(|i| !i.LabScore.is_empty())
-    {
-        let tmp = VirtualLabGrade {
-            lab_name: item.LabName,
-            lab_score: item.LabScore,
-        };
-        res.push(tmp);
+    for item in spider_res {
+        res.push(VirtualLabGrade {
+            lab_name: item.lab_name,
+            lab_score: item.score.unwrap_or("暂无".to_string()),
+        });
     }
-    // 可能会有重复的，需要去重
-    res.sort_by(|a, b| a.lab_name.cmp(&b.lab_name));
-    res.dedup_by(|a, b| a.lab_name == b.lab_name);
     Ok(res)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const STUID: &str = "";
+    use crate::test::TEST_STU_ID;
 
     #[tokio::test]
     async fn test_get_sem_info() {
-        let sems = get_sem_info(STUID).await.unwrap();
+        let sems = get_sem_info(&TEST_STU_ID).await.unwrap();
         println!("{:#?}", sems);
     }
 
     #[tokio::test]
     async fn test_get_course() {
-        let course = get_course(STUID, "17").await.unwrap();
+        let course = get_course(&TEST_STU_ID, "17").await.unwrap();
         println!("{:#?}", course);
     }
 
     #[tokio::test]
     async fn test_get_lab_arrange() {
-        let arrange = get_lab_arrange(STUID).await.unwrap();
+        let arrange = get_lab_arrange(&TEST_STU_ID).await.unwrap();
         println!("{:#?}", arrange);
     }
 
     #[tokio::test]
     async fn test_get_virtual_lab_grade() {
-        let grades = get_virtual_lab_grade(STUID).await.unwrap();
+        let grades =
+            get_virtual_lab_grade(&TEST_STU_ID).await.unwrap();
         println!("{:#?}", grades);
     }
 }
