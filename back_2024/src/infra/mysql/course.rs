@@ -80,6 +80,37 @@ pub async fn delete_course(
     Ok(())
 }
 
+/// 更新自定义课程
+pub async fn update_course(
+    course_id: u32,
+    stu_id: &str,
+    course: CustomizeCourseInfo,
+) -> AppResult<()> {
+    let now = utils::time::now_time();
+    let r = sqlx::query!(
+        r#"
+        UPDATE mini_course
+        SET classname = ?, location = ?, teachers = ?, week = ?, day = ?,section = ?, updatedAt = ?
+        WHERE id = ? AND stuId = ? AND deletedAt IS NULL
+        "#,
+
+        course.classname,
+        course.location,
+        course.teachers,
+        course.week,
+        course.day,
+        course.section,
+        now,
+        course_id,
+        stu_id,
+    )
+    .execute(get_db_pool().await)
+    .await?;
+    if r.rows_affected() == 0 {
+        return Err("课程不存在或无权修改".into());
+    }
+    Ok(())
+}
 pub async fn get_custom_course_details_by_id(
     course_id: u32,
     stu_id: &str,

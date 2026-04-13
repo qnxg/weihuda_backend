@@ -14,7 +14,7 @@ pub use infra::mysql::course::add_course as add_customize_course;
 pub use infra::mysql::course::delete_course as delete_customize_course;
 use infra::mysql::course::get_course_list as get_customize_course;
 pub use infra::mysql::course::get_custom_course_details_by_id;
-
+pub use infra::mysql::course::update_course as update_customize_course;
 const FLEX_TIME_CONFIG_KEY: &str = "flexTime";
 
 // 除了 extra 字段外，其他的 Option 字段都是由于支持自定义课程
