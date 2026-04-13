@@ -13,6 +13,7 @@ pub fn routers() -> Router {
         .push(
             Router::with_path("course")
                 .post(add_course) // 添加自定义课表课程
+                .put(update_course) //添加修改自定义课表课程
                 .delete(delete_course) // 删除自定义课表课程
                 .push(
                     Router::with_path("get-custom-details-by-id")
@@ -94,6 +95,44 @@ async fn get_custom_course_details_by_id(
         service::course::get_custom_course_details_by_id(id, &stu_id)
             .await?;
     Ok(details.into())
+}
+
+/// 更新自定义课程
+#[handler]
+async fn update_course(req: &mut Request) -> RouterResult {
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "body")))]
+    struct UpdateCourseReq {
+        pub id: u32,
+        pub classname: String,
+        #[serde(default)]
+        #[serde(deserialize_with = "empty_string_as_none")]
+        pub location: Option<String>,
+        #[serde(default)]
+        #[serde(deserialize_with = "empty_string_as_none")]
+        pub teachers: Option<String>,
+        pub week: String,
+        pub day: String,
+        pub section: String,
+    }
+
+    let body: UpdateCourseReq = req.extract().await?;
+    let stu_id = utils::jwt::auth(req)?;
+    service::course::update_customize_course(
+        body.id,
+        &stu_id,
+        CustomizeCourseInfo {
+            classname: body.classname,
+            location: body.location,
+            teachers: body.teachers,
+            week: body.week,
+            day: body.day,
+            section: body.section,
+            id: body.id,
+        },
+    )
+    .await?;
+    Ok("更新成功".into())
 }
 
 /// 获取课表
