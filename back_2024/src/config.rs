@@ -1,8 +1,5 @@
-//! 第一次用到设置时候再lazy加载，这样可以避免不必要的加载
-
-use once_cell::sync::Lazy;
 use serde::Deserialize;
-use std::{env, fs::read_to_string};
+use std::{env, fs::read_to_string, sync::LazyLock};
 
 #[derive(Deserialize, Debug)]
 pub struct Configs {
@@ -60,7 +57,8 @@ pub struct RabbitMq {
     pub feedback_exchange: String,
 }
 
-pub static CFG: Lazy<Configs> = Lazy::new(self::Configs::init);
+pub static CFG: LazyLock<Configs> =
+    LazyLock::new(self::Configs::init);
 
 fn try_config_file(config_file: &str) -> Result<Configs, String> {
     let cfg_contents = read_to_string(config_file).map_err(|e| {

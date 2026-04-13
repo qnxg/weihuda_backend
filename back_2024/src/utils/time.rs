@@ -1,10 +1,11 @@
+use std::sync::LazyLock;
+
 use chrono::Datelike;
-use once_cell::sync::Lazy;
 use regex::Regex;
 
 /// 判断日期格式是否为YYYY-MM-DD
 pub fn is_well_formed_date(date: &str) -> bool {
-    static PATTERN: Lazy<Regex> = Lazy::new(|| {
+    static PATTERN: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
             .expect("构建正则表达式失败")
     });
@@ -13,7 +14,7 @@ pub fn is_well_formed_date(date: &str) -> bool {
 
 /// 判断学年-学期格式是否为YYYY-X
 pub fn is_well_formed_xnxq(xnxq: &str) -> bool {
-    static PATTERN: Lazy<Regex> = Lazy::new(|| {
+    static PATTERN: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"^[0-9]{4}-[0-9]{1}$")
             .expect("构建正则表达式失败")
     });

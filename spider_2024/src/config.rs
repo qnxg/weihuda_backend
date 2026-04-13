@@ -1,6 +1,5 @@
-use once_cell::sync::Lazy;
 use serde::Deserialize;
-use std::fs::read_to_string;
+use std::{fs::read_to_string, sync::LazyLock};
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Configs {
@@ -24,7 +23,7 @@ pub struct Captcha {
     pub captcha_url: String,
 }
 
-pub static CFG: Lazy<Configs> = Lazy::new(Configs::init);
+pub static CFG: LazyLock<Configs> = LazyLock::new(Configs::init);
 
 fn try_config_file(config_file: &str) -> Result<Configs, String> {
     let cfg_contents = read_to_string(config_file).map_err(|e| {
