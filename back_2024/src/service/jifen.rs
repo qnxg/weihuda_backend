@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use crate::{
     infra::{self},
     result::{AppError, AppResult},
@@ -16,7 +18,6 @@ pub use infra::mysql::jifen::get_jifen_record_list;
 pub use infra::mysql::jifen::get_jifen_rule;
 pub use infra::mysql::jifen::get_jifen_rule_list;
 pub use infra::mysql::jifen::{JifenGoods, JifenRecord, JifenRule};
-use once_cell::sync::OnceCell;
 use tokio::sync::Mutex;
 
 pub struct JifenLockGuard(String);
@@ -31,7 +32,7 @@ impl Drop for JifenLockGuard {
         lock.remove(&self.0);
     }
 }
-static JIFEN_LOCK: OnceCell<DashMap<String, ()>> = OnceCell::new();
+static JIFEN_LOCK: OnceLock<DashMap<String, ()>> = OnceLock::new();
 /// 尝试获得某 key 对应的锁，如果已经有线程持有锁，则返回 None
 fn get_jifen_lock(key: String) -> Option<JifenLockGuard> {
     let lock = JIFEN_LOCK.get_or_init(DashMap::new);
@@ -47,7 +48,7 @@ fn get_jifen_lock(key: String) -> Option<JifenLockGuard> {
 }
 
 type GoodsLock = [Mutex<()>; 64];
-static GOODS_LOCK: OnceCell<GoodsLock> = OnceCell::new();
+static GOODS_LOCK: OnceLock<GoodsLock> = OnceLock::new();
 fn goods_lock() -> &'static GoodsLock {
     GOODS_LOCK.get_or_init(|| std::array::from_fn(|_| Mutex::new(())))
 }
