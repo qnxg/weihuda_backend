@@ -24,6 +24,5 @@ pub async fn bind(
         None,
     )
     .await?;
-    // 需要清一下缓存，因为爬虫那边会缓存用户密码到 redis 中
-    infra::redis::clear_stuid_cache(stu_id).await
+    Ok(())
 }

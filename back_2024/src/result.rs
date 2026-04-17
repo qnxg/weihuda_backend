@@ -30,8 +30,6 @@ pub enum AppError {
     JsonParseError(#[from] serde_json::Error),
     #[error("内部请求错误: {0}")]
     RequestError(#[from] reqwest::Error),
-    #[error("Redis错误: {0}")]
-    RedisError(#[from] redis::RedisError),
     #[error("RabbitMQ错误: {0}")]
     RabbitMQError(#[from] lapin::Error),
     #[error("未授权访问")]
@@ -71,9 +69,6 @@ impl From<SpiderError> for AppError {
                 "账号被锁定，请暂停使用10分钟之后重试。"
             )),
             SpiderError::SqlxError(error) => Self::SqlxError(error),
-            SpiderError::RedisErr(redis_error) => {
-                Self::RedisError(redis_error)
-            }
         }
     }
 }
@@ -85,7 +80,6 @@ impl Scribe for AppError {
             AppError::AnyHow(_)
             | AppError::JsonParseError(_)
             | AppError::RequestError(_)
-            | AppError::RedisError(_)
             | AppError::RabbitMQError(_)
             | AppError::Unauthorized => res.stuff(
                 StatusCode::INTERNAL_SERVER_ERROR,

@@ -24,7 +24,7 @@ async fn get_user_info(req: &mut Request) -> RouterResult {
     }
     let stu_id = utils::jwt::auth(req)?;
     let user_info =
-        service::user_info::get_person_info(&stu_id).await?;
+        service::user_info::get_person_info(&stu_id, false).await?;
     let res = GetUserInfoRes {
         class: user_info.class,
         name: user_info.name,

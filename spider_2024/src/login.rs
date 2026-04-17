@@ -11,7 +11,7 @@ use crate::utils::{
     cache::{CACHE, CacheEnum::*},
     client,
     crypto::rsa_encrypt,
-    redis::fetch_password,
+    db::get_password,
     request::cookie_parser,
 };
 use anyhow::{Result, anyhow};
@@ -172,7 +172,7 @@ pub async fn get_ticket_url(
 
     let pending_password = match password {
         Some(v) => v.to_string(),
-        None => fetch_password(stu_id).await?,
+        None => get_password(stu_id).await?,
     };
     let rsa_password = rsa_encrypt(
         &pending_password,

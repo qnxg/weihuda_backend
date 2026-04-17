@@ -90,7 +90,7 @@ pub async fn get_rank_from_hdjw(
     xq: Option<u8>,
 ) -> AppResult<Option<HdjwRank>> {
     let personal_info =
-        service::user_info::get_person_info(stu_id).await?;
+        service::user_info::get_person_info(stu_id, false).await?;
     let selection = match xn {
         Some(xn) => match xq {
             Some(xq) => {

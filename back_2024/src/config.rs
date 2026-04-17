@@ -5,7 +5,6 @@ use std::{env, fs::read_to_string, sync::LazyLock};
 pub struct Configs {
     pub server: Server,
     pub database: Database,
-    pub redis: Redis,
     pub log: Log,
     pub jwt: Jwt,
     pub wechat: Wechat,
@@ -22,11 +21,6 @@ pub struct Server {
 pub struct Database {
     pub max_connections: u32,
     pub database_url: String,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct Redis {
-    pub redis_url: String,
 }
 
 #[derive(Deserialize, Debug)]

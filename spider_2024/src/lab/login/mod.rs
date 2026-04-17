@@ -4,7 +4,7 @@ use crate::{
     lab::login::raw::raw_login_data,
     utils::{
         cache::{CACHE, CacheEnum::*},
-        redis::fetch_lab_password,
+        db::get_lab_password,
     },
 };
 use anyhow::{Result, anyhow};
@@ -53,7 +53,7 @@ pub async fn lab_headers(
 ) -> Result<HeaderMap, crate::Error> {
     let cookies = CACHE
         .try_get_with((LabCookie, stu_id.into()), async {
-            let Some(password) = fetch_lab_password(stu_id).await?
+            let Some(password) = get_lab_password(stu_id).await?
             else {
                 return Err(crate::Error::PasswordError);
             };

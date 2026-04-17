@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use crate::{config::CFG, utils::crypto::decrypt};
 use anyhow::Result;
+use log::error;
 use sqlx::{MySqlPool, mysql::MySqlPoolOptions};
 use tokio::sync::OnceCell;
 
@@ -19,18 +20,24 @@ pub async fn db_pool() -> &'static MySqlPool {
     .await
 }
 
-pub async fn get_password_from_db(stu_id: &str) -> Result<String> {
+pub async fn get_password(stu_id: &str) -> Result<String> {
     let res = sqlx::query!(
         "SELECT password FROM mini_bind WHERE stuId = ?",
         stu_id
     )
     .fetch_one(db_pool().await)
     .await?;
-    let password_decrypted = decrypt(&res.password)?;
+    let password_decrypted = decrypt(&res.password).map_err(|e| {
+        error!(
+            "从数据库中解析密码时错误, stu_id: {} , {}",
+            stu_id, e
+        );
+        crate::Error::PasswordError
+    })?;
     Ok(password_decrypted)
 }
 
-pub async fn get_lab_password_from_db(
+pub async fn get_lab_password(
     stu_id: &str,
 ) -> Result<Option<String>> {
     let res = sqlx::query!(
@@ -40,7 +47,13 @@ pub async fn get_lab_password_from_db(
     .fetch_one(db_pool().await)
     .await?;
     if let Some(lab_pass) = res.labPass {
-        let password_decrypted = decrypt(&lab_pass)?;
+        let password_decrypted = decrypt(&lab_pass).map_err(|e| {
+            error!(
+                "从数据库中解析实验平台密码时错误, stu_id: {} , {}",
+                stu_id, e
+            );
+            crate::Error::PasswordError
+        })?;
         Ok(Some(password_decrypted))
     } else {
         Ok(None)

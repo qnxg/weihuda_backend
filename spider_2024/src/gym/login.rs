@@ -3,7 +3,7 @@ use crate::{
     utils::{
         cache::{CACHE, CacheEnum::*},
         client,
-        redis::fetch_password,
+        db::get_password,
         request::cookie_parser,
     },
 };
@@ -23,7 +23,7 @@ pub async fn gym_headers(
     {
         v
     } else {
-        let password = fetch_password(stu_id).await?;
+        let password = get_password(stu_id).await?;
         let res = client
             .post(GYM_URL_DIRECT_LOGIN)
             .form(&[("student_num", stu_id), ("password", &password)])
