@@ -19,7 +19,7 @@ async fn get_user_info(req: &mut Request) -> RouterResult {
         pub enter: u32,
         pub college: String,
         pub sex: String,
-        pub xz: u32,
+        pub xz: Option<u8>,
         pub stu_id: String,
     }
     let stu_id = utils::jwt::auth(req)?;
@@ -36,7 +36,7 @@ async fn get_user_info(req: &mut Request) -> RouterResult {
             Gender::Female => "女",
         }
         .to_string(),
-        xz: user_info.xz as u32,
+        xz: user_info.xz,
         stu_id: user_info.stu_id,
     };
     Ok(res.into())
