@@ -93,30 +93,6 @@ pub async fn add_user(
     Ok(())
 }
 
-/// 返回 None 时，可能是用户不存在，也可能是对应的 room 字段就是空的
-pub async fn get_room(stu_id: &str) -> AppResult<Option<String>> {
-    let text = sqlx::query_scalar!(
-        "SELECT room FROM mini_bind WHERE stuId = ?",
-        stu_id
-    )
-    .fetch_optional(get_db_pool().await)
-    .await?;
-    Ok(text.flatten())
-}
-
-pub async fn update_room(stu_id: &str, room: &str) -> AppResult<()> {
-    sqlx::query!(
-        r#"
-        UPDATE mini_bind SET room = ? WHERE stuId = ?
-        "#,
-        room,
-        stu_id
-    )
-    .execute(get_db_pool().await)
-    .await?;
-    Ok(())
-}
-
 pub async fn set_lab_pass(
     stu_id: &str,
     lab_pass: &str,

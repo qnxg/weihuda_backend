@@ -1,9 +1,7 @@
-use crate::{infra, result::AppResult};
+use crate::utils::cache::CacheEnum::AuthQrCode;
+use crate::{result::AppResult, utils::cache::CACHE};
 use rand::{Rng, distributions::Alphanumeric};
 use serde::{Deserialize, Serialize};
-
-const AUTH_QRCODE_KEY_PREFIX: &str = "auth_qrcode_";
-const AUTH_QRCODE_EXPIRE_SECONDS: u64 = 600; // 10分钟
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AuthQrCodeStatus {
@@ -25,12 +23,7 @@ pub async fn generate_auth_qrcode() -> AppResult<String> {
         .take(8)
         .map(char::from)
         .collect();
-    infra::redis::set_with_expire(
-        &format!("{}{}", AUTH_QRCODE_KEY_PREFIX, code),
-        "-1",
-        AUTH_QRCODE_EXPIRE_SECONDS,
-    )
-    .await?;
+    CACHE.insert((AuthQrCode, code.clone()), "-1".into()).await;
     Ok(code)
 }
 
@@ -39,11 +32,7 @@ pub async fn generate_auth_qrcode() -> AppResult<String> {
 pub async fn get_auth_qrcode_status(
     code: &str,
 ) -> AppResult<Option<AuthQrCodeStatus>> {
-    if let Some(stu_id) = infra::redis::get(&format!(
-        "{}{}",
-        AUTH_QRCODE_KEY_PREFIX, code
-    ))
-    .await?
+    if let Some(stu_id) = CACHE.get(&(AuthQrCode, code.into())).await
     {
         if stu_id == "-1" {
             Ok(Some(AuthQrCodeStatus::Unused))
@@ -61,12 +50,10 @@ pub async fn confirm_auth_qrcode(
     code: &str,
     stu_id: &str,
 ) -> AppResult<()> {
-    infra::redis::set_with_expire(
-        &format!("{}{}", AUTH_QRCODE_KEY_PREFIX, code),
-        stu_id,
-        AUTH_QRCODE_EXPIRE_SECONDS,
-    )
-    .await
+    CACHE
+        .insert((AuthQrCode, code.to_string()), stu_id.to_string())
+        .await;
+    Ok(())
 }
 
 /// 获取 auth_qrcode 的 stu_id
@@ -75,18 +62,10 @@ pub async fn confirm_auth_qrcode(
 pub async fn consume_auth_qrcode(
     code: &str,
 ) -> AppResult<Option<String>> {
-    if let Some(stu_id) = infra::redis::get(&format!(
-        "{}{}",
-        AUTH_QRCODE_KEY_PREFIX, code
-    ))
-    .await?
+    if let Some(stu_id) = CACHE.get(&(AuthQrCode, code.into())).await
         && stu_id != "-1"
     {
-        infra::redis::del(&format!(
-            "{}{}",
-            AUTH_QRCODE_KEY_PREFIX, code
-        ))
-        .await?;
+        CACHE.invalidate(&(AuthQrCode, code.into())).await;
         Ok(Some(stu_id))
     } else {
         Ok(None)

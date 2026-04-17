@@ -1,12 +1,10 @@
 use crate::{
-    infra,
     result::AppResult,
     service::{self},
+    utils::cache::CACHE,
+    utils::cache::CacheEnum::Electricity,
 };
 use anyhow::anyhow;
-
-const REDIS_ELECTRICITY_KEY_PREFIX: &str = "electricity-";
-const REDIS_ELECTRICITY_TTL: u64 = 60 * 60 * 16; // 16小时
 
 /// 默认情况下是带缓存的，设置 refresh=true 则强制刷新
 pub async fn get_electricity(
@@ -14,35 +12,29 @@ pub async fn get_electricity(
     refresh: bool,
 ) -> AppResult<String> {
     // 拉取
-    let mut dormitory =
-        service::user_info::get_dormitory(stu_id).await?;
-    if dormitory.is_none() {
-        service::user_info::update_dormitory(stu_id).await?;
-        dormitory = service::user_info::get_dormitory(stu_id).await?;
-    }
-    // 还为空就摆烂
-    let dormitory = dormitory.ok_or(anyhow!("获取宿舍信息失败"))?;
-    let park = dormitory.park().expect("dormitory 应成功解析");
-    let build = dormitory.build().expect("dormitory 应成功解析");
+    let dormitory =
+        service::user_info::get_person_info(stu_id, false)
+            .await?
+            .dormitory;
+    let (Some(park), Some(build)) =
+        (dormitory.park(), dormitory.build())
+    else {
+        return Err(anyhow!("尚不支持的宿舍: {:?}", dormitory).into());
+    };
     let room = dormitory.room();
-    let key = format!(
-        "{}{}/{}/{}",
-        REDIS_ELECTRICITY_KEY_PREFIX, park, build, room
-    );
+    let key = format!("{}/{}/{}", park, build, room);
     if !refresh
-        && let Some(electricity) = infra::redis::get(&key).await?
+        && let Some(electricity) =
+            CACHE.get(&(Electricity, key.clone())).await
     {
         return Ok(electricity);
     }
     // 需要强制刷新，或是之前的缓存过期
     let electricity =
         spider_2024::wxpay::get_electricity(dormitory).await?;
-    infra::redis::set_with_expire(
-        &key,
-        &electricity,
-        REDIS_ELECTRICITY_TTL,
-    )
-    .await?;
+    CACHE
+        .insert((Electricity, key.clone()), electricity.clone())
+        .await;
     Ok(electricity)
 }
 

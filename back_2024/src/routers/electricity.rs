@@ -1,5 +1,6 @@
 use salvo::{Request, Router, handler, macros::Extractible};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{result::RouterResult, service, utils};
 
@@ -33,14 +34,34 @@ async fn get_electricity(req: &mut Request) -> RouterResult {
 #[handler]
 async fn get_dormitory(req: &mut Request) -> RouterResult {
     let stu_id = utils::jwt::auth(req)?;
+    #[derive(Serialize, Debug)]
+    struct GetDormitoryRes {
+        pub park: String,
+        pub build: String,
+        pub room: String,
+    }
     let dormitory =
-        service::user_info::get_dormitory(&stu_id).await?;
-    Ok(dormitory.into())
+        service::user_info::get_person_info(&stu_id, false)
+            .await?
+            .dormitory;
+    let (Some(park), Some(build)) =
+        (dormitory.park(), dormitory.build())
+    else {
+        return Ok(Value::Null.into());
+    };
+    let room = dormitory.room();
+    Ok(GetDormitoryRes {
+        park: park.to_string(),
+        build: build.to_string(),
+        room: room.to_string(),
+    }
+    .into())
 }
 
 #[handler]
 async fn update_dormitory(req: &mut Request) -> RouterResult {
     let stu_id = utils::jwt::auth(req)?;
-    service::user_info::update_dormitory(&stu_id).await?;
+    // 直接更新个人信息的缓存就好了
+    service::user_info::get_person_info(&stu_id, true).await?;
     Ok("更新成功".into())
 }

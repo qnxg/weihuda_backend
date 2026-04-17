@@ -62,7 +62,7 @@ pub async fn get_fitness_grade(
 ) -> AppResult<FitnessGrade> {
     let grade = spider_2024::gym::get_grade(stu_id, xn).await?;
     let person_info =
-        service::user_info::get_person_info(stu_id).await?;
+        service::user_info::get_person_info(stu_id, false).await?;
     let res = FitnessGrade {
         student: FitnessStudent {
             name: grade.name,

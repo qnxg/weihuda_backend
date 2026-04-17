@@ -8,11 +8,6 @@ name = "spider_2024"
 path = "src/lib.rs"
 
 [dependencies]
-redis = { version = "0.28.2", features = [
-    "tokio-comp",
-    "aio",
-    "connection-manager",
-] }
 sqlx = { version = "0.8.2", features = ["mysql", "runtime-tokio"] }
 tokio = { version = "1.41.1", features = [
     "macros",

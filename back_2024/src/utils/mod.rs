@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod crypto;
 pub mod jwt;
 pub mod serde;

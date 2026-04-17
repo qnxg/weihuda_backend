@@ -16,7 +16,6 @@ pub async fn set_lab_pass(
         &utils::crypto::encrypt(lab_pass),
     )
     .await?;
-    infra::redis::clear_stuid_cache(stu_id).await?;
     Ok(())
 }
 

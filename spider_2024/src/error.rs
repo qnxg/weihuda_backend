@@ -14,8 +14,6 @@ pub enum Error {
     PasswordLocked,
     #[error("sqlx::Error:`{0}`")]
     SqlxError(#[from] sqlx::Error),
-    #[error("redis::RedisError:`{0}`")]
-    RedisErr(#[from] redis::RedisError),
 }
 
 impl From<reqwest::Error> for Error {
@@ -45,9 +43,7 @@ impl From<serde_json::Error> for Error {
 impl From<Arc<Error>> for Error {
     fn from(err: Arc<Error>) -> Self {
         match &(*err) {
-            Error::AnyHow(_)
-            | Error::SqlxError(_)
-            | Error::RedisErr(_) => {
+            Error::AnyHow(_) | Error::SqlxError(_) => {
                 Error::AnyHow(anyhow::anyhow!(err))
             }
             Error::PasswordError => Error::PasswordError,
