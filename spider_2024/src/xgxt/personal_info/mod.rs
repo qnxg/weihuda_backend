@@ -9,6 +9,17 @@ use serde::{Deserialize, Serialize};
 
 pub use dormitory::Dormitory;
 
+/// 培养层次
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Level {
+    /// 本科
+    Undergraduate,
+    /// 硕士研究生
+    Postgraduate,
+    /// 博士研究生
+    Doctoral,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PersonalInfo {
     /// 姓名
@@ -16,15 +27,15 @@ pub struct PersonalInfo {
     /// 年级（入学年份应该与年级相等），如 `2024`
     pub enter_year: u16,
     /// 学制，如 `4`
-    pub xz: u8,
+    ///
+    /// 硕士和博士可能学制比较弹性，因此学工系统中没有学制信息，这个字段是 `None`
+    pub xz: Option<u8>,
     /// 学号
     pub stu_id: String,
     /// 性别
     pub gender: Gender,
-    /// 培养层次，区分本科/研究生/博士生
-    ///
-    /// TODO 目前这个字段只有数字字符串，后续需要进一步解析
-    pub level: String,
+    /// 培养层次
+    pub level: Level,
     /// 学院
     ///
     /// TODO 目前这个字段只有数字字符串，后续需要进一步解析
@@ -92,10 +103,16 @@ pub async fn get_person_info(
         .ok_or(anyhow!("无法找到入学年份信息"))?
         .parse()
         .map_err(|e| anyhow!("无法解析入学年份信息: {}", e))?;
-    let xz: u8 = entries
+    let xz = entries
         .remove("学制(年)")
-        .ok_or(anyhow!("无法找到学制信息"))?
-        .parse()
+        .and_then(|v| {
+            if v.is_empty() {
+                None
+            } else {
+                Some(v.parse::<u8>())
+            }
+        })
+        .transpose()
         .map_err(|e| anyhow!("无法解析学制信息: {}", e))?;
     let stu_id =
         entries.remove("学号").ok_or(anyhow!("无法找到学号信息"))?;
@@ -106,9 +123,18 @@ pub async fn get_person_info(
             return Err(anyhow!("解析性别失败, data: {:?}", v).into());
         }
     };
-    let level = entries
+    let level = match entries
         .remove("培养层次")
-        .ok_or(anyhow!("无法找到培养层次信息"))?;
+        .ok_or(anyhow!("无法找到培养层次信息"))?
+        .as_ref()
+    {
+        "1" => Level::Undergraduate,
+        "2" => Level::Postgraduate,
+        "3" => Level::Doctoral,
+        v => {
+            return Err(anyhow!("无法解析培养层次信息: {}", v).into());
+        }
+    };
     let academy =
         entries.remove("学院").ok_or(anyhow!("无法找到学院信息"))?;
     let major =
