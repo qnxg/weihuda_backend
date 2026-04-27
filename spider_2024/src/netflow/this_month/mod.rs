@@ -1,13 +1,17 @@
-use serde::{Deserialize, Serialize};
-
-use crate::netflow::this_month::{
-    raw::raw_this_month_data, utils::try_add_gb_suffix,
-};
-
 mod raw;
 mod utils;
 
-#[derive(Deserialize, Serialize, Debug)]
+use crate::netflow::{
+    login::NetflowToken,
+    this_month::{
+        raw::raw_this_month_data, utils::try_add_gb_suffix,
+    },
+};
+use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
+
+/// 本月校园网使用信息
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ThisMonthInfo {
     /// 总使用流量
     ///
@@ -59,10 +63,19 @@ pub struct ThisMonthInfo {
     pub extend_package_surplus: f64,
 }
 
+/// 获取本月校园网使用信息
+///
+/// # Arguments
+///
+/// - `netflow_token`: 校园网令牌，可以通过 [NetflowToken::acquire_by_cas_login] 获取
+///
+/// # Returns
+///
+/// 本月校园网流量使用信息
 pub async fn get_this_month_info(
-    stu_id: &str,
-) -> Result<ThisMonthInfo, crate::Error> {
-    let raw_data = raw_this_month_data(stu_id).await?;
+    netflow_token: &NetflowToken,
+) -> Result<ThisMonthInfo, crate::Error<Infallible>> {
+    let raw_data = raw_this_month_data(netflow_token).await?;
     let mut res = ThisMonthInfo {
         total_usage: raw_data.allTraffic,
         upload_usage: raw_data.uploadTraffic,
@@ -86,11 +99,14 @@ pub async fn get_this_month_info(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::TEST_STU_ID;
+    use crate::netflow::test::get_netflow_token;
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_this_month_info() {
-        let res = get_this_month_info(&TEST_STU_ID).await.unwrap();
-        println!("{:#?}", res);
+        let token = get_netflow_token().await.unwrap();
+        let this_month_info =
+            get_this_month_info(&token).await.unwrap();
+        println!("{:#?}", this_month_info);
     }
 }

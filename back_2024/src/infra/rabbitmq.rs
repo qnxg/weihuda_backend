@@ -1,4 +1,7 @@
-use crate::{config::CFG, result::AppResult};
+use crate::{
+    config::CFG,
+    result::{AppResult, ThrowError},
+};
 use lapin::{
     BasicProperties, Channel, Connection, ConnectionProperties,
     options::BasicPublishOptions,
@@ -21,7 +24,8 @@ pub async fn get_channel() -> AppResult<Channel> {
             tracing::info!("🔥 Successfully create RabbitMQ channel");
             Ok::<Channel, lapin::Error>(channel)
         })
-        .await?;
+        .await
+        .throw_error("连接 RabbitMQ 失败")?;
     Ok(channel.clone())
 }
 
@@ -47,7 +51,8 @@ pub async fn publish_message(msg: RabbitMessage) -> AppResult<()> {
         RabbitMessage::Feedback { .. } => "",
     };
 
-    let payload = serde_json::to_vec(&msg)?;
+    let payload = serde_json::to_vec(&msg)
+        .throw_error("序列化 RabbitMQ 消息失败")?;
 
     channel
         .basic_publish(
@@ -57,8 +62,10 @@ pub async fn publish_message(msg: RabbitMessage) -> AppResult<()> {
             &payload,
             BasicProperties::default(),
         )
-        .await?
-        .await?;
+        .await
+        .throw_error("发布 RabbitMQ 消息失败")?
+        .await
+        .throw_error("发布 RabbitMQ 消息失败")?;
 
     Ok(())
 }

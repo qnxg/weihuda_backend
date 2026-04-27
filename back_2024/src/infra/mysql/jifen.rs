@@ -1,12 +1,13 @@
 #![expect(unused)]
+use super::Result;
 use super::get_db_pool;
-use crate::{result::AppResult, utils};
+use crate::utils;
 use anyhow::anyhow;
 use chrono::{DateTime, Local, NaiveDateTime};
 use serde::Serialize;
 
 /// 如果学号不存在，则返回 None
-pub async fn get_jifen(stu_id: &str) -> AppResult<Option<i32>> {
+pub async fn get_jifen(stu_id: &str) -> Result<Option<i32>> {
     let res = sqlx::query_scalar!(
         r#"
         SELECT jifen FROM mini_bind WHERE stuId = ?
@@ -22,7 +23,7 @@ pub async fn get_jifen(stu_id: &str) -> AppResult<Option<i32>> {
 pub async fn update_jifen(
     stu_id: &str,
     increment: i32,
-) -> AppResult<()> {
+) -> Result<()> {
     sqlx::query!(
         r#"
         UPDATE mini_bind
@@ -55,7 +56,7 @@ pub async fn get_jifen_record_list(
     page_size: u32,
     key: Option<String>,
     param: Option<String>,
-) -> AppResult<Vec<JifenRecord>> {
+) -> Result<Vec<JifenRecord>> {
     let res = sqlx::query_as!(
         JifenRecord,
         r#"
@@ -92,7 +93,7 @@ pub async fn get_jifen_record(
     stu_id: &str,
     key: &str,
     param: &str,
-) -> AppResult<Option<JifenRecord>> {
+) -> Result<Option<JifenRecord>> {
     let res = sqlx::query_as!(
         JifenRecord,
         r#"
@@ -123,7 +124,7 @@ pub async fn get_jifen_record_count(
     stu_id: &str,
     key: &str,
     since: NaiveDateTime,
-) -> AppResult<u32> {
+) -> Result<u32> {
     let res = sqlx::query_scalar!(
         r#"
         SELECT 
@@ -147,7 +148,7 @@ pub async fn add_jifen_record(
     param: &str,
     jifen: i32,
     desc: &str,
-) -> AppResult<u64> {
+) -> Result<u64> {
     let now = utils::time::now_time();
     let res = sqlx::query!(
         r#"
@@ -185,7 +186,7 @@ pub async fn get_goods_list(
     page: u32,
     page_size: u32,
     enabled: bool,
-) -> AppResult<Vec<JifenGoods>> {
+) -> Result<Vec<JifenGoods>> {
     let res = sqlx::query!(
         r#"
         SELECT 
@@ -228,9 +229,7 @@ pub async fn get_goods_list(
     Ok(res)
 }
 
-pub async fn get_goods(
-    goods_id: u32,
-) -> AppResult<Option<JifenGoods>> {
+pub async fn get_goods(goods_id: u32) -> Result<Option<JifenGoods>> {
     let goods = sqlx::query!(
         r#"
         SELECT 
@@ -277,7 +276,7 @@ pub async fn get_exchange_record_list(
     stu_id: &str,
     page: u32,
     page_size: u32,
-) -> AppResult<Vec<GoodsExchangeRecord>> {
+) -> Result<Vec<GoodsExchangeRecord>> {
     let res = sqlx::query_as!(
         GoodsExchangeRecord,
         r#"
@@ -308,7 +307,7 @@ pub async fn get_exchange_record_list(
 pub async fn add_exchange_record(
     stu_id: &str,
     goods_id: u32,
-) -> AppResult<u64> {
+) -> Result<u64> {
     let now = utils::time::now_time();
     let res = sqlx::query!(
         r#"
@@ -329,7 +328,7 @@ pub async fn add_exchange_record(
 pub async fn update_goods_count(
     goods_id: u32,
     decrement: i32,
-) -> AppResult<()> {
+) -> Result<()> {
     sqlx::query!(
         r#"
         UPDATE jifen_goods
@@ -362,7 +361,7 @@ pub async fn get_jifen_rule_list(
     page: u32,
     page_size: u32,
     is_show: bool,
-) -> AppResult<Vec<JifenRule>> {
+) -> Result<Vec<JifenRule>> {
     let res = sqlx::query!(
         r#"
         SELECT 
@@ -405,9 +404,7 @@ pub async fn get_jifen_rule_list(
 }
 
 /// 获取指定 key 的积分规则
-pub async fn get_jifen_rule(
-    key: &str,
-) -> AppResult<Option<JifenRule>> {
+pub async fn get_jifen_rule(key: &str) -> Result<Option<JifenRule>> {
     let res = sqlx::query!(
         r#"
         SELECT 

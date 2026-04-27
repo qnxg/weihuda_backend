@@ -1,5 +1,6 @@
+use super::Result;
 use super::get_db_pool;
-use crate::{result::AppResult, utils};
+use crate::utils;
 use chrono::NaiveDateTime;
 use serde::Serialize;
 
@@ -19,7 +20,7 @@ pub async fn get_feedback_list(
     stu_id: &str,
     page_size: u32,
     page: u32,
-) -> AppResult<Vec<FeedbackInfo>> {
+) -> Result<Vec<FeedbackInfo>> {
     let res: Vec<FeedbackInfo> = sqlx::query_as!(
         FeedbackInfo,
         r#"
@@ -40,7 +41,7 @@ pub async fn get_feedback_list(
 
 pub async fn get_feedback(
     feedback_id: u32,
-) -> AppResult<Option<FeedbackInfo>> {
+) -> Result<Option<FeedbackInfo>> {
     let res: Option<FeedbackInfo> = sqlx::query_as!(
         FeedbackInfo,
         r#"
@@ -58,7 +59,7 @@ pub async fn add_feedback(
     contact: Option<&String>,
     img_url: Option<&String>,
     stu_id: Option<&str>,
-) -> AppResult<u64> {
+) -> Result<u64> {
     let now = utils::time::now_time();
     let res = sqlx::query!(
         r#"
@@ -90,7 +91,7 @@ pub struct FeedbackMsg {
 }
 pub async fn get_feedback_msg(
     feedback_id: u32,
-) -> AppResult<Vec<FeedbackMsg>> {
+) -> Result<Vec<FeedbackMsg>> {
     let res: Vec<FeedbackMsg> = sqlx::query_as!(
         FeedbackMsg,
         r#"

@@ -1,23 +1,37 @@
-use crate::netflow::pay_info::raw::raw_pay_info_data;
-
 mod raw;
 
+use crate::netflow::{
+    login::NetflowToken, pay_info::raw::raw_pay_info_data,
+};
+use std::convert::Infallible;
+
 /// 获取欠费金额
+///
+/// # Arguments
+///
+/// - `netflow_token`: 校园网令牌，可以通过 [NetflowToken::acquire_by_cas_login] 获取
+///
+/// # Returns
+///
+/// 欠费金额
 pub async fn get_overdue_payment(
-    stu_id: &str,
-) -> Result<f64, crate::Error> {
-    let raw_data = raw_pay_info_data(stu_id).await?;
+    netflow_token: &NetflowToken,
+) -> Result<f64, crate::Error<Infallible>> {
+    let raw_data = raw_pay_info_data(netflow_token).await?;
     Ok(raw_data.Total)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::TEST_STU_ID;
+    use crate::netflow::test::get_netflow_token;
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_overdue_payment() {
-        let res = get_overdue_payment(&TEST_STU_ID).await.unwrap();
-        println!("{:?}", res);
+        let token = get_netflow_token().await.unwrap();
+        let overdue_payment =
+            get_overdue_payment(&token).await.unwrap();
+        println!("{:#?}", overdue_payment);
     }
 }

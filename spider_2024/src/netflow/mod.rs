@@ -1,9 +1,12 @@
 pub mod detail;
-mod login;
+pub mod login;
 pub mod order;
 pub mod pay_info;
 pub mod this_month;
 pub mod user_info;
+
+#[cfg(test)]
+mod test;
 
 pub use detail::{get_day_detail, get_month_detail};
 pub use order::get_order;

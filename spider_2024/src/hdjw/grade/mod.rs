@@ -1,16 +1,20 @@
 mod raw;
 
-use std::collections::HashMap;
-
-use crate::hdjw::grade::raw::{
-    raw_grade_data, raw_grade_detail_data,
+use crate::{
+    error::parse_err,
+    hdjw::{
+        error::TokenExpired,
+        grade::raw::{raw_grade_data, raw_grade_detail_data},
+        login::HdjwToken,
+    },
 };
-use anyhow::anyhow;
 use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize, Debug)]
+/// 课程成绩
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Grade {
     /// 课程代码
     pub course_id: String,
@@ -39,12 +43,27 @@ pub struct Grade {
     pub jx0404id: Option<String>,
 }
 
+/// 获取课程成绩
+///
+/// # Arguments
+///
+/// - `hdjw_token`: 教务系统的令牌，可以通过 [HdjwToken::acquire_by_cas_login] 获取
+/// - `xn`: 学年
+/// - `xq`: 学期
+///
+/// # Returns
+///
+/// 返回一个包含给定学年学期的课程成绩的列表
+///
+/// # Errors
+///
+/// 如果提供的 `hdjw_token` 过期了，那么会返回 [TokenExpired] 错误，需要重新获取一个新的 [HdjwToken]
 pub async fn get_grade(
-    stu_id: &str,
+    hdjw_token: &HdjwToken,
     xn: u16,
     xq: u8,
-) -> Result<Vec<Grade>, crate::Error> {
-    let raw_data = raw_grade_data(stu_id, xn, xq).await?;
+) -> Result<Vec<Grade>, crate::Error<TokenExpired>> {
+    let raw_data = raw_grade_data(hdjw_token, xn, xq).await?;
     let mut res = Vec::with_capacity(raw_data.len());
     for item in raw_data {
         let grade = Grade {
@@ -64,8 +83,8 @@ pub async fn get_grade(
     Ok(res)
 }
 
-/// 课程成绩详情单项
-#[derive(Serialize, Deserialize, Debug)]
+/// 课程成绩的组成部分
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GradeDetailItem {
     /// 成绩组成名称
     pub name: String,
@@ -81,17 +100,22 @@ pub struct GradeDetailItem {
 ///
 /// # Arguments
 ///
-/// - `stu_id`: 学号
-/// - `jx0404id`: 通过 `get_grade` 获得的 `Grade` 中的 `jx0404id`
+/// - `hdjw_token`: 教务系统的令牌，可以通过 [HdjwToken::acquire_by_cas_login] 获取
+/// - `jx0404id`: 通过 [get_grade] 获得的 [Grade::jx0404id]
 ///
 /// # Returns
 ///
 /// Vec 内的每个元素表示该课程成绩的一个组成部分，一个课程成绩由多个组成部分构成
+///
+/// # Errors
+///
+/// 如果提供的 `hdjw_token` 过期了，那么会返回 [TokenExpired] 错误，需要重新获取一个新的 [HdjwToken]
 pub async fn get_grade_detail(
-    stu_id: &str,
+    hdjw_token: &HdjwToken,
     jx0404id: &str,
-) -> Result<Vec<GradeDetailItem>, crate::Error> {
-    let raw_data = raw_grade_detail_data(stu_id, jx0404id).await?;
+) -> Result<Vec<GradeDetailItem>, crate::Error<TokenExpired>> {
+    let raw_data =
+        raw_grade_detail_data(hdjw_token, jx0404id).await?;
     let regex = RegexBuilder::new(
         r"let\sarr\s=\s(.*);.*window.initQzTable\(\{.*cols:\s\[(.*)\].*\}\);",
     )
@@ -100,29 +124,35 @@ pub async fn get_grade_detail(
     .expect("构建正则表达式失败");
     let caps = regex
         .captures(&raw_data)
-        .ok_or(anyhow!("解析成绩详情数据失败"))?
+        .ok_or(parse_err(&raw_data))?
         .iter()
         .map(|c| {
             c.map(|v| v.as_str().to_string())
-                .ok_or(anyhow!("解析成绩详情数据失败: 字段为空"))
+                .ok_or(parse_err(&raw_data))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let [_, data, map] = caps
-        .try_into()
-        .map_err(|_| anyhow!("解析成绩详情数据失败: 匹配数量错误"))?;
+    let [_, data, map] =
+        caps.try_into().map_err(|_| parse_err(&raw_data))?;
     let data = serde_json::from_str::<Vec<Value>>(&data).ok();
-    let data = data.as_ref()
+    let data = data
+        .as_ref()
         .and_then(|v| v.first())
-        .and_then(|v| v.as_object()).map(|v|
-            v.iter().map(|(key, value)|{
-                value.as_str().map(|s| s.to_string()).or(
-                        value
-                            .as_number().map(|num| num.to_string()),
-                    ).ok_or(anyhow!("解析成绩详情数据失败: 字段不是字符串或数字"))
-                    .map(|ok_value| (key, ok_value))
-            }
-            ).collect::<Result<HashMap<_, _>,_>>())
-        .ok_or(anyhow!("解析成绩详情数据失败: data"))??;
+        .and_then(|v| v.as_object())
+        .map(|v| {
+            v.iter()
+                .map(|(key, value)| {
+                    value
+                        .as_str()
+                        .map(|s| s.to_string())
+                        .or(value
+                            .as_number()
+                            .map(|num| num.to_string()))
+                        .ok_or(parse_err(&raw_data))
+                        .map(|ok_value| (key, ok_value))
+                })
+                .collect::<Result<HashMap<_, _>, _>>()
+        })
+        .ok_or(parse_err(&raw_data))??;
     // map 是 js obj 格式，不是标准 json，我们需要进行一些处理
     let map = map
         .replace("//表头", "")
@@ -147,26 +177,23 @@ pub async fn get_grade_detail(
                     item.get("title")
                         .and_then(|f| f.as_str())
                         .and_then(|value| key.map(|key| (key, value)))
-                        .ok_or(anyhow!("解析成绩详情数据失败: map"))
+                        .ok_or(parse_err(&raw_data))
                 })
                 .collect::<Result<HashMap<_, _>, _>>()
         })
-        .ok_or(anyhow!("解析成绩详情数据失败: map"))??;
+        .ok_or(parse_err(&raw_data))??;
     let res = data
         .iter()
         .filter(|(k, _)| k.ends_with("bl"))
         .map(|(k, v)| {
             let score = data
                 .get(&k.trim_end_matches("bl").to_string())
-                .ok_or(anyhow!(
-                    "解析成绩详情数据失败: data 缺失 {}",
-                    k.trim_end_matches("bl")
-                ))?;
-            let name = map.get(k.trim_end_matches("bl")).ok_or(
-                anyhow!("解析成绩详情数据失败: map 缺失 {}", k),
-            )?;
+                .ok_or(parse_err(&raw_data))?;
+            let name = map
+                .get(k.trim_end_matches("bl"))
+                .ok_or(parse_err(&raw_data))?;
             let percentage = v;
-            Ok::<_, anyhow::Error>(GradeDetailItem {
+            Ok::<_, crate::Error<TokenExpired>>(GradeDetailItem {
                 score: score.to_string(),
                 name: name.to_string(),
                 percentage: percentage.to_string(),
@@ -180,22 +207,30 @@ pub async fn get_grade_detail(
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
-    use crate::test::{TEST_STU_ID, TEST_XN, TEST_XQ};
+    use crate::{
+        hdjw::test::{TEST_HDJW_JX0404ID, get_hdjw_token},
+        test::{TEST_XN, TEST_XQ},
+    };
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_grade() {
-        let res =
-            get_grade(&TEST_STU_ID, TEST_XN, TEST_XQ).await.unwrap();
-        println!("{:#?}", res);
+        let hdjw_token = get_hdjw_token().await.unwrap();
+        let grade =
+            get_grade(&hdjw_token, *TEST_XN, *TEST_XQ).await.unwrap();
+        println!("{:#?}", grade);
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_grade_detail() {
-        let jx0404id = "ZJ003SX24A-51";
-        let res =
-            get_grade_detail(&TEST_STU_ID, jx0404id).await.unwrap();
-        println!("{:#?}", res);
+        let hdjw_token = get_hdjw_token().await.unwrap();
+        let grade_detail =
+            get_grade_detail(&hdjw_token, TEST_HDJW_JX0404ID)
+                .await
+                .unwrap();
+        println!("{:#?}", grade_detail);
     }
 }

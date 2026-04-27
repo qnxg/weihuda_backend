@@ -6,15 +6,16 @@ pub type CacheKey = (CacheEnum, String);
 pub type CacheVal = String;
 
 #[derive(Eq, Hash, PartialEq)]
+#[expect(clippy::enum_variant_names)]
 pub enum CacheEnum {
-    Hdjw,
-    CasCookie,
-    PtCookie,
-    NetflowCookie,
-    GymCookie,
-    GraduateCookieAndId,
-    XGXTCookie,
-    LabCookie,
+    CasToken,
+    HdjwToken,
+    GymToken,
+    LabToken,
+    CaToken,
+    PtToken,
+    NetflowToken,
+    XGXTToken,
 }
 
 impl CacheEnum {
@@ -22,14 +23,14 @@ impl CacheEnum {
     fn expire_after_fetch(&self) -> Option<Duration> {
         use CacheEnum::*;
         match self {
-            Hdjw => Some(Duration::from_secs(1800)),
-            CasCookie => Some(Duration::from_secs(1800)),
-            PtCookie => Some(Duration::from_secs(1800)),
-            NetflowCookie => Some(Duration::from_secs(1800)),
-            GymCookie => Some(Duration::from_secs(600)),
-            GraduateCookieAndId => Some(Duration::from_secs(600)),
-            XGXTCookie => Some(Duration::from_secs(600)),
-            LabCookie => Some(Duration::from_secs(600)),
+            CasToken => Some(Duration::from_secs(1800)),
+            HdjwToken => Some(Duration::from_secs(1800)),
+            GymToken => Some(Duration::from_secs(600)),
+            LabToken => Some(Duration::from_secs(600)),
+            CaToken => Some(Duration::from_secs(600)),
+            PtToken => Some(Duration::from_secs(1800)),
+            NetflowToken => Some(Duration::from_secs(1800)),
+            XGXTToken => Some(Duration::from_secs(600)),
         }
     }
 }
@@ -69,18 +70,4 @@ impl Expiry<CacheKey, CacheVal> for ExpiryPolicy {
     ) -> Option<std::time::Duration> {
         key.0.expire_after_fetch()
     }
-}
-
-pub async fn invalidate_stuid_cache(stu_id: &str) {
-    use CacheEnum::*;
-    CACHE.invalidate(&(Hdjw, stu_id.into())).await;
-    CACHE.invalidate(&(CasCookie, stu_id.into())).await;
-    CACHE.invalidate(&(PtCookie, stu_id.into())).await;
-    CACHE.invalidate(&(NetflowCookie, stu_id.into())).await;
-    CACHE.invalidate(&(GymCookie, stu_id.into())).await;
-    CACHE
-        .invalidate(&(GraduateCookieAndId, stu_id.into()))
-        .await;
-    CACHE.invalidate(&(XGXTCookie, stu_id.into())).await;
-    CACHE.invalidate(&(LabCookie, stu_id.into())).await;
 }

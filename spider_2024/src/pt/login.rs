@@ -1,13 +1,8 @@
 use crate::{
-    login::get_ticket_url,
-    utils::{
-        cache::{CACHE, CacheEnum::*, invalidate_stuid_cache},
-        client,
-        request::cookie_parser,
-    },
+    cas::login::{AccountIssue, CasToken},
+    error::{MapNetworkErr, MapParseErr, MapUnexpectedErr},
+    utils::{client, request::cookie_parser},
 };
-use anyhow::{Result, anyhow};
-use log::debug;
 use reqwest::{
     StatusCode,
     header::{COOKIE, HeaderMap, SET_COOKIE},
@@ -17,106 +12,82 @@ use reqwest::{
 const PT_URL: &str =
     "http://cas.hnu.edu.cn/cas/login?service=https://pt.hnu.edu.cn/";
 
-/// 个人门户密码验证结果
-#[derive(Debug)]
-pub enum CheckPasswordResult {
-    /// 密码正确
-    Success,
-    /// 密码错误
-    Fail,
-    /// 需要更换密码
-    ShouldChange,
-    /// 账号被锁定
-    Lock,
+/// 个人门户令牌
+#[derive(Debug, Clone)]
+pub struct PtToken {
+    headers: HeaderMap,
 }
 
-pub async fn check_password(
-    stu_id: &str,
-    password: &str,
-) -> Result<CheckPasswordResult, crate::Error> {
-    let res = pt_headers(stu_id, Some(password)).await;
-    match res {
-        Ok(_) => {
-            // 把缓存全部重置
-            invalidate_stuid_cache(stu_id).await;
-            Ok(CheckPasswordResult::Success)
-        }
-        Err(crate::Error::PasswordError) => {
-            Ok(CheckPasswordResult::Fail)
-        }
-        Err(crate::Error::PasswordShouldChange) => {
-            Ok(CheckPasswordResult::ShouldChange)
-        }
-        Err(crate::Error::PasswordLocked) => {
-            Ok(CheckPasswordResult::Lock)
-        }
-        Err(e) => Err(e),
-    }
-}
-
-/// 个人门户登录
-///
-/// 这个函数还有个作用是可以用来进行密码检查
-///
-/// # Arguments
-///
-/// - `stu_id`: 学号
-/// - `password`: 密码，可选，若不提供，则自动从数据库拉取密码。
-///
-/// # Returns
-///
-/// 后续请求个人门户所需的 HeaderMap
-///
-/// # Side Effects
-///
-/// 函数执行成功，则会把函数内部获取到的 PtCookie 进行缓存
-///
-/// 如果 `password` 不为 None，则该函数执行的整个过程都不会使用或者是设置 PtCookie 缓存
-pub async fn pt_headers(
-    stu_id: &str,
-    password: Option<&str>,
-) -> Result<HeaderMap, crate::Error> {
-    let cached_cookies = if password.is_none() {
-        CACHE.get(&(PtCookie, stu_id.into())).await
-    } else {
-        None
-    };
-    let cookies = if let Some(v) = cached_cookies {
-        v
-    } else {
-        let ticket_url =
-            get_ticket_url(stu_id, PT_URL, password).await?;
-        debug!("{stu_id} 尝试通过 {} 访问个人门户", ticket_url);
+impl PtToken {
+    /// 通过统一身份认证系统登录来获得
+    ///
+    /// # Parameters
+    ///
+    /// - `cas_token`: 统一身份认证系统的令牌，可以通过 [CasToken::new] 创建
+    ///
+    /// # Returns
+    ///
+    /// 返回一个 [PtToken] 实例
+    ///
+    /// # Errors
+    ///
+    /// 可能由于用户的账号问题导致登录失败，此时会返回 [AccountIssue] 错误
+    pub async fn acquire_by_cas_login(
+        cas_token: &mut CasToken,
+    ) -> Result<Self, crate::Error<AccountIssue>> {
+        let ticket_url = cas_token.get_ticket_url(PT_URL).await?;
         let res = client
             .get(ticket_url)
             .send()
-            .await?
-            .error_for_status()?;
+            .await
+            .network_err()?
+            .error_for_status()
+            .unexpected_err()?;
         if res.status() != StatusCode::FOUND {
-            return Err(anyhow!("获取个人门户失败").into());
+            return Err(format!(
+                "登录个人门户失败，HTTP 状态码: {}",
+                res.status()
+            ))
+            .unexpected_err();
         }
-        let res = cookie_parser(res.headers().get_all(SET_COOKIE))
-            .join("; ");
-        if password.is_none() {
-            CACHE
-                .insert((PtCookie, stu_id.into()), res.clone())
-                .await;
-        }
-        res
-    };
-    let mut headers = HeaderMap::new();
-    headers.insert(COOKIE, cookies.parse()?);
-    Ok(headers)
+        let cookies =
+            cookie_parser(res.headers().get_all(SET_COOKIE))
+                .join("; ");
+        let mut headers = HeaderMap::new();
+        headers.insert(COOKIE, cookies.parse().parse_err(&cookies)?);
+        Ok(Self { headers })
+    }
+    /// 从 [HeaderMap] 创建 [PtToken]
+    ///
+    /// # Arguments
+    ///
+    /// - `headers`: 一个合法的可用作 [PtToken] 的 [HeaderMap]
+    ///
+    /// # Preconditions
+    ///
+    /// `headers` 参数应该是一个合法的可用作 [PtToken] 的 [HeaderMap]，否则会导致未定义行为
+    pub fn from_headers_unchecked(headers: HeaderMap) -> Self {
+        Self { headers }
+    }
+    /// 获取当前令牌的 [HeaderMap]，可用于 [PtToken::from_headers_unchecked]
+    ///
+    /// # Returns
+    ///
+    /// 返回当前令牌的 [HeaderMap]
+    pub fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test::TEST_STU_ID;
+
+    use crate::pt::test::get_pt_token;
 
     #[tokio::test]
+    #[ignore]
     async fn test_pt() {
-        let res = pt_headers(&TEST_STU_ID, None).await.unwrap();
-        println!("{:#?}", res);
+        let pt_token = get_pt_token().await.unwrap();
+        println!("{:#?}", pt_token);
     }
 }

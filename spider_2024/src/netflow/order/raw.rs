@@ -1,7 +1,13 @@
-use crate::{netflow::login::netflow_headers, utils::client};
-use anyhow::anyhow;
+use crate::{
+    error::{
+        MapNetworkErr, MapParseErr, MapUnexpectedErr, parse_err,
+    },
+    netflow::login::NetflowToken,
+    utils::client,
+};
 use serde::Deserialize;
 use serde_json::Value;
+use std::convert::Infallible;
 
 const NETFLOW_ORDER_URL: &str =
     "http://ll.hnu.edu.cn/api/v1/historyorder/getpagedlist";
@@ -27,20 +33,28 @@ pub struct OrderItem {
 }
 
 pub async fn raw_order_data(
-    stu_id: &str,
-) -> Result<Vec<OrderItem>, crate::Error> {
-    let netflow_headers = netflow_headers(stu_id).await?;
-    let raw_res = client
+    netflow_token: &NetflowToken,
+) -> Result<Vec<OrderItem>, crate::Error<Infallible>> {
+    let headers = netflow_token.headers().clone();
+    let json_str = client
         .get(NETFLOW_ORDER_URL)
-        .headers(netflow_headers)
+        .headers(headers)
         .send()
-        .await?
-        .error_for_status()?
-        .json::<Value>()
-        .await?;
-    let res: Vec<OrderItem> = raw_res
-        .get("data")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .ok_or(anyhow!("解析订单失败: {:?}", raw_res))?;
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .text()
+        .await
+        .unexpected_err()?;
+    let res: Vec<OrderItem> =
+        serde_json::from_str::<Value>(&json_str)
+            .parse_err(&json_str)?
+            .get("data")
+            .map(|v| {
+                serde_json::from_value(v.clone()).parse_err(&json_str)
+            })
+            .transpose()?
+            .ok_or(parse_err(&json_str))?;
     Ok(res)
 }

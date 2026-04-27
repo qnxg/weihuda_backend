@@ -1,5 +1,4 @@
 use crate::result::AppError;
-use anyhow::anyhow;
 use futures::FutureExt;
 use salvo::{Depot, FlowCtrl, Request, Response, handler};
 use std::panic::AssertUnwindSafe;
@@ -16,8 +15,8 @@ pub async fn catch_panic_middleware(
         .await
     {
         tracing::error!(panic = ?e, "Panic occurred on server");
-        res.render(AppError::AnyHow(anyhow!(
-            "服务器发生意料之外异常"
-        )));
+        res.render(AppError::Text(
+            "服务器发生意料之外异常".to_string(),
+        ));
     }
 }

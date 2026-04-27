@@ -5,7 +5,6 @@ use crate::{
     result::{AppError, AppResult},
     service, utils,
 };
-use anyhow::anyhow;
 
 use dashmap::DashMap;
 pub use infra::mysql::jifen::get_exchange_record_list;
@@ -82,16 +81,14 @@ pub async fn exchange_goods(
     goods_id: u32,
 ) -> AppResult<i32> {
     const EXCHANGE_GOODS_KEY: &str = "exchange";
-    let goods = service::jifen::get_goods(goods_id)
-        .await?
-        .ok_or(anyhow!("没有找到商品：{}", goods_id))?;
+    let goods = service::jifen::get_goods(goods_id).await?.ok_or(
+        AppError::Text(format!("没有找到商品：{}", goods_id)),
+    )?;
     // 学号和 goods_id 均加锁
     let Some(_guard1) =
         get_jifen_lock(format!("{}-{}", EXCHANGE_GOODS_KEY, stu_id))
     else {
-        return Err(
-            anyhow!("请求过于频繁，请稍后再试(NO_TOAST)").into()
-        );
+        return Err("请求过于频繁，请稍后再试(NO_TOAST)".into());
     };
     let _guard2 = goods_lock()[goods_id as usize % 64].lock().await;
     // 检查商品库存
@@ -141,7 +138,7 @@ async fn check_jifen_record(
 ) -> AppResult<bool> {
     let jifen_rule = service::jifen::get_jifen_rule(key)
         .await?
-        .ok_or(anyhow!("没有积分规则：{}", key))?;
+        .ok_or(AppError::Text(format!("没有积分规则：{}", key)))?;
     // 查询是否重复添加
     if service::jifen::get_jifen_record(stu_id, key, param)
         .await?
@@ -176,16 +173,14 @@ pub async fn sign_in(stu_id: &str) -> AppResult<i32> {
     let param =
         utils::time::now_time().format("%Y-%m-%d").to_string();
     let Some(_guard) = get_jifen_lock(lock_key) else {
-        return Err(
-            anyhow!("请求过于频繁，请稍后再试(NO_TOAST)").into()
-        );
+        return Err("请求过于频繁，请稍后再试(NO_TOAST)".into());
     };
     if !check_jifen_record(stu_id, SIGN_IN_KEY, &param).await? {
-        return Err(anyhow!("已经签到过了").into());
+        return Err("已经签到过了".into());
     }
     let rule = service::jifen::get_jifen_rule(SIGN_IN_KEY)
         .await?
-        .ok_or(anyhow!("没有 qiandao 规则"))?;
+        .ok_or(AppError::Text("没有 qiandao 规则".to_string()))?;
     let res = add_jifen(
         stu_id,
         SIGN_IN_KEY,
@@ -202,19 +197,15 @@ pub async fn read_zhihu(stu_id: &str, url: &str) -> AppResult<i32> {
     const READ_ZHIHU_KEY: &str = "yuedu";
     let lock_key = format!("{}-{}", READ_ZHIHU_KEY, stu_id);
     let Some(_guard) = get_jifen_lock(lock_key) else {
-        return Err(
-            anyhow!("请求过于频繁，请稍后再试(NO_TOAST)").into()
-        );
+        return Err("请求过于频繁，请稍后再试(NO_TOAST)".into());
     };
     if !check_jifen_record(stu_id, READ_ZHIHU_KEY, url).await? {
         // 前端会特判 NO_TOAST，然后就不会弹出错误提示框
-        return Err(
-            anyhow!("已经阅读或超过单日上限(NO_TOAST)").into()
-        );
+        return Err("已经阅读或超过单日上限(NO_TOAST)".into());
     }
     let rule = service::jifen::get_jifen_rule(READ_ZHIHU_KEY)
         .await?
-        .ok_or(anyhow!("没有 yuedu 规则"))?;
+        .ok_or(AppError::Text("没有 yuedu 规则".to_string()))?;
     add_jifen(stu_id, READ_ZHIHU_KEY, url, &rule.name, rule.jifen)
         .await?;
     Ok(rule.jifen)

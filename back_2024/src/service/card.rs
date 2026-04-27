@@ -1,4 +1,7 @@
-use crate::result::AppResult;
+use crate::{
+    result::AppResult,
+    service::user_state::{Pt, with_token},
+};
 use serde::Serialize;
 
 pub use spider_2024::pt::card::CardHistoryType;
@@ -30,13 +33,17 @@ pub async fn get_card_history(
     month: u8,
     history_type: CardHistoryType,
 ) -> AppResult<CardHistory> {
-    let spider_res = spider_2024::pt::get_card_history(
-        stu_id,
-        year,
-        month,
-        history_type,
-    )
-    .await?;
+    let spider_res =
+        with_token(Pt::new(stu_id), async move |token| {
+            spider_2024::pt::get_card_history(
+                &token,
+                year,
+                month,
+                history_type,
+            )
+            .await
+        })
+        .await?;
     let mut res_items = Vec::with_capacity(spider_res.items.len());
     for item in spider_res.items {
         let date_time =
@@ -70,7 +77,11 @@ pub struct CardInfo {
 }
 
 pub async fn get_card_info(stu_id: &str) -> AppResult<CardInfo> {
-    let spider_res = spider_2024::pt::get_card_info(stu_id).await?;
+    let spider_res =
+        with_token(Pt::new(stu_id), async move |token| {
+            spider_2024::pt::get_card_info(&token).await
+        })
+        .await?;
     let res = CardInfo {
         account: spider_res.id,
         balance: spider_res.balance,

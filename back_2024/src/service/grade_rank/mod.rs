@@ -1,6 +1,12 @@
 pub mod ca;
 
-use crate::{result::AppResult, service};
+use crate::{
+    result::AppResult,
+    service::{
+        self,
+        user_state::{Hdjw, with_token},
+    },
+};
 use serde::Serialize;
 
 #[derive(Serialize, Debug)]
@@ -22,7 +28,10 @@ pub async fn get_grade(
     stu_id: &str,
 ) -> AppResult<Vec<GradeInfo>> {
     let spider_res =
-        spider_2024::hdjw::get_grade(stu_id, xn, xq).await?;
+        with_token(Hdjw::new(stu_id), async move |token| {
+            spider_2024::hdjw::get_grade(&token, xn, xq).await
+        })
+        .await?;
     let mut res = Vec::new();
     for item in spider_res {
         let mut tags = Vec::new();
@@ -125,13 +134,17 @@ pub async fn get_rank_from_hdjw(
         HdjwRankMethod::WeightedAvg => RankMethod::WeightedAvg,
         HdjwRankMethod::Gpa => RankMethod::Gpa,
     };
-    let spider_res = spider_2024::hdjw::get_rank(
-        stu_id,
-        selection.as_slice(),
-        range.as_slice(),
-        method,
-    )
-    .await?;
+    let spider_res =
+        with_token(Hdjw::new(stu_id), async move |token| {
+            spider_2024::hdjw::get_rank(
+                &token,
+                selection.as_slice(),
+                range.as_slice(),
+                method,
+            )
+            .await
+        })
+        .await?;
     Ok(spider_res)
 }
 
@@ -145,8 +158,16 @@ pub async fn get_grade_detail(
     stu_id: &str,
     jx0404id: &str,
 ) -> AppResult<Vec<GradeDetailItem>> {
+    let jx0404id_value = jx0404id.to_string();
     let spider_res =
-        spider_2024::hdjw::get_grade_detail(stu_id, jx0404id).await?;
+        with_token(Hdjw::new(stu_id), async move |token| {
+            spider_2024::hdjw::get_grade_detail(
+                &token,
+                jx0404id_value.as_str(),
+            )
+            .await
+        })
+        .await?;
     let mut res = Vec::new();
     for item in spider_res {
         let tmp = GradeDetailItem {

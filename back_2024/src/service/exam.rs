@@ -1,3 +1,4 @@
+use crate::service::user_state::{Hdjw, with_token};
 use crate::{infra, result::AppResult};
 use serde::Serialize;
 
@@ -22,7 +23,10 @@ pub async fn get_exam_arrange(
     xq: u8,
 ) -> AppResult<Vec<ExamArrange>> {
     let spider_res =
-        spider_2024::hdjw::get_exam_schedule(stu_id, xn, xq).await?;
+        with_token(Hdjw::new(stu_id), async move |token| {
+            spider_2024::hdjw::get_exam_schedule(&token, xn, xq).await
+        })
+        .await?;
     let mut res = Vec::new();
     for item in spider_res {
         let temp = ExamArrange {

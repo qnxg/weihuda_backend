@@ -1,5 +1,6 @@
+use super::Result;
 use super::get_db_pool;
-use crate::{result::AppResult, utils};
+use crate::utils;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -17,7 +18,7 @@ pub async fn get_course_list(
     stu_id: &str,
     xn: u16,
     xq: u8,
-) -> AppResult<Vec<CustomizeCourseInfo>> {
+) -> Result<Vec<CustomizeCourseInfo>> {
     let res = sqlx::query_as!(
         CustomizeCourseInfo,
         r#"
@@ -38,7 +39,7 @@ pub async fn add_course(
     xn: u32,
     xq: u32,
     stu_id: &str,
-) -> AppResult<()> {
+) -> Result<()> {
     let now = utils::time::now_time();
     sqlx::query!(
         r#"
@@ -64,7 +65,7 @@ pub async fn add_course(
 pub async fn delete_course(
     course_id: u32,
     stu_id: &str,
-) -> AppResult<()> {
+) -> Result<()> {
     let now = utils::time::now_time();
     sqlx::query!(
         r#"
@@ -85,9 +86,9 @@ pub async fn update_course(
     course_id: u32,
     stu_id: &str,
     course: CustomizeCourseInfo,
-) -> AppResult<()> {
+) -> Result<()> {
     let now = utils::time::now_time();
-    let r = sqlx::query!(
+    sqlx::query!(
         r#"
         UPDATE mini_course
         SET classname = ?, location = ?, teachers = ?, week = ?, day = ?,section = ?, updatedAt = ?
@@ -106,15 +107,12 @@ pub async fn update_course(
     )
     .execute(get_db_pool().await)
     .await?;
-    if r.rows_affected() == 0 {
-        return Err("课程不存在或无权修改".into());
-    }
     Ok(())
 }
 pub async fn get_custom_course_details_by_id(
     course_id: u32,
     stu_id: &str,
-) -> AppResult<CustomizeCourseInfo> {
+) -> Result<CustomizeCourseInfo> {
     let res = sqlx::query_as!(
         CustomizeCourseInfo,
         r#"

@@ -1,10 +1,8 @@
 use crate::{
-    result::AppResult,
+    result::{AppResult, ThrowError},
     service::{self},
-    utils::cache::CACHE,
-    utils::cache::CacheEnum::Electricity,
+    utils::cache::{CACHE, CacheEnum::Electricity},
 };
-use anyhow::anyhow;
 
 /// 默认情况下是带缓存的，设置 refresh=true 则强制刷新
 pub async fn get_electricity(
@@ -19,7 +17,8 @@ pub async fn get_electricity(
     let (Some(park), Some(build)) =
         (dormitory.park(), dormitory.build())
     else {
-        return Err(anyhow!("尚不支持的宿舍: {:?}", dormitory).into());
+        tracing::error!(dormitory = ?dormitory, "尚不支持的宿舍");
+        return Err("尚不支持你的宿舍".into());
     };
     let room = dormitory.room();
     let key = format!("{}/{}/{}", park, build, room);
@@ -30,8 +29,9 @@ pub async fn get_electricity(
         return Ok(electricity);
     }
     // 需要强制刷新，或是之前的缓存过期
-    let electricity =
-        spider_2024::wxpay::get_electricity(dormitory).await?;
+    let electricity = spider_2024::wxpay::get_electricity(dormitory)
+        .await
+        .throw_error("获取电量信息失败")?;
     CACHE
         .insert((Electricity, key.clone()), electricity.clone())
         .await;

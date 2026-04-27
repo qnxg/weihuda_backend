@@ -24,7 +24,7 @@ async fn get_fitness_grade(req: &mut Request) -> RouterResult {
     }
     let stu_id = utils::jwt::auth(req)?;
     let GetFitnessReq { xn } = req.extract().await?;
-    let xn = xn.parse::<u16>().map_err(|_| AppError::ParseError())?;
+    let xn = xn.parse::<u16>().map_err(|_| AppError::ParseError)?;
     let res = service::gym::get_fitness_grade(&stu_id, xn).await?;
     Ok(res.into())
 }

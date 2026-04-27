@@ -1,5 +1,6 @@
+use super::Result;
 use super::get_db_pool;
-use crate::{result::AppResult, utils};
+use crate::utils;
 use chrono::NaiveDateTime;
 
 pub async fn add_left_message(
@@ -9,7 +10,7 @@ pub async fn add_left_message(
     is_agree: bool,
     send_time: NaiveDateTime,
     is_send: bool,
-) -> AppResult<u64> {
+) -> Result<u64> {
     let now = utils::time::now_time();
     let res = sqlx::query!(
         r#"

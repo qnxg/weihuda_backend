@@ -1,6 +1,14 @@
-use crate::{hdjw::utils::request_hdjw, utils::client};
-use anyhow::anyhow;
-use serde::{Deserialize, Serialize};
+use crate::{
+    error::{
+        MapNetworkErr, MapParseErr, MapUnexpectedErr, parse_err,
+    },
+    hdjw::{
+        error::TokenExpired, login::HdjwToken,
+        raw::HdjwResponseExtractor,
+    },
+    utils::client,
+};
+use serde::Deserialize;
 
 // 课程成绩查询接口
 // 该 URL 缺少学期的参数，需要后续再用 format 拼接
@@ -11,7 +19,7 @@ const GRADE_DETAIL_URL: &str =
     "http://hdjw.hnu.edu.cn/jsxsd/kscj/pscj_list.do?zcj=";
 
 /// 教务 `考试成绩 > 课程成绩` 返回数据单项
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct GradeInfoRes {
     // 未知字段
     // pub cj0708id: String,
@@ -58,34 +66,43 @@ pub struct GradeInfoRes {
 }
 
 pub async fn raw_grade_data(
-    stu_id: &str,
+    hdjw_token: &HdjwToken,
     xn: u16,
     xq: u8,
-) -> Result<Vec<GradeInfoRes>, crate::Error> {
-    let req = client.get(format!(
-        "{}&kksj={}-{}-{}",
-        GRADE_URL,
-        xn,
-        xn + 1,
-        xq
-    ));
-    let mut raw_res = request_hdjw(stu_id, req).await?;
+) -> Result<Vec<GradeInfoRes>, crate::Error<TokenExpired>> {
+    let headers = hdjw_token.headers().clone();
+    let mut raw_res = client
+        .get(format!("{}&kksj={}-{}-{}", GRADE_URL, xn, xn + 1, xq))
+        .headers(headers)
+        .send()
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .extract_data()
+        .await?;
+    let raw_res_str = raw_res.to_string();
     let res: Vec<GradeInfoRes> =
         serde_json::from_value(raw_res["data"].take())
-            .map_err(|e| anyhow!("成绩数据解析错误 {}", e))?;
+            .parse_err(&raw_res_str)?;
     Ok(res)
 }
 
 /// 返回的原始数据是 html 格式
 pub async fn raw_grade_detail_data(
-    stu_id: &str,
+    hdjw_token: &HdjwToken,
     jx0404id: &str,
-) -> Result<String, crate::Error> {
-    let req = client
-        .get(format!("{}&jx0404id={}", GRADE_DETAIL_URL, jx0404id));
-    let res = request_hdjw(stu_id, req).await?;
-    Ok(res
-        .as_str()
-        .ok_or(anyhow!("解析成绩详情数据失败 {:?}", res))?
-        .to_string())
+) -> Result<String, crate::Error<TokenExpired>> {
+    let headers = hdjw_token.headers().clone();
+    let res = client
+        .get(format!("{}&jx0404id={}", GRADE_DETAIL_URL, jx0404id))
+        .headers(headers)
+        .send()
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .extract_data()
+        .await?;
+    Ok(res.as_str().ok_or(parse_err(&res.to_string()))?.to_string())
 }

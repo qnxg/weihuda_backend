@@ -1,5 +1,12 @@
 mod raw;
 
+use crate::hdjw::{error::TokenExpired, login::HdjwToken};
+use serde::{Deserialize, Serialize};
+
+/// 参与计算成绩排名的课程范围
+#[derive(
+    Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize,
+)]
 pub enum RankRange {
     /// 通识必修
     GeneralRequired,
@@ -59,7 +66,8 @@ pub enum RankRange {
 }
 
 impl RankRange {
-    pub fn to_str(&self) -> &str {
+    /// 将 [RankRange] 转换为教务系统对应的字符串
+    pub(crate) fn to_str(self) -> &'static str {
         match self {
             RankRange::MajorCore => "16",
             RankRange::Practice => "10",
@@ -106,6 +114,10 @@ impl RankRange {
     ///
     /// - 专业基础
     /// - 专业核心
+    ///
+    /// # Returns
+    ///
+    /// 返回一个包含所有2024版核心课程方案类型的列表
     pub fn core_v2024_course() -> Vec<Self> {
         vec![RankRange::MajorBasic, RankRange::MajorCore]
     }
@@ -139,9 +151,6 @@ impl RankRange {
 
     /// 必修课程
     ///
-    /// WARNING：教务系统中并没有明确给出哪些课程类型属于必修课程，
-    /// 这里给出的列表只是我们根据经验得出的，仅供参考。
-    ///
     /// 如下课程类型归类为必修课程：
     ///
     /// - 通识必修
@@ -154,6 +163,11 @@ impl RankRange {
     /// # Returns
     ///
     /// 返回一个包含所有必修课程类型的列表
+    ///
+    /// # Notes
+    ///
+    /// 教务系统中并没有明确给出哪些课程类型属于必修课程，
+    /// 这里给出的列表只是我们根据经验得出的，仅供参考。
     pub fn must_course() -> Vec<Self> {
         vec![
             RankRange::GeneralRequired,
@@ -167,6 +181,9 @@ impl RankRange {
 }
 
 /// 排名方式
+#[derive(
+    Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize,
+)]
 pub enum RankMethod {
     /// 算术平均
     ArithmeticAvg,
@@ -177,7 +194,8 @@ pub enum RankMethod {
 }
 
 impl RankMethod {
-    pub fn to_str(&self) -> &str {
+    /// 将 [RankMethod] 转换为教务系统对应的字符串
+    pub(crate) fn to_str(self) -> &'static str {
         match self {
             RankMethod::ArithmeticAvg => "4",
             RankMethod::WeightedAvg => "2",
@@ -187,7 +205,7 @@ impl RankMethod {
 }
 
 /// 排名
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Rank {
     /// 排名
     ///
@@ -203,22 +221,24 @@ pub struct Rank {
 ///
 /// # Arguments
 ///
-/// - `stu_id`: 学号
-/// - `selection`: 学年学期，格式为 `(学年, 学期)`
+/// - `hdjw_token`: 教务系统的令牌，可以通过 [HdjwToken::acquire_by_cas_login] 获取
+/// - `selection`: 学年学期，应提供一个二元组的切片，切片中每个二元组的格式为 `(学年, 学期)`
 /// - `range`: 课程范围
-/// - `method`: 排名计算方式
+/// - `rank_method`: 排名计算方式
 ///
 /// # Returns
 ///
-/// 返回一个排名结果
+/// 返回一个排名结果，如果没有获取到任何数据，则返回 `None`
 ///
-/// 如果没有获取到任何数据，则返回 `None`
+/// # Errors
+///
+/// 如果提供的 `hdjw_token` 过期了，那么会返回 [TokenExpired] 错误，需要重新获取一个新的 [HdjwToken]
 pub async fn get_rank(
-    stu_id: &str,
+    hdjw_token: &HdjwToken,
     selection: &[(u16, u8)],
     range: &[RankRange],
     rank_method: RankMethod,
-) -> Result<Option<Rank>, crate::Error> {
+) -> Result<Option<Rank>, crate::Error<TokenExpired>> {
     let selection = selection
         .iter()
         .map(|(xn, xq)| format!("{}-{}-{}", xn, xn + 1, xq))
@@ -230,7 +250,7 @@ pub async fn get_rank(
         .collect::<Vec<&str>>()
         .join(",");
     let Some(res) = raw::raw_rank_data(
-        stu_id,
+        hdjw_token,
         &selection,
         &range,
         rank_method.to_str(),
@@ -262,19 +282,24 @@ pub async fn get_rank(
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
-    use crate::test::TEST_STU_ID;
+    use crate::{
+        hdjw::test::get_hdjw_token,
+        test::{TEST_XN, TEST_XQ},
+    };
 
     #[tokio::test]
-    async fn test_get_rank() {
-        let selection = vec![(2025, 1)];
+    #[ignore]
+    pub async fn test_get_rank() {
+        let hdjw_token = get_hdjw_token().await.unwrap();
+        let selection = vec![(*TEST_XN, *TEST_XQ)];
         let range = RankRange::core_v2024_course();
         let rank_method = RankMethod::WeightedAvg;
-        let res =
-            get_rank(&TEST_STU_ID, &selection, &range, rank_method)
+        let rank =
+            get_rank(&hdjw_token, &selection, &range, rank_method)
                 .await
                 .unwrap();
-        println!("{:#?}", res);
+        println!("{:#?}", rank);
     }
 }

@@ -1,7 +1,13 @@
+use crate::{
+    error::{MapNetworkErr, MapUnexpectedErr},
+    hdjw::{
+        error::TokenExpired, login::HdjwToken,
+        raw::HdjwResponseExtractor,
+    },
+    utils::client,
+};
 use serde_json::Value;
 use std::collections::HashMap;
-
-use crate::{hdjw::utils::request_hdjw, utils::client};
 
 const EMPTY_CLASSROOM_URL: &str =
     "http://hdjw.hnu.edu.cn/jsxsd/kbxx/jsjy_query2";
@@ -18,14 +24,15 @@ const EMPTY_CLASSROOM_URL: &str =
 /// - `time`: 节次信息
 /// - `building_id`: 楼栋id
 pub async fn raw_empty_classroom_data(
-    stu_id: &str,
+    hdjw_token: &HdjwToken,
     xn: u16,
     xq: u8,
     week: u8,
     day: u8,
     time: &str,
     building_id: &str,
-) -> Result<Value, crate::Error> {
+) -> Result<Value, crate::Error<TokenExpired>> {
+    let headers = hdjw_token.headers().clone();
     let mut form_data = HashMap::new();
     form_data.insert("xnxqh", format!("{}-{}-{}", xn, xn + 1, xq));
     form_data.insert("jxlbh", building_id.to_string());
@@ -33,7 +40,16 @@ pub async fn raw_empty_classroom_data(
     form_data.insert("selectXq", day.to_string());
     form_data.insert("selectJc", time.to_string());
     form_data.insert("typewhere", "jszq".to_string());
-    let req = client.post(EMPTY_CLASSROOM_URL).form(&form_data);
-    let res = request_hdjw(stu_id, req).await?;
+    let res = client
+        .post(EMPTY_CLASSROOM_URL)
+        .form(&form_data)
+        .headers(headers)
+        .send()
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .extract_data()
+        .await?;
     Ok(res)
 }

@@ -1,5 +1,6 @@
+use super::Result;
 use super::get_db_pool;
-use crate::{result::AppResult, utils};
+use crate::utils;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -13,9 +14,7 @@ pub struct MiniBind {
     pub lab_pass: Option<String>,
 }
 
-pub async fn get_by_stu_id(
-    stu_id: &str,
-) -> AppResult<Option<MiniBind>> {
+pub async fn get_by_stu_id(stu_id: &str) -> Result<Option<MiniBind>> {
     let res = sqlx::query_as!(
         MiniBind,
         r#"
@@ -30,9 +29,7 @@ pub async fn get_by_stu_id(
 }
 
 /// 可能存在多个绑定，只返回最新的一个
-pub async fn get_by_openid(
-    openid: &str,
-) -> AppResult<Option<MiniBind>> {
+pub async fn get_by_openid(openid: &str) -> Result<Option<MiniBind>> {
     let res = sqlx::query_as!(
         MiniBind,
         r#"
@@ -49,7 +46,7 @@ pub async fn get_by_openid(
 }
 
 /// 将指定 openid 的绑定信息删除
-pub async fn clear_openid(openid: &str) -> AppResult<()> {
+pub async fn clear_openid(openid: &str) -> Result<()> {
     sqlx::query!(
         r#"
         UPDATE mini_bind SET openid = NULL WHERE openid = ?
@@ -67,7 +64,7 @@ pub async fn add_user(
     password: &str,
     openid: Option<&str>,
     qq_openid: Option<&str>,
-) -> AppResult<()> {
+) -> Result<()> {
     let now = utils::time::now_time();
     sqlx::query!(
         r#"
@@ -93,10 +90,10 @@ pub async fn add_user(
     Ok(())
 }
 
-pub async fn set_lab_pass(
+pub async fn set_lab_password(
     stu_id: &str,
     lab_pass: &str,
-) -> AppResult<()> {
+) -> Result<()> {
     sqlx::query!(
         r#"
         UPDATE mini_bind SET labPass = ? WHERE stuId = ?
@@ -110,9 +107,7 @@ pub async fn set_lab_pass(
 }
 
 /// 返回 None 时，可能是用户不存在，也可能是对应的 room 字段就是空的
-pub async fn get_user_setting(
-    stu_id: &str,
-) -> AppResult<Option<Value>> {
+pub async fn get_user_setting(stu_id: &str) -> Result<Option<Value>> {
     let res = sqlx::query!(
         "
         SELECT settings FROM mini_bind WHERE stuId = ?
@@ -128,7 +123,7 @@ pub async fn get_user_setting(
 pub async fn update_user_setting(
     stu_id: &str,
     settings: &Value,
-) -> AppResult<()> {
+) -> Result<()> {
     sqlx::query!(
         r#"
         UPDATE mini_bind SET settings = ? WHERE stuId = ?
@@ -139,4 +134,26 @@ pub async fn update_user_setting(
     .execute(get_db_pool().await)
     .await?;
     Ok(())
+}
+
+pub async fn get_password(stu_id: &str) -> Result<Option<String>> {
+    let res = sqlx::query_scalar!(
+        "SELECT password FROM mini_bind WHERE stuId = ?",
+        stu_id
+    )
+    .fetch_optional(get_db_pool().await)
+    .await?;
+    Ok(res)
+}
+
+pub async fn get_lab_password(
+    stu_id: &str,
+) -> Result<Option<String>> {
+    let res = sqlx::query_scalar!(
+        "SELECT labPass FROM mini_bind WHERE stuId = ?",
+        stu_id
+    )
+    .fetch_optional(get_db_pool().await)
+    .await?;
+    Ok(res.flatten())
 }

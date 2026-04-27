@@ -1,8 +1,12 @@
-use anyhow::anyhow;
+use crate::{
+    ca::login::CaToken,
+    error::{
+        MapNetworkErr, MapParseErr, MapUnexpectedErr, parse_err,
+    },
+    utils::client,
+};
 use serde_json::Value;
-use std::time::Duration;
-
-use crate::{ca::login::ca_headers, utils::client};
+use std::{convert::Infallible, time::Duration};
 
 /// 本科生主修所有课程的中文成绩单
 pub const UNDERGRADUATE_MAJOR_ALL_TEMPLATE_ID: &str =
@@ -19,29 +23,34 @@ pub const UNDERGRADUATE_MAJOR_ALL_TEMPLATE_ID: &str =
 ///
 /// 可信电子凭证文件的 pdf 文本原始数据
 pub async fn raw_certification_data(
-    stu_id: &str,
+    ca_token: &CaToken,
     template_id: &str,
-) -> Result<String, crate::Error> {
-    let ca_headers = ca_headers(stu_id).await?;
+) -> Result<String, crate::Error<Infallible>> {
     let template_url = format!(
         "https://ca.hnu.edu.cn/student/student/caTemplate/preview_file?templateId={}&isbzf=0&kcxz=&xfjd=&xzkc=",
         template_id
     );
-    let res: Value = client
+    let json_str = client
         .get(&template_url)
         .timeout(Duration::from_secs(60))
-        .headers(ca_headers.clone())
+        .headers(ca_token.headers().clone())
         .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
-    if res.get("code").and_then(|v| v.as_u64()) != Some(200) {
-        return Err(anyhow!("获取文件失败").into());
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .text()
+        .await
+        .unexpected_err()?;
+    let json: Value =
+        serde_json::from_str(&json_str).parse_err(&json_str)?;
+    if json.get("code").and_then(|v| v.as_u64()) != Some(200) {
+        return Err(parse_err(&json_str));
     }
-    let Some(file_name) = res.get("message").and_then(|v| v.as_str())
+    let Some(file_name) =
+        json.get("message").and_then(|v| v.as_str())
     else {
-        return Err(anyhow!("获取文件失败").into());
+        return Err(parse_err(&json_str));
     };
     let file_url = format!(
         "https://ca.hnu.edu.cn/student/sys/common/view/{}",
@@ -51,11 +60,13 @@ pub async fn raw_certification_data(
     let res = client
         .get(&file_url)
         .timeout(Duration::from_secs(60))
-        .headers(ca_headers)
+        .headers(ca_token.headers().clone())
         .send()
-        .await?
-        .error_for_status()?;
-    let bytes = res.bytes().await?;
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?;
+    let bytes = res.bytes().await.unexpected_err()?;
     let pdf = pdf_extract::extract_text_from_mem(&bytes).unwrap();
     Ok(pdf)
 }

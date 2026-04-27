@@ -1,4 +1,8 @@
-use crate::{infra, result::AppResult};
+use crate::{
+    infra,
+    result::{AppResult, ThrowError},
+    service::user_state::{Ca, with_token},
+};
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -73,13 +77,18 @@ impl CaTaskQueue {
 static CA_TASK_QUEUE: OnceCell<CaTaskQueue> = OnceCell::const_new();
 async fn ca_task_worker() {
     async fn fetch(stu_id: &str) -> AppResult<()> {
-        let rank = get_rank_from_ca(stu_id).await?;
-        let value = serde_json::to_string(&rank)?;
+        let rank = with_token(Ca::new(stu_id), async |token| {
+            get_rank_from_ca(&token).await
+        })
+        .await?;
+        let value = serde_json::to_string(&rank)
+            .throw_error("序列化可信电子凭证数据失败")?;
         infra::mysql::kv_cache::insert(
             &format!("{}:{}", CA_RANK_KEY, stu_id),
             value.as_str(),
         )
-        .await
+        .await?;
+        Ok(())
     }
     let queue = ca_task_queue().await;
     loop {
@@ -113,7 +122,8 @@ pub async fn get_ca_rank(stu_id: &str) -> AppResult<Option<CaRank>> {
     ))
     .await?;
     if let Some((value, update_at)) = cache {
-        let detail: CaRankDetail = serde_json::from_str(&value)?;
+        let detail: CaRankDetail = serde_json::from_str(&value)
+            .throw_error("反序列化可信电子凭证数据失败")?;
         Ok(Some(CaRank { detail, update_at }))
     } else {
         refresh_ca_rank(stu_id).await?;

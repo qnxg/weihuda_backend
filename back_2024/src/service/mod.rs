@@ -17,4 +17,5 @@ pub mod notice;
 pub mod public_info;
 pub mod semester;
 pub mod user_info;
+pub mod user_state;
 pub mod zhihu;

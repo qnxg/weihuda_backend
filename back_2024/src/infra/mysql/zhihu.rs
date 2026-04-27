@@ -1,5 +1,5 @@
+use super::Result;
 use super::get_db_pool;
-use crate::result::AppResult;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +27,7 @@ pub async fn get_zhihu_list(
     stu_id: &str,
     offset: u32,
     count: u32,
-) -> AppResult<Vec<ZhihuListItem>> {
+) -> Result<Vec<ZhihuListItem>> {
     let res: Vec<ZhihuListItem> = sqlx::query!(
         r#"
         SELECT 
@@ -83,7 +83,7 @@ pub async fn get_zhihu_count(
     typ: Option<String>,
     tags: Option<String>,
     stu_id: &str,
-) -> AppResult<u32> {
+) -> Result<u32> {
     let rec = sqlx::query!(
         r#"
         SELECT 
@@ -107,7 +107,7 @@ pub async fn get_zhihu_count(
 
 pub async fn get_zhihu_by_id(
     id: u32,
-) -> AppResult<Option<ZhihuListItem>> {
+) -> Result<Option<ZhihuListItem>> {
     let res: Option<ZhihuListItem> = sqlx::query!(
         r#"
         SELECT 

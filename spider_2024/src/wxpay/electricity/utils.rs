@@ -1,11 +1,13 @@
-use crate::xgxt::personal_info::Dormitory;
-use anyhow::anyhow;
+use crate::{
+    error::parse_err_with_reason, xgxt::personal_info::Dormitory,
+};
+use std::convert::Infallible;
 
 /// 将宿舍信息解析为电量查询系统接受的类型，返回 (park, build, room)
 #[expect(clippy::too_many_lines, reason = "REFACTOR ME")]
 pub fn parse_dormitory(
     dormitory: Dormitory,
-) -> Result<(u8, String, String), crate::Error> {
+) -> Result<(u8, String, String), crate::Error<Infallible>> {
     let park = dormitory.park().expect("参数 dormitory 必须成功解析");
     let build =
         dormitory.build().expect("参数 dormitory 必须成功解析");
@@ -18,7 +20,7 @@ pub fn parse_dormitory(
         "德智留学生公寓" => 5,
         "望麓桥学生公寓" => 6,
         "牛头山学生公寓" => 7,
-        v => return Err(anyhow!("尚不支持的园区: {}", v).into()),
+        v => return Err(parse_err_with_reason(v, "park")),
     };
     let build_id = match (park_id, build) {
         // 南校区
@@ -34,21 +36,17 @@ pub fn parse_dormitory(
         (1, "18舍") => "25",
         // 19舍比较特殊，常见情况：南校区/19舍/1-附204，南校区/19舍/2-320
         (1, "19舍") => {
-            let no = room.chars().next().ok_or(anyhow!(
-                "解析宿舍楼栋信息失败，异常的 room: {}",
-                room
-            ))?;
+            let no = room
+                .chars()
+                .next()
+                .ok_or(parse_err_with_reason(room, "room"))?;
             match no {
                 '1' => "25-1",
                 '2' => "25-2",
                 '3' => "25-3",
                 '4' => "25-4",
                 _ => {
-                    return Err(anyhow!(
-                        "解析宿舍楼栋信息失败，异常的 room: {}",
-                        room
-                    )
-                    .into());
+                    return Err(parse_err_with_reason(room, "room"));
                 }
             }
         }
@@ -118,12 +116,10 @@ pub fn parse_dormitory(
         (7, "6栋") => "64",
         (7, "7栋") => "65",
         _ => {
-            return Err(anyhow!(
-                "尚不支持的宿舍楼栋，{} {}",
-                park,
-                build
-            )
-            .into());
+            return Err(parse_err_with_reason(
+                &format!("{:?}", (park, build)),
+                "(park, build)",
+            ));
         }
     };
     let room_id = match (park_id, build, room) {
@@ -142,11 +138,7 @@ pub fn parse_dormitory(
         (1, "19舍", r) => {
             let parts = r.split('-').collect::<Vec<&str>>();
             if parts.len() != 2 {
-                return Err(anyhow!(
-                    "解析宿舍信息失败，异常的 room: {}",
-                    r
-                )
-                .into());
+                return Err(parse_err_with_reason(r, "room"));
             }
             if parts[1].starts_with('附') {
                 format!("F{}", parts[1].replace('附', ""))

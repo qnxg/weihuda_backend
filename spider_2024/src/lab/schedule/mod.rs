@@ -1,11 +1,15 @@
-use anyhow::anyhow;
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use serde::Serialize;
-
 mod raw;
 
+use crate::{
+    error::{MapParseErr, parse_err_with_reason},
+    lab::login::LabToken,
+};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
+
 /// 大物实验安排
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct LabSchedule {
     /// 座位号
     pub seat: String,
@@ -31,10 +35,19 @@ pub struct LabSchedule {
     pub email: Option<String>,
 }
 
+/// 获取大物实验安排
+///
+/// # Arguments
+///
+/// - `lab_token`: 大物实验平台的令牌，可以通过 [LabToken::acquire_by_login] 获取
+///
+/// # Returns
+///
+/// 返回一个包含所有大物实验安排的列表
 pub async fn get_lab_schedule(
-    stu_id: &str,
-) -> Result<Vec<LabSchedule>, crate::Error> {
-    let raw_data = raw::raw_lab_schedule_data(stu_id).await?;
+    lab_token: &LabToken,
+) -> Result<Vec<LabSchedule>, crate::Error<Infallible>> {
+    let raw_data = raw::raw_lab_schedule_data(lab_token).await?;
     let mut res = Vec::with_capacity(raw_data.len());
     for item in raw_data {
         let day = match item.WeekName.as_str() {
@@ -46,37 +59,29 @@ pub async fn get_lab_schedule(
             "星期六" => 6,
             "星期日" => 7,
             _ => {
-                return Err(anyhow!(
-                    "意料之外的星期几: {}",
-                    item.WeekName
-                )
-                .into());
+                return Err(parse_err_with_reason(
+                    &item.WeekName,
+                    "day",
+                ));
             }
         };
-        let week = item.Weeks.parse().map_err(|e| {
-            anyhow!(
-                "解析周数失败: data = {}, err = {}",
-                item.Weeks,
-                e
-            )
-        })?;
+        let week = item
+            .Weeks
+            .parse::<u8>()
+            .parse_err_with_reason(&item.Weeks, "week")?;
         let date = item
             .ClassDate
             .split(' ')
             .next()
-            .and_then(|v| {
-                NaiveDate::parse_from_str(v, "%Y/%m/%d").ok()
+            .map(|v| {
+                NaiveDate::parse_from_str(v, "%Y/%m/%d")
+                    .parse_err_with_reason(v, "date")
             })
-            .ok_or(anyhow!("解析时间失败: {}", item.ClassDate))?;
+            .transpose()?
+            .ok_or(parse_err_with_reason(&item.ClassDate, "date"))?;
         let time =
             NaiveTime::parse_from_str(&item.StartTime, "%H:%M")
-                .map_err(|e| {
-                    anyhow!(
-                        "解析时间失败: data = {}, err = {}",
-                        item.StartTime,
-                        e
-                    )
-                })?;
+                .parse_err_with_reason(&item.StartTime, "time")?;
         let tmp = LabSchedule {
             seat: item.SeatNo,
             name: item.LabName,
@@ -103,13 +108,15 @@ pub async fn get_lab_schedule(
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
-    use crate::test::TEST_STU_ID;
+    use crate::lab::test::get_lab_token;
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_lab_schedule() {
-        let res = get_lab_schedule(&TEST_STU_ID).await.unwrap();
-        println!("{:#?}", res);
+        let lab_token = get_lab_token().await.unwrap();
+        let schedule = get_lab_schedule(&lab_token).await.unwrap();
+        println!("{:#?}", schedule);
     }
 }

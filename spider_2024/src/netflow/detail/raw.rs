@@ -1,13 +1,19 @@
-use crate::{netflow::login::netflow_headers, utils::client};
-use anyhow::anyhow;
-use serde::{Deserialize, Serialize};
+use crate::{
+    error::{
+        MapNetworkErr, MapParseErr, MapUnexpectedErr, parse_err,
+    },
+    netflow::login::NetflowToken,
+    utils::client,
+};
+use serde::Deserialize;
 use serde_json::Value;
+use std::convert::Infallible;
 
 const NETFLOW_MONTH_URL: &str = "http://ll.hnu.edu.cn/api/v1/history/getfloatdetailbymonth?month=";
 const NETFLOW_DAY_URL: &str =
     "http://ll.hnu.edu.cn/api/v1/history/getfloatdetailbyday?day=";
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Debug)]
 #[expect(non_snake_case)]
 pub struct Detail {
     pub AllDownload: f64,
@@ -16,7 +22,7 @@ pub struct Detail {
     pub FloatDetailList: Vec<DetailItem>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Debug)]
 #[expect(non_snake_case)]
 pub struct DetailItem {
     pub App: String,
@@ -27,47 +33,61 @@ pub struct DetailItem {
 }
 
 pub async fn raw_month_detail_data(
-    stu_id: &str,
+    netflow_token: &NetflowToken,
     year: u16,
     month: u8,
-) -> Result<Detail, crate::Error> {
-    let netflow_headers = netflow_headers(stu_id).await?;
+) -> Result<Detail, crate::Error<Infallible>> {
+    let headers = netflow_token.headers().clone();
     let url = format!("{NETFLOW_MONTH_URL}{}-{:0>2}", year, month);
-    let raw_res = client
+    let json_str = client
         .get(url)
-        .headers(netflow_headers)
+        .headers(headers)
         .send()
-        .await?
-        .error_for_status()?
-        .json::<Value>()
-        .await?;
-    let res: Detail = raw_res
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .text()
+        .await
+        .unexpected_err()?;
+    let res: Detail = serde_json::from_str::<Value>(&json_str)
+        .parse_err(&json_str)?
         .get("data")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .ok_or(anyhow!("解析月流量详情失败: {:?}", raw_res))?;
+        .map(|v| {
+            serde_json::from_value(v.clone()).parse_err(&json_str)
+        })
+        .transpose()?
+        .ok_or(parse_err(&json_str))?;
     Ok(res)
 }
 
 pub async fn raw_day_detail_data(
-    stu_id: &str,
+    netflow_token: &NetflowToken,
     year: u16,
     month: u8,
     day: u8,
-) -> Result<Detail, crate::Error> {
-    let netflow_headers = netflow_headers(stu_id).await?;
+) -> Result<Detail, crate::Error<Infallible>> {
+    let headers = netflow_token.headers().clone();
     let url =
         format!("{NETFLOW_DAY_URL}{}{:0>2}{:0>2}", year, month, day);
-    let raw_res = client
+    let json_str = client
         .get(url)
-        .headers(netflow_headers)
+        .headers(headers)
         .send()
-        .await?
-        .error_for_status()?
-        .json::<Value>()
-        .await?;
-    let res: Detail = raw_res
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .text()
+        .await
+        .unexpected_err()?;
+    let res: Detail = serde_json::from_str::<Value>(&json_str)
+        .parse_err(&json_str)?
         .get("data")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .ok_or(anyhow!("解析日流量详情失败: {:?}", raw_res))?;
+        .map(|v| {
+            serde_json::from_value(v.clone()).parse_err(&json_str)
+        })
+        .transpose()?
+        .ok_or(parse_err(&json_str))?;
     Ok(res)
 }

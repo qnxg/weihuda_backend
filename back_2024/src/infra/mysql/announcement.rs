@@ -1,8 +1,6 @@
-use super::get_db_pool;
+use super::{Result, get_db_pool};
 use chrono::NaiveDateTime;
 use serde::Serialize;
-
-use crate::result::AppResult;
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -17,7 +15,7 @@ pub struct AnnouncementInfo {
 /// count 表示最多获取多少条消息
 pub async fn get_announcement_list(
     count: u32,
-) -> AppResult<Vec<AnnouncementInfo>> {
+) -> Result<Vec<AnnouncementInfo>> {
     let announcement = sqlx::query_as!(
         AnnouncementInfo,
         r#"

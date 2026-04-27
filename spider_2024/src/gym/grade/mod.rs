@@ -1,16 +1,19 @@
 mod raw;
 mod utils;
 
+use crate::gym::{
+    error::TokenExpired,
+    grade::{
+        raw::{raw_grade_detail_data, raw_grade_summary_data},
+        utils::{item_class_into_color, item_grade_into_color},
+    },
+    login::GymToken,
+};
 use serde::{Deserialize, Serialize};
 use tokio::try_join;
 
-use crate::gym::grade::{
-    raw::{raw_grade_detail_data, raw_grade_summary_data},
-    utils::{item_class_into_color, item_grade_into_color},
-};
-
 /// 体测成绩
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Grade {
     /// 姓名
     pub name: String,
@@ -45,7 +48,9 @@ pub struct Grade {
     /// 肺活量成绩
     pub vc: GradeItem,
 }
-#[derive(Serialize, Deserialize, Debug)]
+
+/// 视力成绩
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EyeGrade {
     /// 右眼裸视力
     pub eyesight_right: String,
@@ -72,7 +77,9 @@ pub struct EyeGrade {
     /// 左眼屈光不正视力描述
     pub eye_ametropia_left_detail: String,
 }
-#[derive(Serialize, Deserialize, Debug)]
+
+/// 体测某个项目的成绩的具体描述
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GradeItem {
     /// 等级颜色
     pub color: GradeItemColor,
@@ -96,9 +103,15 @@ pub struct GradeItem {
     /// 不是该项目占总成绩的分数。
     pub score: i32,
 }
-#[derive(Serialize, Deserialize, Debug)]
+
+/// 体测某个项目的成绩的等级颜色
+#[derive(
+    Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy,
+)]
 pub enum GradeItemColor {
+    /// 绿色
     Green,
+    /// 红色
     Red,
 }
 
@@ -106,16 +119,24 @@ pub enum GradeItemColor {
 ///
 /// # Parameters
 ///
-/// - `stu_id`: 学号
+/// - `gym_token`: 体测系统的令牌，可以通过 [GymToken::acquire_by_cas_login] 或 [GymToken::acquire_by_direct_login] 获取
 /// - `xn`: 学年，如 `2025`
+///
+/// # Returns
+///
+/// 返回体测成绩
+///
+/// # Errors
+///
+/// 如果提供的 `gym_token` 过期了，那么会返回 [TokenExpired] 错误，需要重新获取一个新的 [GymToken]
 #[expect(clippy::too_many_lines, reason = "REFACTOR ME")]
 pub async fn get_grade(
-    stu_id: &str,
+    gym_token: &GymToken,
     xn: u16,
-) -> Result<Grade, crate::Error> {
+) -> Result<Grade, crate::Error<TokenExpired>> {
     let (grade_summary, grade_detail) = try_join!(
-        raw_grade_summary_data(stu_id, xn),
-        raw_grade_detail_data(stu_id, xn),
+        raw_grade_summary_data(gym_token, xn),
+        raw_grade_detail_data(gym_token, xn),
     )?;
     let eye = EyeGrade {
         eyesight_right: grade_detail.eyesight_right,
@@ -264,13 +285,15 @@ pub async fn get_grade(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test::{TEST_STU_ID, TEST_XN};
+mod test {
+    use super::get_grade;
+    use crate::{gym::test::get_gym_token, test::TEST_XN};
 
     #[tokio::test]
-    async fn test_get_grade() {
-        let res = get_grade(&TEST_STU_ID, TEST_XN).await.unwrap();
-        println!("{:?}", res);
+    #[ignore]
+    pub async fn test_get_grade() {
+        let gym_token = get_gym_token().await;
+        let grade = get_grade(&gym_token, *TEST_XN).await.unwrap();
+        println!("{:#?}", grade);
     }
 }

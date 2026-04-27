@@ -1,10 +1,13 @@
 mod raw;
 
-use anyhow::anyhow;
+use crate::{
+    error::{parse_err, parse_err_with_reason},
+    hdjw::{error::TokenExpired, login::HdjwToken},
+};
 use serde::{Deserialize, Serialize};
 
 /// 空教室信息
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmptyClassroom {
     /// 教室名称，如 `综105`
     pub room_name: String,
@@ -21,7 +24,7 @@ pub struct EmptyClassroom {
 ///
 /// # Arguments
 ///
-/// - `stu_id`: 学号
+/// - `hdjw_token`: 教务系统的令牌，可以通过 [HdjwToken::acquire_by_cas_login] 获取
 /// - `building_id`: 楼栋id，参考 `docs/hdjw/building.md` 的 `楼栋 id` 一栏
 /// - `week`: 第几周
 /// - `day`: 周几，星期一为 `1`，星期日为 `7`
@@ -33,18 +36,22 @@ pub struct EmptyClassroom {
 ///
 /// 空教室列表
 ///
+/// # Errors
+///
+/// 如果提供的 `hdjw_token` 过期了，那么会返回 [TokenExpired] 错误，需要重新获取一个新的 [HdjwToken]
+///
 /// # Panics
 ///
 /// `time` 必须位于区间 [1, 5] 内，否则会 panic
 pub async fn get_empty_classroom(
-    stu_id: &str,
+    hdjw_token: &HdjwToken,
     building_id: &str,
     week: u8,
     day: u8,
     time: &[u8],
     xn: u16,
     xq: u8,
-) -> Result<Vec<EmptyClassroom>, crate::Error> {
+) -> Result<Vec<EmptyClassroom>, crate::Error<TokenExpired>> {
     let time_str = time
         .iter()
         .map(|&x| match x {
@@ -58,7 +65,7 @@ pub async fn get_empty_classroom(
         .collect::<Vec<_>>()
         .join(",");
     let raw_data = raw::raw_empty_classroom_data(
-        stu_id,
+        hdjw_token,
         xn,
         xq,
         week,
@@ -71,18 +78,20 @@ pub async fn get_empty_classroom(
         .as_array()
         .and_then(|v| v.get(4))
         .and_then(|v| v.as_array())
-        .ok_or(anyhow!("解析空教室数据失败 {:?}", raw_data))?;
+        .ok_or(parse_err(&raw_data.to_string()))?;
     let mut res = Vec::new();
     for item in data {
-        let item = item
-            .as_array()
-            .ok_or(anyhow!("解析空教室数据失败 {:?}", item))?;
+        let item =
+            item.as_array().ok_or(parse_err(&item.to_string()))?;
         let mut is_free = true;
         // 需要每一节课均为空才会被认为是空教室
         for i in 1..=time.len() {
             if !item
                 .get(i)
-                .ok_or(anyhow!("解析空教室数据失败 {:?}", item))?
+                .ok_or(parse_err_with_reason(
+                    &format!("{:?}", item),
+                    "空教室占用情况",
+                ))?
                 .is_null()
             {
                 is_free = false;
@@ -98,20 +107,20 @@ pub async fn get_empty_classroom(
             item.get(2 + time.len()).and_then(|v| v.as_str()),
             item.get(3 + time.len()).and_then(|v| v.as_str()),
         ) else {
-            return Err(
-                anyhow!("解析空教室数据失败 {:?}", item).into()
-            );
+            return Err(parse_err_with_reason(
+                &format!("{:?}", item),
+                "空教室信息",
+            ));
         };
 
         if seat_count_str.len() < 3
             || !seat_count_str.starts_with('(')
             || !seat_count_str.ends_with(')')
         {
-            return Err(anyhow!(
-                "解析空教室座位数据失败 {:?}",
-                seat_count_str
-            )
-            .into());
+            return Err(parse_err_with_reason(
+                seat_count_str,
+                "座位数",
+            ));
         }
         let [Ok(seat_count), Ok(exam_seat_count)] = seat_count_str
             [1..seat_count_str.len() - 1]
@@ -119,11 +128,10 @@ pub async fn get_empty_classroom(
             .map(|x| x.parse::<u32>())
             .collect::<Vec<_>>()[..]
         else {
-            return Err(anyhow!(
-                "解析空教室座位数据失败 {:?}",
-                seat_count_str
-            )
-            .into());
+            return Err(parse_err_with_reason(
+                seat_count_str,
+                "座位数",
+            ));
         };
         res.push(EmptyClassroom {
             room_name: room_name.to_string(),
@@ -136,27 +144,29 @@ pub async fn get_empty_classroom(
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
-    use crate::test::{TEST_STU_ID, TEST_XN, TEST_XQ};
+    use crate::hdjw::test::{
+        TEST_HDJW_BUILDING_ID, TEST_HDJW_DAY_OF_WEEK, TEST_HDJW_TIME,
+        TEST_HDJW_WEEK, get_hdjw_token,
+    };
+    use crate::test::{TEST_XN, TEST_XQ};
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_empty_classroom() {
-        let building_id = "106"; // 综合楼
-        let week = 7;
-        let day = 3;
-        let time = &[1, 2];
-        let res = get_empty_classroom(
-            &TEST_STU_ID,
-            building_id,
-            week,
-            day,
-            time,
-            TEST_XN,
-            TEST_XQ,
+        let hdjw_token = get_hdjw_token().await.unwrap();
+        let empty_classroom = get_empty_classroom(
+            &hdjw_token,
+            TEST_HDJW_BUILDING_ID,
+            *TEST_HDJW_WEEK,
+            *TEST_HDJW_DAY_OF_WEEK,
+            &TEST_HDJW_TIME,
+            *TEST_XN,
+            *TEST_XQ,
         )
         .await
         .unwrap();
-        println!("{:#?}", res);
+        println!("{:#?}", empty_classroom);
     }
 }

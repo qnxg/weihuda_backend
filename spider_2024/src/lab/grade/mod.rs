@@ -1,19 +1,19 @@
-use std::collections::HashMap;
+mod raw;
 
-use anyhow::anyhow;
+use crate::{
+    error::MapParseErr,
+    lab::{grade::raw::raw_virtual_lab_score_data, login::LabToken},
+};
 use raw::{
     raw_lab_score_data, raw_lab_score_detail_data,
     raw_lab_score_structure_data,
 };
 use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, convert::Infallible};
 use tokio::try_join;
 
-use crate::lab::grade::raw::raw_virtual_lab_score_data;
-
-mod raw;
-
 /// 实验成绩
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LabGrade {
     /// 实验名称
     pub lab_name: String,
@@ -26,7 +26,7 @@ pub struct LabGrade {
 }
 
 /// 实验成绩的具体组成项
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LabGradeDetailItem {
     /// 成绩组成名称
     pub name: String,
@@ -40,7 +40,7 @@ pub struct LabGradeDetailItem {
 ///
 /// # Parameters
 ///
-/// - `stu_id`: 学号
+/// - `lab_token`: 大物实验平台的令牌，可以通过 [LabToken::acquire_by_login] 获取
 /// - `course_id`: 课程id，通过 [`crate::lab::get_course_list`] 获取
 /// - `semester_id`: 学期id，通过 [`crate::lab::get_semester`] 获取
 ///
@@ -48,14 +48,14 @@ pub struct LabGradeDetailItem {
 ///
 /// 返回实验成绩列表
 pub async fn get_lab_grade(
-    stu_id: &str,
+    lab_token: &LabToken,
     course_id: &str,
     semester_id: &str,
-) -> Result<Vec<LabGrade>, crate::Error> {
+) -> Result<Vec<LabGrade>, crate::Error<Infallible>> {
     let (lab_score, lab_score_detail, lab_score_structure) = try_join!(
-        raw_lab_score_data(stu_id, course_id, semester_id),
-        raw_lab_score_detail_data(stu_id, course_id),
-        raw_lab_score_structure_data(stu_id, course_id),
+        raw_lab_score_data(lab_token, course_id, semester_id),
+        raw_lab_score_detail_data(lab_token, course_id),
+        raw_lab_score_structure_data(lab_token, course_id),
     )?;
     let score_structure_map: HashMap<i32, String> =
         lab_score_structure
@@ -70,9 +70,8 @@ pub async fn get_lab_grade(
     for item in lab_score.into_iter().filter(|i| {
         !i.LabScore.is_empty() && !i.ClassRoom.contains("虚拟")
     }) {
-        let lab_id = item.LabID.parse::<i32>().map_err(|e| {
-            anyhow!("解析实验ID失败：{}, {}", item.LabID, e)
-        })?;
+        let lab_id =
+            item.LabID.parse::<i32>().parse_err(&item.LabID)?;
         res.push(LabGrade {
             lab_name: item.LabName,
             score: item.LabScore,
@@ -106,7 +105,7 @@ pub async fn get_lab_grade(
     Ok(res)
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct VirtualLabGrade {
     /// 实验名称
     pub lab_name: String,
@@ -120,15 +119,15 @@ pub struct VirtualLabGrade {
 ///
 /// # Parameters
 ///
-/// - `stu_id`: 学号
+/// - `lab_token`: 大物实验平台的令牌，可以通过 [LabToken::acquire_by_login] 获取
 ///
 /// # Returns
 ///
 /// 返回虚拟实验成绩列表
 pub async fn get_virtual_lab_grade(
-    stu_id: &str,
-) -> Result<Vec<VirtualLabGrade>, crate::Error> {
-    let spider_res = raw_virtual_lab_score_data(stu_id).await?;
+    lab_token: &LabToken,
+) -> Result<Vec<VirtualLabGrade>, crate::Error<Infallible>> {
+    let spider_res = raw_virtual_lab_score_data(lab_token).await?;
     let mut res = Vec::new();
     for item in
         spider_res.into_iter().filter(|i| !i.LabScore.is_empty())
@@ -150,27 +149,23 @@ pub async fn get_virtual_lab_grade(
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
-    use crate::lab::test::TEST_COURSE_ID;
-    use crate::lab::test::TEST_SEMESTER_ID;
-    use crate::test::TEST_STU_ID;
+    use crate::lab::test::{
+        TEST_COURSE_ID, TEST_SEMESTER_ID, get_lab_token,
+    };
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_lab_grade() {
-        let res = get_lab_grade(
-            &TEST_STU_ID,
+        let lab_token = get_lab_token().await.unwrap();
+        let grade = get_lab_grade(
+            &lab_token,
             TEST_COURSE_ID,
             TEST_SEMESTER_ID,
         )
         .await
         .unwrap();
-        println!("{:#?}", res);
-    }
-
-    #[tokio::test]
-    async fn test_get_virtual_lab_grade() {
-        let res = get_virtual_lab_grade(&TEST_STU_ID).await.unwrap();
-        println!("{:#?}", res);
+        println!("{:#?}", grade);
     }
 }

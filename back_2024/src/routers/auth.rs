@@ -1,10 +1,13 @@
-use crate::service::auth::user::VerifyPasswordResult;
 use crate::{
     result::{AppError, RouterResult},
-    service::{self, auth::qrcode::AuthQrCodeStatus},
+    service::{
+        self,
+        auth::{
+            qrcode::AuthQrCodeStatus, user::VerifyPasswordResult,
+        },
+    },
     utils,
 };
-use anyhow::anyhow;
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
 use serde_json::json;
@@ -54,17 +57,17 @@ async fn bind_user(req: &mut Request) -> RouterResult {
     {
         VerifyPasswordResult::Success => {}
         VerifyPasswordResult::Fail => {
-            return Err(anyhow!("密码错误").into());
+            return Err(AppError::Text("密码错误".to_string()));
         }
         VerifyPasswordResult::ShouldChange => {
-            return Err(
-                anyhow!("请前往个人门户修改密码后重试").into()
-            );
+            return Err(AppError::Text(
+                "请前往个人门户修改密码后重试".to_string(),
+            ));
         }
         VerifyPasswordResult::Lock => {
-            return Err(
-                anyhow!("账号被锁定，请10分钟之后再试").into()
-            );
+            return Err(AppError::Text(
+                "账号被锁定，请10分钟之后再试".to_string(),
+            ));
         }
     }
 
@@ -150,7 +153,7 @@ async fn put_auth_qrcode_status(req: &mut Request) -> RouterResult {
 
     if !["using", "confirmed", "canceled"].contains(&status.as_str())
     {
-        return Err(AppError::ParseError());
+        return Err(AppError::ParseError);
     }
 
     if let Some(old_status) =

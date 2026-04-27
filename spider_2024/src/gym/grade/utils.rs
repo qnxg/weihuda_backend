@@ -1,6 +1,5 @@
-use serde::{Deserialize, Deserializer};
-
 use crate::gym::grade::GradeItemColor;
+use serde::{Deserialize, Deserializer};
 
 /// If the value is None, return "0" instead.
 pub fn none_to_zero<'de, D>(

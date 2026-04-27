@@ -1,14 +1,27 @@
-//! 包含测试需要需要用到的常量
-//!
-//! 本地测试时请注意：确认你使用的是校园网环境，
-//!
-//! 没有开启代理，且DNS使用了校园网DNS（例如202.197.96.1）
+#![doc = include_str!("../docs/test.md")]
 
 use std::sync::LazyLock;
 
-// TODO 改为从环境变量中读取
-pub static TEST_STU_ID: LazyLock<String> =
-    LazyLock::new(|| "".to_string());
+pub static TEST_STU_ID: &str = env!("TEST_STU_ID");
 
-pub static TEST_XN: u16 = 2025;
-pub static TEST_XQ: u8 = 1;
+pub static TEST_PASSWORD: &str = env!("TEST_PASSWORD");
+
+pub static TEST_XN: LazyLock<u16> = LazyLock::new(|| {
+    std::env::var("TEST_XN").unwrap().parse().unwrap()
+});
+
+pub static TEST_XQ: LazyLock<u8> = LazyLock::new(|| {
+    std::env::var("TEST_XQ").unwrap().parse().unwrap()
+});
+
+pub static TEST_YEAR: LazyLock<u16> = LazyLock::new(|| {
+    std::env::var("TEST_YEAR").unwrap().parse().unwrap()
+});
+
+pub static TEST_MONTH: LazyLock<u8> = LazyLock::new(|| {
+    std::env::var("TEST_MONTH").unwrap().parse().unwrap()
+});
+
+pub static TEST_DAY: LazyLock<u8> = LazyLock::new(|| {
+    std::env::var("TEST_DAY").unwrap().parse().unwrap()
+});

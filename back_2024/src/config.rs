@@ -9,6 +9,7 @@ pub struct Configs {
     pub jwt: Jwt,
     pub wechat: Wechat,
     pub rabbitmq: RabbitMq,
+    pub captcha: Captcha,
 }
 
 #[derive(Deserialize, Debug)]
@@ -49,6 +50,11 @@ pub struct Wechat {
 pub struct RabbitMq {
     pub url: String,
     pub feedback_exchange: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Captcha {
+    pub captcha_url: String,
 }
 
 pub static CFG: LazyLock<Configs> =

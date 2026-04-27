@@ -1,11 +1,12 @@
 use aes::cipher::block_padding::Pkcs7;
 use aes::cipher::generic_array::GenericArray;
-use aes::cipher::{BlockEncryptMut, KeyIvInit};
+use aes::cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit};
 use base64::engine::Engine as _;
 use base64::engine::general_purpose::STANDARD as base64;
 use rand_core::{OsRng, RngCore};
 
 type Aes256CbcEnc = cbc::Encryptor<aes::Aes256>;
+type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
 
 const PASS_PHRASE: &str = "qnxg-crypto-2023";
 
@@ -63,24 +64,26 @@ pub fn encrypt(data: &str) -> String {
     base64.encode(&res)
 }
 
+/// 解密函数，可能会返回错误
+pub fn decrypt(
+    data: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let decode = base64.decode(data)?;
+    if decode.len() < 16 {
+        return Err("Invalid data length".into());
+    }
+    let salt = &decode[8..16];
+    let (key, iv) = passphrase_to_key_and_iv(salt, PASS_PHRASE);
+    let key = GenericArray::from_slice(&key);
+    let iv = GenericArray::from_slice(&iv);
+    let res = Aes256CbcDec::new(key, iv)
+        .decrypt_padded_vec_mut::<Pkcs7>(&decode[16..])?;
+    Ok(String::from_utf8(res)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aes::cipher::BlockDecryptMut;
-    use std::error::Error;
-
-    type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
-
-    fn decrypt(data: &str) -> Result<String, Box<dyn Error>> {
-        let decode = base64.decode(data)?;
-        let salt = &decode[8..16];
-        let (key, iv) = passphrase_to_key_and_iv(salt, PASS_PHRASE);
-        let key = GenericArray::from_slice(&key);
-        let iv = GenericArray::from_slice(&iv);
-        let res = Aes256CbcDec::new(key, iv)
-            .decrypt_padded_vec_mut::<Pkcs7>(&decode[16..])?;
-        Ok(String::from_utf8(res)?)
-    }
 
     #[test]
     fn test_encrypt_decrypt() {
@@ -88,12 +91,5 @@ mod tests {
         let encrypted = encrypt(data);
         let decrypted = decrypt(&encrypted).unwrap();
         assert_eq!(data, decrypted);
-    }
-
-    #[test]
-    fn test_data_in_database() {
-        let data = "";
-        let decrypted = decrypt(data).unwrap();
-        println!("{}", decrypted);
     }
 }

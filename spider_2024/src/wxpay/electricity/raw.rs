@@ -1,6 +1,11 @@
-use crate::utils::client;
-use anyhow::anyhow;
+use crate::{
+    error::{
+        MapNetworkErr, MapParseErr, MapUnexpectedErr, parse_err,
+    },
+    utils::client,
+};
 use serde_json::Value;
+use std::convert::Infallible;
 
 const QUERY_URL: &str =
     "http://wxpay.hnu.edu.cn/api/appElectricCharge/checkRoomNo";
@@ -9,8 +14,8 @@ pub async fn raw_electricity_data(
     park: u8,
     building: &str,
     room: &str,
-) -> Result<String, crate::Error> {
-    let res = client
+) -> Result<String, crate::Error<Infallible>> {
+    let json_str = client
         .get(format!(
             "{}?parkNo={}&buildingNo={}&rechargeType=2&roomNo={}",
             QUERY_URL, park, building, room
@@ -21,13 +26,19 @@ pub async fn raw_electricity_data(
         )
         .header("X-Requested-With", "XMLHttpRequest")
         .send()
-        .await?
-        .json::<Value>()
-        .await?;
-    Ok(res
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .text()
+        .await
+        .unexpected_err()?;
+    let json = serde_json::from_str::<Value>(&json_str)
+        .parse_err(&json_str)?;
+    Ok(json
         .get("data")
         .and_then(|data| data.get("Balance"))
         .and_then(|balance| balance.as_str())
-        .ok_or(anyhow!("解析数据失败，data: {:?}", res))?
+        .ok_or(parse_err(&json_str))?
         .to_string())
 }

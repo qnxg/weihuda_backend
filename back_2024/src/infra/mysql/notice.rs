@@ -1,5 +1,5 @@
+use super::Result;
 use super::get_db_pool;
-use crate::result::AppResult;
 use chrono::NaiveDateTime;
 use serde::Serialize;
 
@@ -19,7 +19,7 @@ pub async fn get_notice_list(
     stu_id: &str,
     page: u32,
     page_size: u32,
-) -> AppResult<Vec<Notice>> {
+) -> Result<Vec<Notice>> {
     let res = sqlx::query!(
         r#"
         SELECT 
@@ -61,7 +61,7 @@ pub async fn get_notice_list(
 }
 
 /// result 和 status 如果是 None 就不更新
-pub async fn update_notice(id: u32, status: u32) -> AppResult<()> {
+pub async fn update_notice(id: u32, status: u32) -> Result<()> {
     sqlx::query!(
         r#"
             UPDATE 

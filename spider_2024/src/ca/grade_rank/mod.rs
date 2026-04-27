@@ -1,14 +1,21 @@
 mod raw;
 
-use crate::ca::grade_rank::raw::{
-    UNDERGRADUATE_MAJOR_ALL_TEMPLATE_ID, raw_certification_data,
+use crate::{
+    ca::{
+        grade_rank::raw::{
+            UNDERGRADUATE_MAJOR_ALL_TEMPLATE_ID,
+            raw_certification_data,
+        },
+        login::CaToken,
+    },
+    error::parse_err,
 };
-use anyhow::anyhow;
 use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
 
 /// 可信电子凭证中的排名
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Rank {
     /// 全部课程的平均学分绩点
     pub all_gpa: String,
@@ -50,20 +57,20 @@ pub struct Rank {
 
 /// 获取本科生可信电子凭证中的成绩排名
 ///
-/// 仅计算主修课
+/// 仅计算主修课，辅修课不计算在内
 ///
 /// # Arguments
 ///
-/// - `stu_id`: 学号
+/// - `ca_token`: 可信电子凭证的令牌，可以通过 [CaToken::acquire_by_cas_login] 获取
 ///
 /// # Returns
 ///
-/// 可信电子凭证中的成绩排名
+/// 可信电子凭证中的成绩排名信息
 pub async fn get_grade_rank(
-    stu_id: &str,
-) -> Result<Rank, crate::Error> {
+    ca_token: &CaToken,
+) -> Result<Rank, crate::Error<Infallible>> {
     let raw_data = raw_certification_data(
-        stu_id,
+        ca_token,
         UNDERGRADUATE_MAJOR_ALL_TEMPLATE_ID,
     )
     .await?;
@@ -73,11 +80,11 @@ pub async fn get_grade_rank(
         .expect("构建正则表达式失败");
     let caps = regex
         .captures(&raw_data)
-        .ok_or(anyhow!("解析可信电子凭证失败"))?
+        .ok_or(parse_err(&raw_data))?
         .iter()
         .map(|c| {
             c.map(|v| v.as_str().to_string())
-                .ok_or(anyhow!("解析可信电子凭证失败: 字段为空"))
+                .ok_or(parse_err(&raw_data))
         })
         .collect::<Result<Vec<_>, _>>()?;
     // 12 个捕获组，caps[0] 是完整匹配，共 13 个
@@ -95,9 +102,7 @@ pub async fn get_grade_rank(
         all_weighted,
         core_weighted_rank,
         must_weighted,
-    ] = caps
-        .try_into()
-        .map_err(|_| anyhow!("解析可信电子凭证失败: 匹配数量错误"))?;
+    ] = caps.try_into().map_err(|_| parse_err(&raw_data))?;
     let res = Rank {
         all_gpa,
         all_gpa_rank,
@@ -116,13 +121,15 @@ pub async fn get_grade_rank(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test::TEST_STU_ID;
+mod test {
+    use super::get_grade_rank;
+    use crate::ca::test::get_ca_token;
 
     #[tokio::test]
-    async fn test_get_rank() {
-        let res = get_grade_rank(&TEST_STU_ID).await.unwrap();
-        println!("{:#?}", res);
+    #[ignore]
+    pub async fn test_get_grade_rank() {
+        let ca_token = get_ca_token().await.unwrap();
+        let grade_rank = get_grade_rank(&ca_token).await.unwrap();
+        println!("{:#?}", grade_rank);
     }
 }

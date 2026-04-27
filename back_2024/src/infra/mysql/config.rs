@@ -1,5 +1,5 @@
+use super::Result;
 use super::get_db_pool;
-use crate::result::AppResult;
 use serde::Serialize;
 
 #[derive(Serialize, Debug)]
@@ -8,7 +8,7 @@ pub struct Config {
     pub value: String,
 }
 
-pub async fn get_config(key: &str) -> AppResult<Option<Config>> {
+pub async fn get_config(key: &str) -> Result<Option<Config>> {
     let res = sqlx::query_as!(
         Config,
         r#"
