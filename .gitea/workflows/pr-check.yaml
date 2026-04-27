@@ -2,9 +2,9 @@ name: PR Check
 
 on:
   push: # 允许main分支更新时再检查一遍，这是为了使得action对缓存更友好，见 https://docs.github.com/zh/actions/reference/dependency-caching-reference#restrictions-for-accessing-a-cache
-    branches: ['master']
+    branches: ["master"]
   pull_request:
-    branches: ['master']
+    branches: ["master"]
 
 jobs:
   check:
@@ -20,6 +20,6 @@ jobs:
 
       - name: Test Documentation Items
         run: cargo doc --document-private-items --no-deps
-        
+
       - name: Check Code Format
         run: cargo fmt --check
