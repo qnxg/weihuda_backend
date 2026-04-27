@@ -1,7 +1,7 @@
 name: Setup Toolchain
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Rustup Mirror
       run: |
@@ -15,20 +15,26 @@ runs:
         target: x86_64-unknown-linux-musl
         components: clippy, rustfmt
         cache-all-crates: "true"
-        
+
     - run: echo "/root/.cargo/bin" >> $GITHUB_PATH
 
     - name: Crates Mirror
       run: |
         mkdir -vp ${CARGO_HOME:-$HOME/.cargo}
 
-        cat << EOF | tee -a ${CARGO_HOME:-$HOME/.cargo}/config.toml
+        cat << EOF | tee ${CARGO_HOME:-$HOME/.cargo}/config.toml
         [source.crates-io]
-        replace-with = 'ustc'
+        replace-with = 'rsproxy-sparse'
 
-        [source.ustc]
-        registry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"
+        [source.rsproxy]
+        registry = "https://rsproxy.cn/crates.io-index"
 
-        [registries.ustc]
-        index = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"
+        [source.rsproxy-sparse]
+        registry = "sparse+https://rsproxy.cn/index/"
+
+        [registries.rsproxy]
+        index = "https://rsproxy.cn/crates.io-index"
+
+        [net]
+        git-fetch-with-cli = true
         EOF

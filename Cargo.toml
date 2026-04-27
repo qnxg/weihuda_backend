@@ -50,7 +50,7 @@ prometheus = "0.14"
 uuid = { version = "1.22.0", features = ["v4"] }
 futures = "0.3.32"
 moka = { version = "0.12.15", features = ["future"] }
-hnu_query = "0.1.0"
+hnu_query = { version = "0.1.0" }
 
 #[dev-dependencies]
 
