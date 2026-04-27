@@ -132,7 +132,7 @@ fn push_hdjw_course(
                 _ => Some(place),
             },
             area: Some(item.area.clone()),
-            teacher: Some(item.teacher.clone()),
+            teacher: item.teacher.clone(),
             weeks: weeks.into_iter().collect(),
             credit: Some(item.credit),
             extra: item.extra.clone(),
