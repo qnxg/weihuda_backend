@@ -1,8 +1,15 @@
-use anyhow::anyhow;
+use std::convert::Infallible;
+
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{pt::login::pt_headers, utils::client};
+use crate::{
+    error::{
+        MapNetworkErr, MapParseErr, MapUnexpectedErr, parse_err,
+    },
+    pt::login::PtToken,
+    utils::client,
+};
 
 const UNREAD_EMAIL_URL: &str =
     "https://pt.hnu.edu.cn/api/v1/email/unRead/count";
@@ -14,20 +21,27 @@ pub struct UnreadEmail {
 }
 
 pub async fn raw_unread_email_data(
-    stu_id: &str,
-) -> Result<UnreadEmail, crate::Error> {
-    let pt_headers = pt_headers(stu_id, None).await?;
-    let raw_res = client
+    pt_token: &PtToken,
+) -> Result<UnreadEmail, crate::Error<Infallible>> {
+    let headers = pt_token.headers().clone();
+    let json_str = client
         .get(UNREAD_EMAIL_URL)
-        .headers(pt_headers)
+        .headers(headers)
         .send()
-        .await?
-        .error_for_status()?
-        .json::<Value>()
-        .await?;
-    let res: UnreadEmail = raw_res
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .text()
+        .await
+        .unexpected_err()?;
+    let res: UnreadEmail = serde_json::from_str::<Value>(&json_str)
+        .parse_err(&json_str)?
         .get("data")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .ok_or(anyhow!("解析未读邮件数失败: {:?}", raw_res))?;
+        .map(|v| {
+            serde_json::from_value(v.clone()).parse_err(&json_str)
+        })
+        .transpose()?
+        .ok_or(parse_err(&json_str))?;
     Ok(res)
 }

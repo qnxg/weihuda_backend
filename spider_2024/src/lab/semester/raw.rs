@@ -1,6 +1,10 @@
-use crate::{lab::utils::request_lab, utils::client};
-use anyhow::anyhow;
+use crate::{
+    error::{MapNetworkErr, MapParseErr, MapUnexpectedErr},
+    lab::login::LabToken,
+    utils::client,
+};
 use serde::Deserialize;
+use std::convert::Infallible;
 
 const SEM_INFO_URL: &str =
     "http://10.62.106.112/Common/Common/GetSemDropDownList?HasNull=0";
@@ -12,13 +16,21 @@ pub struct SemesterItem {
 }
 
 pub async fn raw_semester_data(
-    stu_id: &str,
-) -> Result<Vec<SemesterItem>, crate::Error> {
-    let req = client.get(SEM_INFO_URL);
-    let raw_res = request_lab(stu_id, req).await?;
+    lab_token: &LabToken,
+) -> Result<Vec<SemesterItem>, crate::Error<Infallible>> {
+    let headers = lab_token.headers().clone();
+    let json_str = client
+        .get(SEM_INFO_URL)
+        .headers(headers)
+        .send()
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .text()
+        .await
+        .unexpected_err()?;
     let res: Vec<SemesterItem> =
-        serde_json::from_value(raw_res.clone()).map_err(|e| {
-            anyhow!("解析数据失败 data = {}, err = {}", raw_res, e)
-        })?;
+        serde_json::from_str(&json_str).parse_err(&json_str)?;
     Ok(res)
 }

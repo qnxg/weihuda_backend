@@ -1,4 +1,7 @@
-use crate::result::AppResult;
+use crate::{
+    result::AppResult,
+    service::user_state::{Hdjw, with_token},
+};
 use serde::Serialize;
 
 #[derive(Serialize, Debug)]
@@ -20,16 +23,21 @@ pub async fn get_empty_room(
     xn: u16,
     xq: u8,
 ) -> AppResult<Vec<EmptyRoom>> {
-    let spider_res = spider_2024::hdjw::get_empty_classroom(
-        stu_id,
-        build_id,
-        week,
-        day,
-        jc.as_slice(),
-        xn,
-        xq,
-    )
-    .await?;
+    let build_id_value = build_id.to_string();
+    let spider_res =
+        with_token(Hdjw::new(stu_id), async move |token| {
+            spider_2024::hdjw::get_empty_classroom(
+                &token,
+                build_id_value.as_str(),
+                week,
+                day,
+                jc.as_slice(),
+                xn,
+                xq,
+            )
+            .await
+        })
+        .await?;
     let mut res = Vec::new();
     for item in spider_res {
         let temp = EmptyRoom {

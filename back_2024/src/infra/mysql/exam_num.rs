@@ -1,5 +1,6 @@
+use super::Result;
 use super::get_db_pool;
-use crate::{result::AppResult, utils};
+use crate::utils;
 use serde::Serialize;
 use sqlx::FromRow;
 
@@ -14,7 +15,7 @@ pub struct ExamNumberInfo {
 
 pub async fn get_exam_num_list(
     stu_id: &str,
-) -> AppResult<Vec<ExamNumberInfo>> {
+) -> Result<Vec<ExamNumberInfo>> {
     let res = sqlx::query_as!(
         ExamNumberInfo,
         r#"
@@ -31,7 +32,7 @@ pub async fn get_exam_num_list(
 pub async fn add_exam_num(
     stu_id: &str,
     exam_num: ExamNumberInfo,
-) -> AppResult<()> {
+) -> Result<()> {
     let now = utils::time::now_time();
     sqlx::query!(
         r#"
@@ -52,7 +53,7 @@ pub async fn add_exam_num(
 pub async fn delete_exam_num(
     stu_id: &str,
     exam_num_id: u32,
-) -> AppResult<()> {
+) -> Result<()> {
     let now = utils::time::now_time();
     sqlx::query!(
         r#"

@@ -1,16 +1,24 @@
 mod dormitory;
 mod raw;
 
-use crate::xgxt::personal_info::{
-    dormitory::parse_dormitory, raw::raw_person_info_data,
+use crate::{
+    error::{MapParseErr, parse_err_with_reason},
+    xgxt::{
+        login::XgxtToken,
+        personal_info::{
+            dormitory::parse_dormitory, raw::raw_person_info_data,
+        },
+    },
 };
-use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
 
 pub use dormitory::Dormitory;
 
 /// 培养层次
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(
+    Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy,
+)]
 pub enum Level {
     /// 本科
     Undergraduate,
@@ -20,7 +28,7 @@ pub enum Level {
     Doctoral,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PersonalInfo {
     /// 姓名
     pub name: String,
@@ -72,9 +80,14 @@ pub struct PersonalInfo {
     pub email: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+/// 性别
+#[derive(
+    Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy,
+)]
 pub enum Gender {
+    /// 男
     Male,
+    /// 女
     Female,
 }
 
@@ -82,7 +95,7 @@ pub enum Gender {
 ///
 /// # Parameters
 ///
-/// - `stu_id`: 学号
+/// - `xgxt_token`: 学工系统令牌，可以通过 [XgxtToken::acquire_by_cas_login] 获取
 ///
 /// # Returns
 ///
@@ -92,17 +105,20 @@ pub enum Gender {
 ///
 /// 这个函数大概会同时发起三个请求，且一次请求数据量比较大（学工系统有个接口直接把近十年所有的班级数据全部返回了），所以建议不要频繁调用本函数。个人信息一般没有什么变动，建议做好缓存。
 pub async fn get_person_info(
-    stu_id: &str,
-) -> Result<PersonalInfo, crate::Error> {
-    let mut entries = raw_person_info_data(stu_id).await?;
+    xgxt_token: &XgxtToken,
+) -> Result<PersonalInfo, crate::Error<Infallible>> {
+    let mut entries = raw_person_info_data(xgxt_token).await?;
+    let entries_str =
+        serde_json::to_string(&entries).expect("序列化失败");
 
-    let name =
-        entries.remove("姓名").ok_or(anyhow!("无法找到姓名信息"))?;
+    let name = entries
+        .remove("姓名")
+        .ok_or(parse_err_with_reason(&entries_str, "name"))?;
     let enter_year: u16 = entries
         .remove("年级")
-        .ok_or(anyhow!("无法找到入学年份信息"))?
+        .ok_or(parse_err_with_reason(&entries_str, "enter_year"))?
         .parse()
-        .map_err(|e| anyhow!("无法解析入学年份信息: {}", e))?;
+        .parse_err_with_reason(&entries_str, "enter_year")?;
     let xz = entries
         .remove("学制(年)")
         .and_then(|v| {
@@ -113,41 +129,52 @@ pub async fn get_person_info(
             }
         })
         .transpose()
-        .map_err(|e| anyhow!("无法解析学制信息: {}", e))?;
-    let stu_id =
-        entries.remove("学号").ok_or(anyhow!("无法找到学号信息"))?;
+        .parse_err_with_reason(&entries_str, "xz")?;
+    let stu_id = entries
+        .remove("学号")
+        .ok_or(parse_err_with_reason(&entries_str, "stu_id"))?;
     let gender = match entries.get("性别").map(|v| v.as_str()) {
         Some("1") => Gender::Male,
         Some("2") => Gender::Female,
-        v => {
-            return Err(anyhow!("解析性别失败, data: {:?}", v).into());
+        _ => {
+            return Err(parse_err_with_reason(
+                &entries_str,
+                "gender",
+            ))?;
         }
     };
     let level = match entries
         .remove("培养层次")
-        .ok_or(anyhow!("无法找到培养层次信息"))?
+        .ok_or(parse_err_with_reason(&entries_str, "level"))?
         .as_ref()
     {
         "1" => Level::Undergraduate,
         "2" => Level::Postgraduate,
         "3" => Level::Doctoral,
-        v => {
-            return Err(anyhow!("无法解析培养层次信息: {}", v).into());
+        _ => {
+            return Err(parse_err_with_reason(
+                &entries_str,
+                "level",
+            ))?;
         }
     };
-    let academy =
-        entries.remove("学院").ok_or(anyhow!("无法找到学院信息"))?;
-    let major =
-        entries.remove("专业").ok_or(anyhow!("无法找到专业信息"))?;
-    let class =
-        entries.remove("班级").ok_or(anyhow!("无法找到班级信息"))?;
+    let academy = entries
+        .remove("学院")
+        .ok_or(parse_err_with_reason(&entries_str, "academy"))?;
+    let major = entries
+        .remove("专业")
+        .ok_or(parse_err_with_reason(&entries_str, "major"))?;
+    let class = entries
+        .remove("班级")
+        .ok_or(parse_err_with_reason(&entries_str, "class"))?;
     let dormitory = parse_dormitory(
-        entries
-            .remove("寝室楼")
-            .ok_or(anyhow!("无法找到寝室楼信息"))?,
+        entries.remove("寝室楼").ok_or(parse_err_with_reason(
+            &entries_str,
+            "dormitory",
+        ))?,
         entries
             .remove("寝室号")
-            .ok_or(anyhow!("无法找到寝室号信息"))?,
+            .ok_or(parse_err_with_reason(&entries_str, "room"))?,
     );
 
     let res = PersonalInfo {
@@ -175,10 +202,14 @@ pub async fn get_person_info(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::test::TEST_STU_ID;
+    use crate::xgxt::test::get_xgxt_token;
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_person_info() {
-        dbg!(get_person_info(&TEST_STU_ID).await.unwrap());
+        let xgxt_token = get_xgxt_token().await.unwrap();
+        let personal_info =
+            get_person_info(&xgxt_token).await.unwrap();
+        println!("{:#?}", personal_info);
     }
 }

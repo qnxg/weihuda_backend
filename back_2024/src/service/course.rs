@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
-use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     infra::{self},
-    result::AppResult,
-    service,
+    result::{AppResult, ThrowError},
+    service::{
+        self,
+        user_state::{Hdjw, with_token},
+    },
 };
 
 pub use infra::mysql::course::CustomizeCourseInfo;
@@ -65,18 +67,16 @@ fn push_customize_course(
         let week = week
             .trim()
             .parse::<u8>()
-            .map_err(|e| anyhow!("课程周次解析失败 {}", e))?;
+            .throw_error("课程周次解析失败")?;
         weeks.push(week);
     }
-    let day = item
-        .day
-        .parse::<u8>()
-        .map_err(|e| anyhow!("课程星期解析失败 {}", e))?;
+    let day =
+        item.day.parse::<u8>().throw_error("课程星期解析失败")?;
     for time in &times {
         let time = time
             .trim()
             .parse::<u8>()
-            .map_err(|e| anyhow!("课程节次解析失败 {}", e))?;
+            .throw_error("课程节次解析失败")?;
         let tmp = CourseInfo {
             course_name: item.classname.clone(),
             course_id: None,
@@ -200,7 +200,10 @@ pub async fn get_classtable(
         push_customize_course(&mut classtable, item)?;
     }
     let hdjw_course =
-        spider_2024::hdjw::get_class_table(stu_id, xn, xq).await?;
+        with_token(Hdjw::new(stu_id), async move |token| {
+            spider_2024::hdjw::get_class_table(&token, xn, xq).await
+        })
+        .await?;
     for item in hdjw_course {
         push_hdjw_course(&mut classtable, item)?;
     }
@@ -226,8 +229,11 @@ pub async fn get_extra_course(
     xq: u8,
 ) -> AppResult<Vec<ExtraCourseInfo>> {
     let spider_res =
-        spider_2024::hdjw::get_class_table_extra(stu_id, xn, xq)
-            .await?;
+        with_token(Hdjw::new(stu_id), async move |token| {
+            spider_2024::hdjw::get_class_table_extra(&token, xn, xq)
+                .await
+        })
+        .await?;
     let mut res = Vec::new();
     for item in spider_res {
         res.push(ExtraCourseInfo {

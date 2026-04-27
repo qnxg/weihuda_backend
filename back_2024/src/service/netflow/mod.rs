@@ -1,14 +1,18 @@
-use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use spider_2024::netflow::user_info::UnlockStatus;
 use tokio::try_join;
 
 use crate::{
-    result::AppResult,
-    service::netflow::utils::{
-        bytes_to_gb, convert_netflow_detail, parse_year_month,
+    result::{AppError, AppResult},
+    service::{
+        netflow::utils::{
+            bytes_to_gb, convert_netflow_detail, parse_year_month,
+        },
+        user_state::with_token,
     },
 };
+
+use crate::service::user_state::Netflow as NetflowSystem;
 
 mod utils;
 
@@ -36,10 +40,22 @@ pub struct NetflowResItem {
 }
 
 pub async fn get_netflow_info(stu_id: &str) -> AppResult<Netflow> {
+    let f_get_this_month_info =
+        with_token(NetflowSystem::new(stu_id), async move |token| {
+            spider_2024::netflow::get_this_month_info(&token).await
+        });
+    let f_get_unlock_status =
+        with_token(NetflowSystem::new(stu_id), async move |token| {
+            spider_2024::netflow::get_unlock_status(&token).await
+        });
+    let f_get_overdue_payment =
+        with_token(NetflowSystem::new(stu_id), async move |token| {
+            spider_2024::netflow::get_overdue_payment(&token).await
+        });
     let (this_month, unlock_status, pay_info) = try_join!(
-        spider_2024::netflow::get_this_month_info(stu_id),
-        spider_2024::netflow::get_unlock_status(stu_id),
-        spider_2024::netflow::get_overdue_payment(stu_id)
+        f_get_this_month_info,
+        f_get_unlock_status,
+        f_get_overdue_payment
     )?;
     let res = Netflow {
         thisMonth: NetflowResItem {
@@ -80,7 +96,11 @@ pub struct NetflowOrder {
 pub async fn get_netflow_order(
     stu_id: &str,
 ) -> AppResult<Vec<NetflowOrder>> {
-    let spider_res = spider_2024::netflow::get_order(stu_id).await?;
+    let spider_res =
+        with_token(NetflowSystem::new(stu_id), async move |token| {
+            spider_2024::netflow::get_order(&token).await
+        })
+        .await?;
     let mut res = Vec::with_capacity(spider_res.len());
     for item in spider_res {
         let temp = NetflowOrder {
@@ -95,8 +115,9 @@ pub async fn get_netflow_order(
             realOverTraffic: item.over_usage,
         };
         res.push((
-            parse_year_month(&temp.month)
-                .ok_or(anyhow!("异常的年月字符串"))?,
+            parse_year_month(&temp.month).ok_or(AppError::Text(
+                "异常的年月字符串".to_string(),
+            ))?,
             temp,
         ));
     }
@@ -133,10 +154,14 @@ pub async fn get_netflow_day_detail(
     month: u8,
     day: u8,
 ) -> AppResult<NetflowDetailRes> {
-    let spider_res = spider_2024::netflow::get_day_detail(
-        stu_id, year, month, day,
-    )
-    .await?;
+    let spider_res =
+        with_token(NetflowSystem::new(stu_id), async move |token| {
+            spider_2024::netflow::get_day_detail(
+                &token, year, month, day,
+            )
+            .await
+        })
+        .await?;
     Ok(convert_netflow_detail(spider_res))
 }
 
@@ -146,7 +171,12 @@ pub async fn get_netflow_month_detail(
     month: u8,
 ) -> AppResult<NetflowDetailRes> {
     let spider_res =
-        spider_2024::netflow::get_month_detail(stu_id, year, month)
-            .await?;
+        with_token(NetflowSystem::new(stu_id), async move |token| {
+            spider_2024::netflow::get_month_detail(
+                &token, year, month,
+            )
+            .await
+        })
+        .await?;
     Ok(convert_netflow_detail(spider_res))
 }

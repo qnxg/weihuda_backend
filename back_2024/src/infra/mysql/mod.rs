@@ -45,3 +45,5 @@ async fn get_db_pool() -> &'static MySqlPool {
         })
         .await
 }
+
+type Result<T> = std::result::Result<T, sqlx::Error>;

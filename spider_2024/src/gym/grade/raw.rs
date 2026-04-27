@@ -1,13 +1,14 @@
-use serde::Deserialize;
-
 use crate::{
+    error::{MapNetworkErr, MapUnexpectedErr},
     gym::{
+        error::TokenExpired,
         grade::utils::none_to_zero,
-        login::{gym_headers, gym_headers_from_cas},
+        login::GymToken,
         raw::{GymResponse, GymResponseExtractor},
     },
     utils::client,
 };
+use serde::Deserialize;
 
 const GRADE_SUMMARY_URL: &str = "http://gymos.hnu.edu.cn/bdlp_api_fitness_test_student_h5/public/index.php/index/Report/getStudentScore";
 const GRADE_DETAIL_URL: &str = "http://gymos.hnu.edu.cn/bdlp_api_fitness_test_student_h5/public/index.php/index/Report/getEyeDetails";
@@ -115,49 +116,41 @@ pub struct GradeDetail {
 
 /// 获取体测的摘要成绩
 pub async fn raw_grade_summary_data(
-    stu_id: &str,
+    gym_token: &GymToken,
     xn: u16,
-) -> Result<GradeSummary, crate::Error> {
-    let gym_headers =
-        if let Ok(direct_login) = gym_headers(stu_id).await {
-            direct_login
-        } else {
-            gym_headers_from_cas(stu_id).await?
-        };
+) -> Result<GradeSummary, crate::Error<TokenExpired>> {
+    let gym_headers = gym_token.headers().clone();
     client
         .post(GRADE_SUMMARY_URL)
         .form(&[("year_num", xn)])
         .headers(gym_headers)
         .send()
-        .await?
-        .error_for_status()?
-        .extract_data::<GradeSummary>()
-        .await?
-        .check_cache(stu_id)
         .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .extract_data::<GradeSummary, TokenExpired>()
+        .await?
+        .check_cache()?
         .into_result()
 }
 
 pub async fn raw_grade_detail_data(
-    stu_id: &str,
+    gym_token: &GymToken,
     xn: u16,
-) -> Result<GradeDetail, crate::Error> {
-    let gym_headers =
-        if let Ok(direct_login) = gym_headers(stu_id).await {
-            direct_login
-        } else {
-            gym_headers_from_cas(stu_id).await?
-        };
+) -> Result<GradeDetail, crate::Error<TokenExpired>> {
+    let gym_headers = gym_token.headers().clone();
     client
         .post(GRADE_DETAIL_URL)
         .form(&[("year_num", xn)])
         .headers(gym_headers)
         .send()
-        .await?
-        .error_for_status()?
-        .extract_data::<GradeDetail>()
-        .await?
-        .check_cache(stu_id)
         .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .extract_data::<GradeDetail, TokenExpired>()
+        .await?
+        .check_cache()?
         .into_result()
 }

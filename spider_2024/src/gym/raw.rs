@@ -1,11 +1,13 @@
-use anyhow::anyhow;
+use crate::{
+    error::{MapParseErr, MapUnexpectedErr, parse_err},
+    gym::error::TokenExpired,
+};
 use reqwest::Response;
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
+use std::error::Error as StdError;
 
-use crate::utils::cache::{CACHE, CacheEnum};
-
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct BadGymResponse {
     pub data: Value,
     pub info: String,
@@ -13,63 +15,53 @@ pub struct BadGymResponse {
 }
 
 pub trait GymResponseExtractor {
-    async fn extract_data<T: DeserializeOwned>(
+    async fn extract_data<T: DeserializeOwned, E: StdError>(
         self,
-    ) -> Result<Result<T, BadGymResponse>, crate::Error>;
+    ) -> Result<Result<T, BadGymResponse>, crate::Error<E>>;
 }
 
 impl GymResponseExtractor for Response {
-    async fn extract_data<T: DeserializeOwned>(
+    async fn extract_data<T: DeserializeOwned, E: StdError>(
         self,
-    ) -> Result<Result<T, BadGymResponse>, crate::Error> {
-        let body = self.text().await?;
-        let res: BadGymResponse = serde_json::from_str(&body)
-            .map_err(|e| {
-                anyhow!(
-                    "解析体测平台响应失败: body = {}, error = {:?}",
-                    body,
-                    e
-                )
-            })?;
+    ) -> Result<Result<T, BadGymResponse>, crate::Error<E>> {
+        let body = self.text().await.unexpected_err()?;
+        let res: BadGymResponse =
+            serde_json::from_str(&body).parse_err(&body)?;
         if res.status == 1 {
-            match serde_json::from_value::<T>(res.data) {
-                Ok(data) => return Ok(Ok(data)),
-                Err(e) => {
-                    return Err(anyhow!(
-                        "解析体测平台响应失败: body = {}, error = {:?}", body, e
-                    ).into());
-                }
-            }
+            let data = serde_json::from_value::<T>(res.data)
+                .parse_err(&body)?;
+            return Ok(Ok(data));
         }
         Ok(Err(res))
     }
 }
 
 pub trait GymResponse<T> {
-    async fn check_cache(self, stu_id: &str) -> Self;
-    fn into_result(self) -> Result<T, crate::Error>;
+    fn check_cache(self) -> Result<Self, crate::Error<TokenExpired>>
+    where
+        Self: Sized;
+    fn into_result<E: StdError>(self) -> Result<T, crate::Error<E>>;
 }
 
 impl<T> GymResponse<T> for Result<T, BadGymResponse> {
     /// 检查该响应是否表明 cookie 过期，如果是的话则将 cookie 缓存清除
-    async fn check_cache(self, stu_id: &str) -> Self {
+    fn check_cache(self) -> Result<Self, crate::Error<TokenExpired>> {
         // 典型的异常response body：
         // {"data":[],"info":"登录失效","status":-1}
         if let Err(ref bad_resp) = self
             && bad_resp.info.contains("登录失效")
         {
-            CACHE
-                .invalidate(&(CacheEnum::GymCookie, stu_id.into()))
-                .await;
+            return Err(crate::Error::Other(TokenExpired));
         }
-        self
+        Ok(self)
     }
-    fn into_result(self) -> Result<T, crate::Error> {
+    fn into_result<E: StdError>(self) -> Result<T, crate::Error<E>> {
         match self {
             Ok(value) => Ok(value),
             Err(bad_resp) => {
-                Err(anyhow!("体测平台响应失败: {:?}", bad_resp)
-                    .into())
+                let data = serde_json::to_string(&bad_resp)
+                    .expect("序列化失败");
+                Err(parse_err(&data))
             }
         }
     }

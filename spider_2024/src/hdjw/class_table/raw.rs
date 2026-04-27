@@ -1,6 +1,14 @@
-use crate::{hdjw::utils::request_hdjw, utils::client};
-use anyhow::anyhow;
-use serde::{Deserialize, Serialize};
+use crate::{
+    error::{
+        MapNetworkErr, MapParseErr, MapUnexpectedErr, parse_err,
+    },
+    hdjw::{
+        error::TokenExpired, login::HdjwToken,
+        raw::HdjwResponseExtractor,
+    },
+    utils::client,
+};
+use serde::Deserialize;
 
 // 课表这里的课程信息接口是分页的，我这里设置了一页 50 条，应该没有人一学期超过 50 门课吧（）
 // 教务系统有点诡异，这个 pageSize 最好不要设置太大。我们发现，如果设置 200 这个特殊数字就会返回 html 的格式，其他数字都会返回 json 格式。具体原因不明，但是不建议太大，适量就好
@@ -13,7 +21,8 @@ const CLASS_TABLE_EXTRA: &str = "http://hdjw.hnu.edu.cn/jsxsd/xskb/xskb_list.do?
 
 /// 教务 `教学运行 > 我的课表 > 有课表课程` 返回数据单项
 /// 还有其他一些具体学时信息的字段，懒得搞了
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
+#[expect(unused)]
 pub struct CourseInfo {
     /// 课程代码
     pub kch: String,
@@ -55,7 +64,7 @@ pub struct CourseInfo {
 }
 
 /// 教务 `教学运行 > 我的课表 > 无课表课程` 返回数据单项
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct ExtraCourseInfo {
     /// 课程代码
     pub kch: String,
@@ -79,26 +88,35 @@ pub struct ExtraCourseInfo {
 
 /// 获取课表信息
 pub async fn raw_class_table_data(
-    stu_id: &str,
+    hdjw_token: &HdjwToken,
     xn: u16,
     xq: u8,
-) -> Result<Vec<CourseInfo>, crate::Error> {
-    let req = client.get(format!(
-        "{}&xnxq01id={}-{}-{}",
-        CLASS_TABLE_URL,
-        xn,
-        xn + 1,
-        xq
-    ));
-    let mut res = request_hdjw(stu_id, req).await?;
+) -> Result<Vec<CourseInfo>, crate::Error<TokenExpired>> {
+    let headers = hdjw_token.headers().clone();
+    let mut res = client
+        .get(format!(
+            "{}&xnxq01id={}-{}-{}",
+            CLASS_TABLE_URL,
+            xn,
+            xn + 1,
+            xq
+        ))
+        .headers(headers)
+        .send()
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .extract_data()
+        .await?;
     match res.get("count").and_then(|c| c.as_u64()) {
-        None => Err(anyhow!("获取课表数据失败").into()),
+        None => Err(parse_err(&res.to_string())),
         Some(0) => Ok(vec![]), // 有可能 count 是 0 但是不带 data 字段
         Some(_) => {
             // 取 data 字段返回
             let res: Vec<CourseInfo> =
                 serde_json::from_value(res["data"].take())
-                    .map_err(|e| anyhow!("获取课表数据失败 {}", e))?;
+                    .parse_err(&res.to_string())?;
 
             Ok(res)
         }
@@ -107,28 +125,35 @@ pub async fn raw_class_table_data(
 
 /// 获取无课表课程
 pub async fn raw_class_table_extra_data(
-    stu_id: &str,
+    hdjw_token: &HdjwToken,
     xn: u16,
     xq: u8,
-) -> Result<Vec<ExtraCourseInfo>, crate::Error> {
-    let req = client.get(format!(
-        "{}&xnxq01id={}-{}-{}",
-        CLASS_TABLE_EXTRA,
-        xn,
-        xn + 1,
-        xq
-    ));
-    let mut res = request_hdjw(stu_id, req).await?;
+) -> Result<Vec<ExtraCourseInfo>, crate::Error<TokenExpired>> {
+    let headers = hdjw_token.headers().clone();
+    let mut res = client
+        .get(format!(
+            "{}&xnxq01id={}-{}-{}",
+            CLASS_TABLE_EXTRA,
+            xn,
+            xn + 1,
+            xq
+        ))
+        .headers(headers)
+        .send()
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .extract_data()
+        .await?;
     match res.get("count").and_then(|c| c.as_u64()) {
-        None => Err(anyhow!("获取无课表课程失败").into()),
+        None => Err(parse_err(&res.to_string())),
         Some(0) => Ok(vec![]), // 有可能 count 是 0 但是不带 data 字段
         Some(_) => {
             // 取 data 字段返回
-            let res: Vec<ExtraCourseInfo> = serde_json::from_value(
-                res["data"].take(),
-            )
-            .map_err(|e| anyhow!("获取无课表课程失败 {}", e))?;
-
+            let res: Vec<ExtraCourseInfo> =
+                serde_json::from_value(res["data"].take())
+                    .parse_err(&res.to_string())?;
             Ok(res)
         }
     }

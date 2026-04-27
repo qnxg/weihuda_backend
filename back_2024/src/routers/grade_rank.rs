@@ -67,13 +67,13 @@ async fn get_rank_from_hdjw(req: &mut Request) -> RouterResult {
         1 => HdjwRankRange::All,
         2 => HdjwRankRange::Must,
         3 => HdjwRankRange::Core,
-        _ => return Err(AppError::ParseError()),
+        _ => return Err(AppError::ParseError),
     };
     let method = match query.rank {
         1 => HdjwRankMethod::ArithmeticAvg,
         2 => HdjwRankMethod::WeightedAvg,
         3 => HdjwRankMethod::Gpa,
-        _ => return Err(AppError::ParseError()),
+        _ => return Err(AppError::ParseError),
     };
     let res = service::grade_rank::get_rank_from_hdjw(
         &stu_id, range, method, query.year, query.term,

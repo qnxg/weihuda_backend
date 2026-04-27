@@ -1,7 +1,7 @@
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 /// 宿舍信息
 ///
 /// [`crate::xgxt::get_person_info`] 会从学工系统拿到原始的宿舍信息，该原始宿舍信息包含园区和楼栋，需要进一步解析

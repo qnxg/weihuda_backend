@@ -1,17 +1,18 @@
-use serde::{Deserialize, Serialize};
-
 use crate::{
+    error::{MapNetworkErr, MapUnexpectedErr},
     gym::{
-        login::{gym_headers, gym_headers_from_cas},
+        error::TokenExpired,
+        login::GymToken,
         raw::{GymResponse, GymResponseExtractor},
     },
     utils::client,
 };
+use serde::Deserialize;
 
 const DETAIL_URL: &str = "http://gymos.hnu.edu.cn/bdlp_api_fitness_test_student_h5/public/index.php/index/Appoint/getSchoolFitClassDetail";
 const APPOINT_URL: &str = "http://gymos.hnu.edu.cn/bdlp_api_fitness_test_student_h5/public/index.php/index/Appoint/getStudentClass";
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct AppointmentItem {
     pub class_id: u32,
     pub button_status: i32,
@@ -24,32 +25,28 @@ pub struct AppointmentItem {
     pub test_time: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct AppointmentDetail {
     pub class_desc: String,
     pub appo_type: i32,
 }
 
 pub async fn raw_appointment_list_data(
-    stu_id: &str,
-) -> Result<Vec<AppointmentItem>, crate::Error> {
-    let gym_headers =
-        if let Ok(direct_login) = gym_headers(stu_id).await {
-            direct_login
-        } else {
-            gym_headers_from_cas(stu_id).await?
-        };
+    gym_token: &GymToken,
+) -> Result<Vec<AppointmentItem>, crate::Error<TokenExpired>> {
+    let gym_headers = gym_token.headers().clone();
 
     client
         .post(APPOINT_URL)
         .headers(gym_headers)
         .send()
-        .await?
-        .error_for_status()?
-        .extract_data::<Vec<AppointmentItem>>()
-        .await?
-        .check_cache(stu_id)
         .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .extract_data::<Vec<AppointmentItem>, TokenExpired>()
+        .await?
+        .check_cache()?
         .into_result()
 }
 
@@ -59,17 +56,12 @@ pub async fn raw_appointment_list_data(
 ///
 /// - `class_id`, `class_time`, `test_time` 均为 `raw_appointment_list_data` 返回的 `AppointmentItem` 中的字段
 pub async fn raw_appointment_detail_data(
-    stu_id: &str,
+    gym_token: &GymToken,
     class_id: u32,
     class_time: &str,
     test_time: &str,
-) -> Result<AppointmentDetail, crate::Error> {
-    let gym_headers =
-        if let Ok(direct_login) = gym_headers(stu_id).await {
-            direct_login
-        } else {
-            gym_headers_from_cas(stu_id).await?
-        };
+) -> Result<AppointmentDetail, crate::Error<TokenExpired>> {
+    let gym_headers = gym_token.headers().clone();
     client
         .post(DETAIL_URL)
         .form(&[
@@ -79,11 +71,12 @@ pub async fn raw_appointment_detail_data(
         ])
         .headers(gym_headers)
         .send()
-        .await?
-        .error_for_status()?
-        .extract_data::<AppointmentDetail>()
-        .await?
-        .check_cache(stu_id)
         .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .extract_data::<AppointmentDetail, TokenExpired>()
+        .await?
+        .check_cache()?
         .into_result()
 }

@@ -2,12 +2,13 @@ mod raw;
 mod utils;
 
 use crate::{
+    error::MapUnexpectedErr,
     wxpay::electricity::{
         raw::raw_electricity_data, utils::parse_dormitory,
     },
     xgxt::personal_info::Dormitory,
 };
-use anyhow::anyhow;
+use std::convert::Infallible;
 
 /// 获取宿舍电量
 ///
@@ -26,7 +27,7 @@ use anyhow::anyhow;
 /// 请确保 `dormitory` 的解析是成功的，否则会 panic。你可以使用 [`crate::xgxt::personal_info::Dormitory::successfully_parsed`] 判断是否解析成功。
 pub async fn get_electricity(
     dormitory: Dormitory,
-) -> Result<String, crate::Error> {
+) -> Result<String, crate::Error<Infallible>> {
     assert!(
         dormitory.successfully_parsed(),
         "参数 dormitory 必须成功解析"
@@ -66,10 +67,8 @@ pub async fn get_electricity(
                     let s: String = s;
                     Ok(s)
                 }
-                _ => {
-                    Err(anyhow!("获取电量信息失败，无法区分宿舍南北")
-                        .into())
-                }
+                _ => Err("获取电量信息失败，无法区分宿舍南北")
+                    .unexpected_err(),
             }
         }
         _ => {
@@ -84,13 +83,14 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_electricity() {
-        let dormitory = Dormitory::from_parsed_value(
-            "天马园区",
-            "三区11栋",
-            "430",
-        );
+        let park = env!("TEST_DORMITORY_PARK");
+        let build = env!("TEST_DORMITORY_BUILD");
+        let room = env!("TEST_DORMITORY_ROOM");
+        let dormitory =
+            Dormitory::from_parsed_value(park, build, room);
         let electricity = get_electricity(dormitory).await.unwrap();
-        dbg!(electricity);
+        println!("{:#?}", electricity);
     }
 }

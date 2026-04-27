@@ -1,14 +1,18 @@
-use crate::pt::card::raw::{
-    raw_card_history_data, raw_card_info_data,
-};
-use anyhow::anyhow;
-use chrono::NaiveDateTime;
-use serde::{Deserialize, Serialize};
-
 mod raw;
 
+use crate::{
+    error::MapParseErr,
+    pt::{
+        card::raw::{raw_card_history_data, raw_card_info_data},
+        login::PtToken,
+    },
+};
+use chrono::NaiveDateTime;
+use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
+
 /// 校园卡信息
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CardInfo {
     /// 校园卡账号
     pub id: u32,
@@ -18,7 +22,9 @@ pub struct CardInfo {
 }
 
 /// 校园卡消费历史类型
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(
+    Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq,
+)]
 pub enum CardHistoryType {
     /// 充值
     Recharge,
@@ -27,7 +33,7 @@ pub enum CardHistoryType {
 }
 
 /// 校园卡消费历史详情
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CardHistory {
     /// 总交易金额
     ///
@@ -40,7 +46,7 @@ pub struct CardHistory {
 }
 
 /// 校园卡消费历史的交易项
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CardHistoryItem {
     /// 交易时间
     pub date_time: NaiveDateTime,
@@ -62,19 +68,26 @@ pub struct CardHistoryItem {
     pub name: String,
 }
 
+/// 获取校园卡信息
+///
+/// # Arguments
+///
+/// - `pt_token`: 个人门户令牌，可以通过 [PtToken::acquire_by_cas_login] 获取
+///
+/// # Returns
+///
+/// 校园卡信息
 pub async fn get_card_info(
-    stu_id: &str,
-) -> Result<CardInfo, crate::Error> {
-    let res = raw_card_info_data(stu_id).await?;
+    pt_token: &PtToken,
+) -> Result<CardInfo, crate::Error<Infallible>> {
+    let res = raw_card_info_data(pt_token).await?;
     Ok(CardInfo {
         id: res.account,
-        balance: res.balance.parse::<f64>().map_err(|e| {
-            anyhow!(
-                "解析校园卡余额失败 err = {}, data = {}",
-                e,
-                res.balance
-            )
-        })? / 100.0,
+        balance: res
+            .balance
+            .parse::<f64>()
+            .parse_err(&res.balance)?
+            / 100.0,
     })
 }
 
@@ -82,7 +95,7 @@ pub async fn get_card_info(
 ///
 /// # Parameters
 ///
-/// - `stu_id`: 学号
+/// - `pt_token`: 个人门户令牌，可以通过 [PtToken::acquire_by_cas_login] 获取
 /// - `year`: 年份
 /// - `month`: 月份
 /// - `history_type`: 查询充值记录还是消费记录
@@ -91,44 +104,39 @@ pub async fn get_card_info(
 ///
 /// 校园卡消费历史信息
 pub async fn get_card_history(
-    stu_id: &str,
+    pt_token: &PtToken,
     year: u16,
     month: u8,
     history_type: CardHistoryType,
-) -> Result<CardHistory, crate::Error> {
+) -> Result<CardHistory, crate::Error<Infallible>> {
     let trancode = match history_type {
         CardHistoryType::Consumption => "15",
         CardHistoryType::Recharge => "16",
     };
     let raw_data =
-        raw_card_history_data(stu_id, year, month, trancode).await?;
+        raw_card_history_data(pt_token, year, month, trancode)
+            .await?;
     let raw_items = raw_data.webTrjnDTO.unwrap_or_default();
     let mut items = Vec::with_capacity(raw_items.len());
     for item in raw_items {
-        let (
-            Ok(date_time),
-            Ok(journal_time),
-            Ok(now_balance),
-            Ok(amount),
-        ) = (
-            NaiveDateTime::parse_from_str(
-                &item.effectdate,
-                "%Y/%m/%d %H:%M:%S",
-            ),
-            NaiveDateTime::parse_from_str(
-                &item.jndatetime,
-                "%Y/%m/%d %H:%M:%S",
-            ),
-            item.nowAmt.parse::<f64>(),
-            item.fTranAmt.parse::<f64>(),
+        let date_time = NaiveDateTime::parse_from_str(
+            &item.effectdate,
+            "%Y/%m/%d %H:%M:%S",
         )
-        else {
-            return Err(anyhow!(
-                "解析交易项目失败: data = {:?}",
-                item
-            )
-            .into());
-        };
+        .parse_err_with_reason(&item.effectdate, "date_time")?;
+        let journal_time = NaiveDateTime::parse_from_str(
+            &item.jndatetime,
+            "%Y/%m/%d %H:%M:%S",
+        )
+        .parse_err_with_reason(&item.jndatetime, "journal_time")?;
+        let now_balance = item
+            .nowAmt
+            .parse::<f64>()
+            .parse_err_with_reason(&item.nowAmt, "now_balance")?;
+        let amount = item
+            .fTranAmt
+            .parse::<f64>()
+            .parse_err_with_reason(&item.fTranAmt, "amount")?;
         items.push(CardHistoryItem {
             date_time,
             journal_time,
@@ -151,26 +159,31 @@ pub async fn get_card_history(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::TEST_STU_ID;
+    use crate::{
+        pt::test::get_pt_token,
+        test::{TEST_MONTH, TEST_YEAR},
+    };
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_card_info() {
-        let res = get_card_info(&TEST_STU_ID).await.unwrap();
+        let token = get_pt_token().await.unwrap();
+        let res = get_card_info(&token).await.unwrap();
         println!("{:#?}", res);
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_card_history() {
-        let year = 2026;
-        let month = 3;
-        let res = get_card_history(
-            &TEST_STU_ID,
-            year,
-            month,
+        let token = get_pt_token().await.unwrap();
+        let card_history = get_card_history(
+            &token,
+            *TEST_YEAR,
+            *TEST_MONTH,
             CardHistoryType::Consumption,
         )
         .await
         .unwrap();
-        println!("{:#?}", res);
+        println!("{:#?}", card_history);
     }
 }

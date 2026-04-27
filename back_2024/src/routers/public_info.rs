@@ -48,7 +48,7 @@ async fn get_empty_room(req: &mut Request) -> RouterResult {
             "0506" => Ok(3),
             "0708" => Ok(4),
             "091011" => Ok(5),
-            _ => Err(AppError::ParseError()),
+            _ => Err(AppError::ParseError),
         })
         .collect::<Result<Vec<u8>, AppError>>()?;
     let res = service::public_info::get_empty_room(

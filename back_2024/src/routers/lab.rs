@@ -1,7 +1,7 @@
-use crate::service::lab::CheckPasswordResult;
 use crate::{
     result::{AppError, RouterResult},
-    service, utils,
+    service::{self, lab::CheckPasswordResult},
+    utils,
 };
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::{Deserialize, Serialize};
@@ -36,7 +36,7 @@ async fn set_lab_password(req: &mut Request) -> RouterResult {
     let res =
         service::lab::check_password(&stu_id, &password).await?;
     match res {
-        CheckPasswordResult::Success(_) => {
+        CheckPasswordResult::Success => {
             service::lab::set_lab_pass(&stu_id, &password).await?;
             Ok(SetLabPasswordRes {
                 success: true,

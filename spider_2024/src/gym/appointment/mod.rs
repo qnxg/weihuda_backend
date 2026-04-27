@@ -1,10 +1,14 @@
 mod raw;
 
-use anyhow::anyhow;
+use crate::{
+    error::MapParseErr,
+    gym::{error::TokenExpired, login::GymToken},
+};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+/// 体测预约信息
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Appointment {
     /// 预约名称
     pub name: String,
@@ -40,14 +44,23 @@ pub struct Appointment {
     pub status: i32,
 }
 
+/// 获取体测预约信息
+///
+/// # Parameters
+///
+/// - `gym_token`: 体测系统的令牌，可以通过 [GymToken::acquire_by_cas_login] 或 [GymToken::acquire_by_direct_login] 获取
+///
+/// # Returns
+///
+/// 返回体测预约信息
 pub async fn get_appointment(
-    stu_id: &str,
-) -> Result<Vec<Appointment>, crate::Error> {
-    let raw_data = raw::raw_appointment_list_data(stu_id).await?;
+    gym_token: &GymToken,
+) -> Result<Vec<Appointment>, crate::Error<TokenExpired>> {
+    let raw_data = raw::raw_appointment_list_data(gym_token).await?;
     let mut res = Vec::with_capacity(raw_data.len());
     for raw_item in raw_data {
         let raw_detail = raw::raw_appointment_detail_data(
-            stu_id,
+            gym_token,
             raw_item.class_id,
             &raw_item.class_time,
             &raw_item.test_time,
@@ -61,13 +74,7 @@ pub async fn get_appointment(
                 &raw_item.class_time,
                 "%Y-%m-%d",
             )
-            .map_err(|e| {
-                anyhow!(
-                    "解析体测预约日期失败: date = {:?}, err = {:?}",
-                    raw_item.class_time,
-                    e
-                )
-            })?,
+            .parse_err(&raw_item.class_time)?,
             time: raw_item.test_time,
             test_type: raw_detail.appo_type,
             status: raw_item.button_status,
@@ -78,13 +85,15 @@ pub async fn get_appointment(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test::TEST_STU_ID;
+mod test {
+    use super::get_appointment;
+    use crate::gym::test::get_gym_token;
 
     #[tokio::test]
-    async fn test_get_appointment() {
-        let res = get_appointment(&TEST_STU_ID).await.unwrap();
-        println!("{:#?}", res);
+    #[ignore]
+    pub async fn test_get_appointment() {
+        let gym_token = get_gym_token().await;
+        let appointment = get_appointment(&gym_token).await.unwrap();
+        println!("{:#?}", appointment);
     }
 }

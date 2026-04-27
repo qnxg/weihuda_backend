@@ -1,24 +1,38 @@
-use anyhow::anyhow;
+use crate::{
+    error::{
+        MapNetworkErr, MapParseErr, MapUnexpectedErr, parse_err,
+    },
+    netflow::login::NetflowToken,
+    utils::client,
+};
 use serde_json::Value;
+use std::convert::Infallible;
+
 const NETFLOW_USER_INFO_URL: &str =
     "http://ll.hnu.edu.cn/api/v1/account/getuserinfo";
-use crate::{netflow::login::netflow_headers, utils::client};
 
 pub async fn raw_user_info_data(
-    stu_id: &str,
-) -> Result<Value, crate::Error> {
-    let netflow_headers = netflow_headers(stu_id).await?;
-    let raw_res = client
+    netflow_token: &NetflowToken,
+) -> Result<Value, crate::Error<Infallible>> {
+    let headers = netflow_token.headers().clone();
+    let json_str = client
         .get(NETFLOW_USER_INFO_URL)
-        .headers(netflow_headers)
+        .headers(headers)
         .send()
-        .await?
-        .error_for_status()?
-        .json::<Value>()
-        .await?;
-    let res = raw_res
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .text()
+        .await
+        .unexpected_err()?;
+    let res = serde_json::from_str::<Value>(&json_str)
+        .parse_err(&json_str)?
         .get("data")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .ok_or(anyhow!("解析用户信息失败: {:?}", raw_res))?;
+        .map(|v| {
+            serde_json::from_value(v.clone()).parse_err(&json_str)
+        })
+        .transpose()?
+        .ok_or(parse_err(&json_str))?;
     Ok(res)
 }

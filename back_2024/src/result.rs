@@ -1,40 +1,30 @@
-use anyhow::anyhow;
+use std::sync::Arc;
+
 use salvo::http::StatusCode;
 use salvo::prelude::Json;
 use salvo::{Response, Scribe};
 use serde::Serialize;
 use serde_json::Value;
-use spider_2024::Error as SpiderError;
 use thiserror::Error;
 
 /// 自定义的错误处理类型，支持多种错误类型，可以通过?操作符链式传播，传播链的初始类型必须是可转换为AppError的分支的类型
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum AppError {
-    /// 未知错误类型，500，服务器内部错误
-    #[error("服务器内部错误: {0:?}")]
-    AnyHow(#[from] anyhow::Error),
+    /// 服务器内部错误或是正常的业务错误
+    #[error("{0:?}")]
+    Text(String),
     /// 参数解析错误
-    #[error("参数解析错误: {0}")]
-    SalvoParseError(#[from] salvo::http::ParseError),
     #[error("参数解析错误")]
-    ParseError(),
-    /// Sqlx数据库操作错误，500，服务器内部错误
-    #[error("数据库SQL语句执行错误: {0}")]
-    SqlxError(#[from] sqlx::Error),
-    /// JWT编解码错误
-    #[error("JWT编解码错误: {0}")]
-    JwtError(#[from] jsonwebtoken::errors::Error),
+    ParseError,
+    /// 密码错误
+    ///
+    /// 下发该错误后前端会强制下线
     #[error("密码错误")]
     PasswordError,
-    #[error("解析JSON错误: {0}")]
-    JsonParseError(#[from] serde_json::Error),
-    #[error("内部请求错误: {0}")]
-    RequestError(#[from] reqwest::Error),
-    #[error("RabbitMQ错误: {0}")]
-    RabbitMQError(#[from] lapin::Error),
+    /// 没有提供 jwt 或是 jwt 解析错误
     #[error("未授权访问")]
     Unauthorized,
-    #[error("请求超时")]
+    #[error("请求超时, 请稍后重试")]
     TimeoutError,
 }
 pub struct Success(Value);
@@ -53,75 +43,36 @@ impl Scribe for Success {
     }
 }
 
-impl From<&str> for AppError {
-    fn from(s: &str) -> Self {
-        AppError::AnyHow(anyhow::anyhow!(s.to_string()))
-    }
-}
-
-impl From<SpiderError> for AppError {
-    fn from(e: SpiderError) -> Self {
-        match e {
-            SpiderError::AnyHow(error) => Self::AnyHow(error),
-            SpiderError::PasswordError => Self::PasswordError,
-            SpiderError::PasswordShouldChange => Self::PasswordError,
-            SpiderError::PasswordLocked => Self::AnyHow(anyhow!(
-                "账号被锁定，请暂停使用10分钟之后重试。"
-            )),
-            SpiderError::SqlxError(error) => Self::SqlxError(error),
-        }
-    }
-}
-
 impl Scribe for AppError {
     fn render(self, res: &mut Response) {
-        tracing::error!("{}", self);
         match self {
-            AppError::AnyHow(_)
-            | AppError::JsonParseError(_)
-            | AppError::RequestError(_)
-            | AppError::RabbitMQError(_)
-            | AppError::Unauthorized => res.stuff(
+            AppError::Text(text) => res.stuff(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({
                     "code": 500,
                     "data": null,
-                    "msg": format!("{}", self)
+                    "msg": text
                 })),
             ),
-            AppError::ParseError() | AppError::SalvoParseError(_) => {
-                // 错误信息默认只提示消耗stream流过程中第一个缺失的字段
-                res.stuff(
-                    StatusCode::BAD_REQUEST,
-                    Json(serde_json::json!({
-                        "code": 400,
-                        "data": null,
-                        "msg": "参数解析错误"
-                    })),
-                )
-            }
-            AppError::SqlxError(_) => {
-                res.stuff(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({
-                        "code": 500,
-                        "data": null,
-                        "msg": "数据库内部错误"
-                    })),
-                );
-            }
-            AppError::JwtError(_) => {
+            AppError::ParseError => res.stuff(
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "code": 400,
+                    "data": null,
+                    "msg": "参数解析错误"
+                })),
+            ),
+            AppError::Unauthorized => {
                 res.stuff(
                     StatusCode::UNAUTHORIZED,
                     Json(serde_json::json!({
                         "code": 401,
                         "data": null,
-                        "msg": "身份验证错误"
+                        "msg": "未授权访问"
                     })),
                 );
             }
             AppError::PasswordError => {
-                // 密码错误信息交给爬虫打印
                 res.stuff(
                     StatusCode::UNAUTHORIZED,
                     Json(serde_json::json!({
@@ -142,6 +93,87 @@ impl Scribe for AppError {
                 );
             }
         }
+    }
+}
+
+impl From<&str> for AppError {
+    fn from(s: &str) -> Self {
+        AppError::Text(s.to_string())
+    }
+}
+
+impl From<salvo::http::ParseError> for AppError {
+    fn from(_: salvo::http::ParseError) -> Self {
+        AppError::ParseError
+    }
+}
+
+impl From<jsonwebtoken::errors::Error> for AppError {
+    fn from(_: jsonwebtoken::errors::Error) -> Self {
+        AppError::Unauthorized
+    }
+}
+
+// moka 经常会用到
+impl From<Arc<AppError>> for AppError {
+    fn from(e: Arc<AppError>) -> Self {
+        e.as_ref().clone()
+    }
+}
+
+/// 抛出错误，并返回 AppError::Text("请求失败，请稍后重试")
+///
+/// 会把错误打印到日志上，同时日志上还会显示抛出错误的位置信息
+///
+/// `reason` 将会显示到日志上
+fn throw_error_with_loc<E: std::error::Error>(
+    loc: &std::panic::Location,
+    e: E,
+    reason: &str,
+) -> AppError {
+    tracing::error!(
+        error = ?e,
+        file = %loc.file(),
+        line = %loc.line(),
+        column = %loc.column(),
+        "{}", reason
+    );
+    AppError::Text("请求失败，请稍后重试".to_string())
+}
+
+/// SEE ALSO [throw_error_with_loc]
+#[track_caller]
+pub fn throw_error<E: std::error::Error>(
+    e: E,
+    reason: &str,
+) -> AppError {
+    let loc = std::panic::Location::caller();
+    throw_error_with_loc(loc, e, reason)
+}
+
+pub trait ThrowError<T> {
+    fn throw_error(self, reason: &str) -> AppResult<T>;
+}
+
+impl<T, E: std::error::Error> ThrowError<T> for Result<T, E> {
+    /// SEE ALSO [throw_error_with_loc]
+    #[track_caller]
+    fn throw_error(self, reason: &str) -> AppResult<T> {
+        match self {
+            Ok(value) => Ok(value),
+            Err(e) => {
+                let loc = std::panic::Location::caller();
+                Err(throw_error_with_loc(loc, e, reason))
+            }
+        }
+    }
+}
+
+impl From<sqlx::Error> for AppError {
+    #[track_caller]
+    fn from(e: sqlx::Error) -> Self {
+        let loc = std::panic::Location::caller();
+        throw_error_with_loc(loc, e, "数据库操作失败")
     }
 }
 

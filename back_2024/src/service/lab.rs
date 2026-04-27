@@ -1,17 +1,54 @@
 use crate::{
-    infra::{self},
-    result::AppResult,
+    infra::{self, captcha::LabCaptchaResolver},
+    result::{AppError, AppResult, throw_error},
+    service::user_state::{Lab, with_token},
     utils,
 };
 use serde::Serialize;
+use spider_2024::{
+    Error as SpiderError,
+    lab::{login::LabToken, login::LoginIssue},
+};
 
-pub use spider_2024::lab::{CheckPasswordResult, check_password};
+pub enum CheckPasswordResult {
+    Success,
+    PasswordError,
+    OtherError(Option<String>),
+}
+
+pub async fn check_password(
+    stu_id: &str,
+    password: &str,
+) -> AppResult<CheckPasswordResult> {
+    match LabToken::acquire_by_login(
+        stu_id,
+        password,
+        &LabCaptchaResolver,
+        5,
+    )
+    .await
+    {
+        // TODO 把检查密码时获取到的 token 缓存起来
+        Ok(_) => Ok(CheckPasswordResult::Success),
+        Err(SpiderError::Other(LoginIssue::CaptchaError)) => {
+            tracing::warn!("验证码识别失败");
+            Err(AppError::Text("登陆失败，请重试".to_string()))
+        }
+        Err(SpiderError::Other(LoginIssue::PasswordError)) => {
+            Ok(CheckPasswordResult::PasswordError)
+        }
+        Err(SpiderError::Other(LoginIssue::OtherError(error))) => {
+            Ok(CheckPasswordResult::OtherError(error))
+        }
+        Err(e) => Err(throw_error(e, "检查大物实验系统密码失败")),
+    }
+}
 
 pub async fn set_lab_pass(
     stu_id: &str,
     lab_pass: &str,
 ) -> AppResult<()> {
-    infra::mysql::user::set_lab_pass(
+    infra::mysql::user::set_lab_password(
         stu_id,
         &utils::crypto::encrypt(lab_pass),
     )
@@ -37,8 +74,10 @@ pub struct LabArrange {
 pub async fn get_lab_arrange(
     stu_id: &str,
 ) -> AppResult<Vec<LabArrange>> {
-    let spider_res =
-        spider_2024::lab::get_lab_schedule(stu_id).await?;
+    let spider_res = with_token(Lab::new(stu_id), async |token| {
+        spider_2024::lab::get_lab_schedule(&token).await
+    })
+    .await?;
     let mut res = Vec::new();
     for item in spider_res {
         let day = match item.day {
@@ -78,7 +117,10 @@ pub struct LabSemInfo {
 pub async fn get_sem_info(
     stu_id: &str,
 ) -> AppResult<Vec<LabSemInfo>> {
-    let spider_res = spider_2024::lab::get_semester(stu_id).await?;
+    let spider_res = with_token(Lab::new(stu_id), async |token| {
+        spider_2024::lab::get_semester(&token).await
+    })
+    .await?;
     let mut res = Vec::new();
     for item in spider_res {
         res.push(LabSemInfo {
@@ -96,9 +138,18 @@ async fn get_lab_grade_detail(
     course_id: &str,
     sem_id: &str,
 ) -> AppResult<Option<Vec<LabScoreItem>>> {
+    let course_id_value = course_id.to_string();
+    let sem_id_value = sem_id.to_string();
     let spider_res =
-        spider_2024::lab::get_lab_grade(stu_id, course_id, sem_id)
-            .await?;
+        with_token(Lab::new(stu_id), async move |token| {
+            spider_2024::lab::get_lab_grade(
+                &token,
+                course_id_value.as_str(),
+                sem_id_value.as_str(),
+            )
+            .await
+        })
+        .await?;
     let mut labs = Vec::new();
     // 过滤还没有成绩的实验和虚拟实验
     for item in spider_res {
@@ -154,8 +205,16 @@ pub async fn get_course(
     stu_id: &str,
     sem_id: &str,
 ) -> AppResult<Option<LabCourse>> {
+    let sem_id_value = sem_id.to_string();
     let spider_res =
-        spider_2024::lab::get_course_list(stu_id, sem_id).await?;
+        with_token(Lab::new(stu_id), async move |token| {
+            spider_2024::lab::get_course_list(
+                &token,
+                sem_id_value.as_str(),
+            )
+            .await
+        })
+        .await?;
     if let Some(course) = spider_res.into_iter().next()
         && let Some(labs) =
             get_lab_grade_detail(stu_id, &course.id, sem_id).await?
@@ -179,8 +238,10 @@ pub struct VirtualLabGrade {
 pub async fn get_virtual_lab_grade(
     stu_id: &str,
 ) -> AppResult<Vec<VirtualLabGrade>> {
-    let spider_res =
-        spider_2024::lab::get_virtual_lab_grade(stu_id).await?;
+    let spider_res = with_token(Lab::new(stu_id), async |token| {
+        spider_2024::lab::get_virtual_lab_grade(&token).await
+    })
+    .await?;
     let mut res = Vec::new();
     for item in spider_res {
         res.push(VirtualLabGrade {

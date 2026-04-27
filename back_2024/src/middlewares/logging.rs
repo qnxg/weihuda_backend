@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::utils;
 
-const SLOW_REQUEST_THRESHOLD: Duration = Duration::from_secs(3);
+const SLOW_REQUEST_THRESHOLD: Duration = Duration::from_secs(5);
 
 #[handler]
 pub async fn logging_middleware(
@@ -62,15 +62,7 @@ pub async fn logging_middleware(
             _ => StatusCode::OK,
         });
 
-        if status != StatusCode::OK
-            && status != StatusCode::NO_CONTENT
-        {
-            tracing::warn!(
-                %status,
-                ?duration,
-                "Response"
-            );
-        } else if duration > SLOW_REQUEST_THRESHOLD {
+        if duration > SLOW_REQUEST_THRESHOLD {
             tracing::warn!(
                 %status,
                 ?duration,

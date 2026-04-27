@@ -1,8 +1,13 @@
-use anyhow::anyhow;
+use crate::{
+    error::{
+        MapNetworkErr, MapParseErr, MapUnexpectedErr, parse_err,
+    },
+    netflow::login::NetflowToken,
+    utils::client,
+};
 use serde::Deserialize;
 use serde_json::Value;
-
-use crate::{netflow::login::netflow_headers, utils::client};
+use std::convert::Infallible;
 
 const THIS_MONTH_URL: &str =
     "http://ll.hnu.edu.cn/api/v1/history/gettrafficinfobythismonth";
@@ -25,20 +30,27 @@ pub struct ThisMonthInfo {
 
 /// 本月流量数据
 pub async fn raw_this_month_data(
-    stu_id: &str,
-) -> Result<ThisMonthInfo, crate::Error> {
-    let netflow_headers = netflow_headers(stu_id).await?;
-    let raw_res: Value = client
+    netflow_token: &NetflowToken,
+) -> Result<ThisMonthInfo, crate::Error<Infallible>> {
+    let headers = netflow_token.headers().clone();
+    let json_str = client
         .get(THIS_MONTH_URL)
-        .headers(netflow_headers)
+        .headers(headers)
         .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
-    let res = raw_res
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .text()
+        .await
+        .unexpected_err()?;
+    let res = serde_json::from_str::<Value>(&json_str)
+        .parse_err(&json_str)?
         .get("data")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .ok_or(anyhow!("解析本月流量数据失败: {:?}", raw_res))?;
+        .map(|v| {
+            serde_json::from_value(v.clone()).parse_err(&json_str)
+        })
+        .transpose()?
+        .ok_or(parse_err(&json_str))?;
     Ok(res)
 }

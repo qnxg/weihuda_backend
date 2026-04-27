@@ -3,7 +3,13 @@ use spider_2024::{
     gym::grade::GradeItemColor, xgxt::personal_info::Gender,
 };
 
-use crate::{result::AppResult, service};
+use crate::{
+    result::AppResult,
+    service::{
+        self,
+        user_state::{Gym, with_token},
+    },
+};
 
 fn get_color_str(color: GradeItemColor) -> String {
     match color {
@@ -60,7 +66,10 @@ pub async fn get_fitness_grade(
     stu_id: &str,
     xn: u16,
 ) -> AppResult<FitnessGrade> {
-    let grade = spider_2024::gym::get_grade(stu_id, xn).await?;
+    let grade = with_token(Gym::new(stu_id), async move |token| {
+        spider_2024::gym::get_grade(&token, xn).await
+    })
+    .await?;
     let person_info =
         service::user_info::get_person_info(stu_id, false).await?;
     let res = FitnessGrade {
@@ -181,8 +190,11 @@ pub struct FitnessAppoint {
 pub async fn get_fitness_appoint(
     stu_id: &str,
 ) -> AppResult<Vec<FitnessAppoint>> {
-    let res = spider_2024::gym::get_appointment(stu_id)
-        .await?
+    let spider_res = with_token(Gym::new(stu_id), async |token| {
+        spider_2024::gym::get_appointment(&token).await
+    })
+    .await?;
+    let res = spider_res
         .into_iter()
         .map(|item| FitnessAppoint {
             appo_desc: item.desc,

@@ -1,12 +1,17 @@
-use crate::hdjw::exam_schedule::raw::raw_exam_schedule_data;
-use anyhow::anyhow;
-use chrono::NaiveDate;
-use serde::Serialize;
-
 mod raw;
 
+use crate::{
+    error::{MapParseErr, parse_err},
+    hdjw::{
+        error::TokenExpired,
+        exam_schedule::raw::raw_exam_schedule_data, login::HdjwToken,
+    },
+};
+use chrono::NaiveDate;
+use serde::{Deserialize, Serialize};
+
 /// 考试安排
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct ExamSchedule {
     /// 考试课程的课程代码
     pub course_id: String,
@@ -38,12 +43,27 @@ pub struct ExamSchedule {
     pub seat: Option<String>,
 }
 
+/// 获取考试安排
+///
+/// # Arguments
+///
+/// - `hdjw_token`: 教务系统的令牌，可以通过 [HdjwToken::acquire_by_cas_login] 获取
+/// - `xn`: 学年
+/// - `xq`: 学期
+///
+/// # Returns
+///
+/// 返回一个包含给定学年学期的考试安排的列表
+///
+/// # Errors
+///
+/// 如果提供的 `hdjw_token` 过期了，那么会返回 [TokenExpired] 错误，需要重新获取一个新的 [HdjwToken]
 pub async fn get_exam_schedule(
-    stu_id: &str,
+    hdjw_token: &HdjwToken,
     xn: u16,
     xq: u8,
-) -> Result<Vec<ExamSchedule>, crate::Error> {
-    let raw_data = raw_exam_schedule_data(stu_id, xn, xq).await?;
+) -> Result<Vec<ExamSchedule>, crate::Error<TokenExpired>> {
+    let raw_data = raw_exam_schedule_data(hdjw_token, xn, xq).await?;
     let mut res = Vec::with_capacity(raw_data.len());
     for item in raw_data {
         let (date, time) = match item.kssj {
@@ -51,17 +71,11 @@ pub async fn get_exam_schedule(
                 let [date, time] =
                     kssj.split(' ').collect::<Vec<_>>()[..]
                 else {
-                    return Err(anyhow!(
-                        "解析考试安排时间错误: {}",
-                        kssj
-                    )
-                    .into());
+                    return Err(parse_err(&kssj));
                 };
                 let date =
                     NaiveDate::parse_from_str(date, "%Y-%m-%d")
-                        .map_err(|_| {
-                            anyhow!("解析考试安排日期失败: {}", date)
-                        })?;
+                        .parse_err(date)?;
                 (Some(date), Some(time.to_string()))
             }
             None => (None, None),
@@ -81,15 +95,19 @@ pub async fn get_exam_schedule(
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
-    use crate::test::{TEST_STU_ID, TEST_XN, TEST_XQ};
+    use crate::hdjw::test::get_hdjw_token;
+    use crate::test::{TEST_XN, TEST_XQ};
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_exam_schedule() {
-        let res = get_exam_schedule(&TEST_STU_ID, TEST_XN, TEST_XQ)
-            .await
-            .unwrap();
-        println!("{:#?}", res);
+        let hdjw_token = get_hdjw_token().await.unwrap();
+        let exam_schedule =
+            get_exam_schedule(&hdjw_token, *TEST_XN, *TEST_XQ)
+                .await
+                .unwrap();
+        println!("{:#?}", exam_schedule);
     }
 }

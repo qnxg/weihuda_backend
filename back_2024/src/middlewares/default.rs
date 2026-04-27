@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use salvo::{
     Depot, FlowCtrl, Request, Response, handler, writing::Json,
 };
@@ -25,9 +24,12 @@ pub async fn default_middleware(
     }
 
     match res.status_code {
-        None => res.render(AppError::AnyHow(anyhow!(
-            "服务器未返回有效信息"
-        ))),
+        None => {
+            tracing::error!("服务器未返回有效信息");
+            res.render(AppError::Text(
+                "服务器未返回有效信息".to_string(),
+            ))
+        }
         Some(status_code) => {
             res.stuff(
                 status_code,

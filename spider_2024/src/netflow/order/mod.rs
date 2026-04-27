@@ -1,11 +1,15 @@
-use crate::netflow::order::raw::raw_order_data;
-use anyhow::anyhow;
-use chrono::NaiveDateTime;
-use serde::{Deserialize, Serialize};
-
 mod raw;
 
-#[derive(Deserialize, Serialize, Debug)]
+use crate::{
+    error::MapParseErr,
+    netflow::{login::NetflowToken, order::raw::raw_order_data},
+};
+use chrono::NaiveDateTime;
+use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
+
+/// 校园网流量账单信息
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct OrderItem {
     /// 时间
     ///
@@ -31,10 +35,19 @@ pub struct OrderItem {
     pub update_time: NaiveDateTime,
 }
 
+/// 获取校园网流量账单信息
+///
+/// # Arguments
+///
+/// - `netflow_token`: 校园网令牌，可以通过 [NetflowToken::acquire_by_cas_login] 获取
+///
+/// # Returns
+///
+/// 返回一个包含校园网流量账单信息的列表
 pub async fn get_order(
-    stu_id: &str,
-) -> Result<Vec<OrderItem>, crate::Error> {
-    let raw_data = raw_order_data(stu_id).await?;
+    netflow_token: &NetflowToken,
+) -> Result<Vec<OrderItem>, crate::Error<Infallible>> {
+    let raw_data = raw_order_data(netflow_token).await?;
     let mut res = Vec::with_capacity(raw_data.len());
     for item in raw_data {
         let temp = OrderItem {
@@ -47,7 +60,7 @@ pub async fn get_order(
                 &item.UpdateTime,
                 "%Y-%m-%d %H:%M:%S",
             )
-            .map_err(|e| anyhow!("解析更新时间失败: {e}"))?,
+            .parse_err(&item.UpdateTime)?,
         };
         res.push(temp);
     }
@@ -57,11 +70,13 @@ pub async fn get_order(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::TEST_STU_ID;
+    use crate::netflow::test::get_netflow_token;
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_order() {
-        let res = get_order(&TEST_STU_ID).await.unwrap();
-        println!("{:#?}", res);
+        let token = get_netflow_token().await.unwrap();
+        let order = get_order(&token).await.unwrap();
+        println!("{:#?}", order);
     }
 }

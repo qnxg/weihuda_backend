@@ -1,9 +1,13 @@
-use std::collections::HashMap;
-
-use anyhow::anyhow;
+use crate::{
+    error::{
+        MapNetworkErr, MapParseErr, MapUnexpectedErr, parse_err,
+    },
+    lab::login::LabToken,
+    utils::client,
+};
 use serde::Deserialize;
-
-use crate::{lab::utils::request_lab, utils::client};
+use serde_json::Value;
+use std::{collections::HashMap, convert::Infallible};
 
 const COURSE_LIST_URL: &str =
     "http://10.62.106.112/XPK/StudentScoreSearch/GetStudentScoreList";
@@ -22,21 +26,35 @@ pub struct CourseItem {
 }
 
 pub async fn raw_course_list_data(
-    stu_id: &str,
+    lab_token: &LabToken,
     semester_id: &str,
-) -> Result<Vec<CourseItem>, crate::Error> {
+) -> Result<Vec<CourseItem>, crate::Error<Infallible>> {
+    let headers = lab_token.headers().clone();
     let mut form_data = HashMap::new();
-    form_data.insert("page", "1".to_string());
-    form_data.insert("rows", "15".to_string());
-    form_data.insert("SemID", semester_id.to_string());
-    form_data.insert("UserID", stu_id.to_string());
-    let req = client.post(COURSE_LIST_URL).form(&form_data);
-    let raw_res = request_lab(stu_id, req).await?;
-    let res = raw_res
+    form_data.insert("page", "1");
+    form_data.insert("rows", "15");
+    form_data.insert("SemID", semester_id);
+    form_data.insert("UserID", lab_token.stu_id());
+    let json_str = client
+        .post(COURSE_LIST_URL)
+        .form(&form_data)
+        .headers(headers)
+        .send()
+        .await
+        .network_err()?
+        .error_for_status()
+        .unexpected_err()?
+        .text()
+        .await
+        .unexpected_err()?;
+    let res = serde_json::from_str::<Value>(&json_str)
+        .parse_err(&json_str)?
         .get("rows")
-        .and_then(|v| {
-            serde_json::from_value::<Vec<CourseItem>>(v.clone()).ok()
+        .map(|v| {
+            serde_json::from_value::<Vec<CourseItem>>(v.clone())
+                .parse_err(&json_str)
         })
-        .ok_or(anyhow!("解析数据失败: {:?}", raw_res))?;
+        .transpose()?
+        .ok_or(parse_err(&json_str))?;
     Ok(res)
 }
