@@ -4,3 +4,8 @@
 /logs
 _config.toml
 _.env
+/old
+/migrations
+docker-compose.yml
+/lib/cache_map
+/lib/analytics
