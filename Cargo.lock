@@ -376,6 +376,7 @@ dependencies = [
  "dashmap",
  "flurry",
  "futures",
+ "hnu_query",
  "jsonwebtoken",
  "lapin",
  "md5",
@@ -389,7 +390,6 @@ dependencies = [
  "salvo",
  "serde",
  "serde_json",
- "spider_2024",
  "sqlx",
  "thiserror 1.0.69",
  "tokio",
@@ -1446,6 +1446,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest",
+]
+
+[[package]]
+name = "hnu_query"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "691875d561a70340044a3c34f7cd80c32a70c6ff447c0c8e48c326f938792585"
+dependencies = [
+ "aes",
+ "base64",
+ "chrono",
+ "dotenvy",
+ "ecb",
+ "num-bigint",
+ "pdf-extract",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]
@@ -3389,25 +3410,6 @@ checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "spider_2024"
-version = "1.0.0"
-dependencies = [
- "aes",
- "base64",
- "chrono",
- "dotenvy",
- "ecb",
- "num-bigint",
- "pdf-extract",
- "regex",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "tokio",
 ]
 
 [[package]]

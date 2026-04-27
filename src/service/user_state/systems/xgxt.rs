@@ -1,0 +1,73 @@
+use std::convert::Infallible;
+
+use super::{
+    super::{cache::CacheEnum, utils::SerializableHeaderMap},
+    default_retry_strategy,
+    framework::{HnuSystem, NextAction},
+    with_cas_token,
+};
+use crate::result::{AppResult, ThrowError};
+use hnu_query::{Error as SpiderError, xgxt::login::XgxtToken};
+
+pub struct Xgxt {
+    stu_id: String,
+    token_expired_flag: bool,
+}
+
+impl Xgxt {
+    pub fn new(stu_id: impl Into<String>) -> Self {
+        Self {
+            stu_id: stu_id.into(),
+            token_expired_flag: false,
+        }
+    }
+}
+
+impl HnuSystem for Xgxt {
+    type Token = XgxtToken;
+    type Error = Infallible;
+    fn name() -> &'static str {
+        "学工系统"
+    }
+    fn cache_key() -> CacheEnum {
+        CacheEnum::XGXTToken
+    }
+    fn stu_id(&self) -> &str {
+        self.stu_id.as_str()
+    }
+    async fn acquire_token(&mut self) -> AppResult<XgxtToken> {
+        with_cas_token(self.stu_id.as_str(), async |token| {
+            XgxtToken::acquire_by_cas_login(token).await
+        })
+        .await
+    }
+    fn serialize_token(
+        &mut self,
+        token: &XgxtToken,
+    ) -> AppResult<String> {
+        let headers_wrapped =
+            SerializableHeaderMap::new(token.headers().clone());
+        serde_json::to_string(&headers_wrapped)
+            .throw_error("序列化 xgxt HeaderMap 失败")
+    }
+    fn deserialize_token(
+        &mut self,
+        serialized: &str,
+    ) -> AppResult<XgxtToken> {
+        let header =
+            serde_json::from_str::<SerializableHeaderMap>(serialized)
+                .throw_error("反序列化 xgxt HeaderMap 失败")?;
+        Ok(XgxtToken::from_headers_unchecked(header.into_inner()))
+    }
+    fn handle_retry(
+        &mut self,
+        retry_count: usize,
+        error: &SpiderError<Infallible>,
+    ) -> NextAction {
+        default_retry_strategy(
+            &mut self.token_expired_flag,
+            retry_count,
+            error,
+        )
+    }
+}

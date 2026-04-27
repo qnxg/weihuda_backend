@@ -1,9 +1,0 @@
-/old
-/target
-/migrations
-/.vscode
-/.idea
-/logs
-docker-compose.yml
-/lib/cache_map
-/lib/analytics
