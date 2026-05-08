@@ -10,10 +10,13 @@ pub async fn get_electricity(
     refresh: bool,
 ) -> AppResult<String> {
     // 拉取
-    let dormitory =
+    let Some(dormitory) =
         service::user_info::get_person_info(stu_id, false)
             .await?
-            .dormitory;
+            .dormitory
+    else {
+        return Err("无法获取到宿舍信息".into());
+    };
     let (Some(park), Some(build)) =
         (dormitory.park(), dormitory.build())
     else {

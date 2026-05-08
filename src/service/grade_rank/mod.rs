@@ -2,10 +2,7 @@ pub mod ca;
 
 use crate::{
     result::AppResult,
-    service::{
-        self,
-        user_state::{Hdjw, with_token},
-    },
+    service::user_state::{Hdjw, with_token},
 };
 use serde::Serialize;
 
@@ -47,7 +44,7 @@ pub async fn get_grade(
             credit: item.credit,
             course_type1: item.course_type1,
             course_type2: item.course_type2,
-            gpa: item.gpa,
+            gpa: item.gpa.unwrap_or(0.0),
             score: item.score,
             tags,
             jx0404id: item.jx0404id,
@@ -75,8 +72,11 @@ pub enum HdjwRankMethod {
     Gpa,
 }
 
-pub use hnu_query::hdjw::rank::Rank as HdjwRank;
-use hnu_query::hdjw::rank::{RankMethod, RankRange};
+#[derive(Serialize, Debug)]
+pub struct HdjwRank {
+    pub rank: String,
+    pub score: String,
+}
 
 /// 从 hdjw 中获取排名信息
 ///
@@ -87,10 +87,6 @@ use hnu_query::hdjw::rank::{RankMethod, RankRange};
 /// - `method`: 排名方法
 /// - `xn`: 学年。如果为 None 则为所有学年，此时 `xq` 参数无效
 /// - `xq`: 学期，如果为 None 则为所有学期
-///
-/// # Returns
-///
-/// 参考爬虫的 `hdjw::get_rank` 的返回值
 pub async fn get_rank_from_hdjw(
     stu_id: &str,
     range: HdjwRankRange,
@@ -98,8 +94,6 @@ pub async fn get_rank_from_hdjw(
     xn: Option<u16>,
     xq: Option<u8>,
 ) -> AppResult<Option<HdjwRank>> {
-    let personal_info =
-        service::user_info::get_person_info(stu_id, false).await?;
     let selection = match xn {
         Some(xn) => match xq {
             Some(xq) => {
@@ -109,43 +103,40 @@ pub async fn get_rank_from_hdjw(
                 vec![(xn, 1), (xn, 2), (xn, 3)]
             }
         },
-        None => {
-            // 把从入学到现在的所有学年学期都选上
-            let from = personal_info.enter_year;
-            let (to, _) = service::semester::get_now_xnxq().await?;
-            (from..=(to as u16))
-                .flat_map(|xn| vec![(xn, 1), (xn, 2), (xn, 3)])
-                .collect()
-        }
-    };
-    let range = match range {
-        HdjwRankRange::All => RankRange::all_cousrse(),
-        HdjwRankRange::Must => RankRange::must_course(),
-        HdjwRankRange::Core => {
-            if personal_info.enter_year >= 2024 {
-                RankRange::core_v2024_course()
-            } else {
-                RankRange::core_v2020_course()
-            }
-        }
-    };
-    let method = match method {
-        HdjwRankMethod::ArithmeticAvg => RankMethod::ArithmeticAvg,
-        HdjwRankMethod::WeightedAvg => RankMethod::WeightedAvg,
-        HdjwRankMethod::Gpa => RankMethod::Gpa,
+        None => vec![],
     };
     let spider_res =
         with_token(Hdjw::new(stu_id), async move |token| {
             hnu_query::hdjw::get_rank(
                 &token,
                 selection.as_slice(),
-                range.as_slice(),
-                method,
+                hnu_query::hdjw::rank::Range::Major,
+                hnu_query::hdjw::rank::DataSource::Total,
+                hnu_query::hdjw::rank::Display::Max,
             )
             .await
         })
         .await?;
-    Ok(spider_res)
+    let rank_detail = match range {
+        HdjwRankRange::All => spider_res.all,
+        HdjwRankRange::Must => spider_res.must,
+        HdjwRankRange::Core => spider_res.core,
+    };
+    let Some(rank_detail) = rank_detail else {
+        return Ok(None);
+    };
+    let (rank, score) = match method {
+        HdjwRankMethod::ArithmeticAvg => {
+            (rank_detail.arithmetic_rank, rank_detail.arithmetic)
+        }
+        HdjwRankMethod::WeightedAvg => {
+            (rank_detail.weighted_rank, rank_detail.weighted)
+        }
+        HdjwRankMethod::Gpa => {
+            (rank_detail.gpa_rank, rank_detail.gpa)
+        }
+    };
+    Ok(Some(HdjwRank { rank, score }))
 }
 
 #[derive(Serialize, Debug)]
