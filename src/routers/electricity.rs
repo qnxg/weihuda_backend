@@ -40,10 +40,13 @@ async fn get_dormitory(req: &mut Request) -> RouterResult {
         pub build: String,
         pub room: String,
     }
-    let dormitory =
+    let Some(dormitory) =
         service::user_info::get_person_info(&stu_id, false)
             .await?
-            .dormitory;
+            .dormitory
+    else {
+        return Ok(Value::Null.into());
+    };
     let (Some(park), Some(build)) =
         (dormitory.park(), dormitory.build())
     else {

@@ -1,4 +1,6 @@
-use crate::service::grade_rank::{HdjwRankMethod, HdjwRankRange};
+use crate::service::grade_rank::{
+    HdjwRank, HdjwRankMethod, HdjwRankRange,
+};
 use crate::utils::serde::empty_string_as_none;
 use crate::{
     result::{AppError, RouterResult},
@@ -75,20 +77,19 @@ async fn get_rank_from_hdjw(req: &mut Request) -> RouterResult {
         3 => HdjwRankMethod::Gpa,
         _ => return Err(AppError::ParseError),
     };
-    let res = service::grade_rank::get_rank_from_hdjw(
-        &stu_id, range, method, query.year, query.term,
-    )
-    .await?;
-    Ok(GetRankFromHdjwRes {
-        rank: res
-            .clone()
-            .and_then(|v| v.rank)
-            .unwrap_or("无数据".to_string()),
-        score: res
-            .and_then(|v| v.score)
-            .unwrap_or("无数据".to_string()),
-    }
-    .into())
+    let Some(HdjwRank { rank, score }) =
+        service::grade_rank::get_rank_from_hdjw(
+            &stu_id, range, method, query.year, query.term,
+        )
+        .await?
+    else {
+        return Ok(GetRankFromHdjwRes {
+            rank: "无数据".to_string(),
+            score: "无数据".to_string(),
+        }
+        .into());
+    };
+    Ok(GetRankFromHdjwRes { rank, score }.into())
 }
 
 #[handler]
