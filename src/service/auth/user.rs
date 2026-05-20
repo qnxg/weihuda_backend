@@ -1,4 +1,3 @@
-use crate::result::throw_error;
 use crate::utils;
 use crate::{infra, result::AppResult};
 
@@ -22,41 +21,4 @@ pub async fn bind(
     )
     .await?;
     Ok(())
-}
-
-pub enum VerifyPasswordResult {
-    Success,
-    Fail,
-    ShouldChange,
-    Lock,
-}
-
-/// 检查密码是否正确
-pub async fn verify_password(
-    stu_id: &str,
-    password: &str,
-) -> AppResult<VerifyPasswordResult> {
-    // 尝试登陆一下个人门户来检查代码
-    let mut cas_token =
-        hnu_query::cas::login::CasToken::new(stu_id, password);
-    let res = match hnu_query::pt::login::PtToken::acquire_by_cas_login(
-        &mut cas_token,
-    )
-    .await
-    {
-        Ok(_) => VerifyPasswordResult::Success,
-        Err(hnu_query::Error::Other(issue)) => match issue {
-            hnu_query::cas::login::AccountIssue::AccountLocked => {
-                VerifyPasswordResult::Lock
-            }
-            hnu_query::cas::login::AccountIssue::PasswordError => {
-                VerifyPasswordResult::Fail
-            }
-            hnu_query::cas::login::AccountIssue::PasswordShouldChange => {
-                VerifyPasswordResult::ShouldChange
-            }
-        },
-        Err(e) => return Err(throw_error(e, "验证密码失败")),
-    };
-    Ok(res)
 }
