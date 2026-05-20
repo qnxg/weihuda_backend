@@ -1,3 +1,7 @@
+use crate::routers::demo::{
+    DEMO_COURSE_ID, DEMO_COURSE_NAME, DEMO_STU_ID,
+};
+use crate::service::exam::ExamArrange;
 use crate::utils::serde::empty_string_as_none;
 use crate::{
     result::RouterResult,
@@ -76,6 +80,19 @@ async fn delete_exam_num(req: &mut Request) -> RouterResult {
 
 #[handler]
 async fn get_exam_arrange(req: &mut Request) -> RouterResult {
+    let stu_id = utils::jwt::auth(req)?;
+    if stu_id == DEMO_STU_ID {
+        return Ok(vec![ExamArrange {
+            id: DEMO_COURSE_ID.to_string(),
+            name: DEMO_COURSE_NAME.to_string(),
+            place: "综合楼601".to_string(),
+            date: "2026-05-04".to_string(),
+            time: "14:30~16:00".to_string(),
+            seat: "42号".to_string(),
+        }]
+        .into());
+    }
+
     #[derive(Deserialize, Debug, Extractible)]
     #[salvo(extract(default_source(from = "query")))]
     struct GetExamArrangeReq {
@@ -87,7 +104,6 @@ async fn get_exam_arrange(req: &mut Request) -> RouterResult {
         pub xq: Option<u32>,
     }
     let GetExamArrangeReq { xn, xq } = req.extract().await?;
-    let stu_id = utils::jwt::auth(req)?;
     let (current_xn, current_xq) =
         service::semester::get_now_xnxq().await?;
     let xn = xn.unwrap_or(current_xn) as u16;

@@ -1,5 +1,8 @@
+use crate::routers::demo::{
+    DEMO_COURSE_ID, DEMO_COURSE_NAME, DEMO_STU_ID,
+};
 use crate::service::grade_rank::{
-    HdjwRank, HdjwRankMethod, HdjwRankRange,
+    GradeInfo, HdjwRank, HdjwRankMethod, HdjwRankRange,
 };
 use crate::utils::serde::empty_string_as_none;
 use crate::{
@@ -31,6 +34,22 @@ pub fn routers() -> Router {
 /// 获取成绩
 #[handler]
 async fn get_grade(req: &mut Request) -> RouterResult {
+    let stu_id = utils::jwt::auth(req)?;
+    if stu_id == DEMO_STU_ID {
+        return Ok(vec![GradeInfo {
+            course_id: DEMO_COURSE_ID.to_string(),
+            course_name: DEMO_COURSE_NAME.to_string(),
+            credit: 2.0,
+            course_type1: Some("必修".to_string()),
+            course_type2: "通识必修".to_string(),
+            gpa: 1.5,
+            score: 81,
+            tags: vec![],
+            jx0404id: None,
+        }]
+        .into());
+    }
+
     #[derive(Deserialize, Debug, Extractible)]
     #[salvo(extract(default_source(from = "query")))]
     struct GetGradeReq {
@@ -38,7 +57,6 @@ async fn get_grade(req: &mut Request) -> RouterResult {
         pub xq: u8,
     }
     let GetGradeReq { xn, xq } = req.extract().await?;
-    let stu_id = utils::jwt::auth(req)?;
     let res = service::grade_rank::get_grade(xn, xq, &stu_id).await?;
     Ok(res.into())
 }

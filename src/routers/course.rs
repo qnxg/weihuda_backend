@@ -1,4 +1,8 @@
-use crate::utils::serde::empty_string_as_none;
+use crate::{
+    routers::demo::{DEMO_COURSE_ID, DEMO_COURSE_NAME, DEMO_STU_ID},
+    service::course::CourseInfo,
+    utils::serde::empty_string_as_none,
+};
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
 
@@ -138,6 +142,29 @@ async fn update_course(req: &mut Request) -> RouterResult {
 /// 获取课表
 #[handler]
 async fn get_classtable(req: &mut Request) -> RouterResult {
+    let stu_id = utils::jwt::auth(req)?;
+    if stu_id == DEMO_STU_ID {
+        return Ok(vec![CourseInfo {
+            course_name: DEMO_COURSE_NAME.to_string(),
+            course_id: Some(DEMO_COURSE_ID.to_string()),
+            _type: "必修".to_string(),
+            class_name: None,
+            place: None,
+            area: None,
+            teacher: None,
+            weeks: vec![
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+            ],
+            day: 2,
+            time: 2,
+            credit: Some(2.0),
+            extra: None,
+            customize_id: -1,
+            people: 42,
+        }]
+        .into());
+    }
+
     #[derive(Deserialize, Debug, Extractible)]
     #[salvo(extract(default_source(from = "query")))]
     struct GetClasstableReq {
@@ -145,7 +172,6 @@ async fn get_classtable(req: &mut Request) -> RouterResult {
         pub xq: u8,
     }
     let GetClasstableReq { xn, xq } = req.extract().await?;
-    let stu_id = utils::jwt::auth(req)?;
     let classtable =
         service::course::get_classtable(&stu_id, xn, xq).await?;
     Ok(classtable.into())
