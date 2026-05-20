@@ -75,7 +75,7 @@ async fn bind_user(req: &mut Request) -> RouterResult {
             Err(hnu_query::Error::Other(
                 AccountIssue::PasswordError,
             )) => {
-                return Err(AppError::PasswordError);
+                return Err(AppError::Text("密码错误".to_string()));
             }
             Err(hnu_query::Error::Other(
                 AccountIssue::PasswordShouldChange,
