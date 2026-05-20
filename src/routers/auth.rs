@@ -1,15 +1,14 @@
 use crate::{
-    result::{AppError, RouterResult},
-    service::{
-        self,
-        auth::{
-            qrcode::AuthQrCodeStatus, user::VerifyPasswordResult,
-        },
-    },
+    result::{AppError, RouterResult, throw_error},
+    service::{self, auth::qrcode::AuthQrCodeStatus},
     utils,
 };
+use hnu_query::cas::{
+    login::AccountIssue,
+    tfa::{SMSResult, VerifyResult},
+};
 use salvo::{Request, Router, handler, macros::Extractible};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 pub fn routers() -> Router {
@@ -29,6 +28,12 @@ pub fn routers() -> Router {
                         .get(get_auth_qrcode_info),
                 )
                 .get(get_auth_qrcode),
+        )
+        .push(
+            Router::with_path("tfa")
+                .get(get_tfa)
+                .push(Router::with_path("send_sms").get(tfa_send_sms))
+                .push(Router::with_path("verify").post(tfa_verify)),
         )
 }
 
@@ -52,27 +57,44 @@ async fn bind_user(req: &mut Request) -> RouterResult {
     let stu_id = utils::format_stuid(&stu_id);
     let openid = service::auth::user::get_openid(&code).await?;
 
-    match service::auth::user::verify_password(&stu_id, &password)
-        .await?
+    let mut cas_token =
+        hnu_query::cas::login::CasToken::new(&stu_id, &password);
+
+    match hnu_query::pt::login::PtToken::acquire_by_cas_login(
+        &mut cas_token,
+    )
+    .await
     {
-        VerifyPasswordResult::Success => {}
-        VerifyPasswordResult::Fail => {
-            return Err(AppError::Text("密码错误".to_string()));
+        Ok(_) => {}
+        Err(hnu_query::Error::Other(AccountIssue::PasswordError)) => {
+            return Err(AppError::PasswordError);
         }
-        VerifyPasswordResult::ShouldChange => {
+        Err(hnu_query::Error::Other(
+            AccountIssue::PasswordShouldChange,
+        )) => {
             return Err(AppError::Text(
                 "请前往个人门户修改密码后重试".to_string(),
             ));
         }
-        VerifyPasswordResult::Lock => {
+        Err(hnu_query::Error::Other(AccountIssue::AccountLocked)) => {
             return Err(AppError::Text(
                 "账号被锁定，请10分钟之后再试".to_string(),
             ));
+        }
+        // 需要双因子认证的话，反而说明密码验证通过了
+        Err(hnu_query::Error::Other(AccountIssue::TFARequired(
+            _,
+        ))) => {}
+        Err(e) => {
+            return Err(throw_error(e, "验证密码失败"));
         }
     }
 
     service::auth::user::clear_openid(&openid).await?;
     service::auth::user::bind(&stu_id, &openid, &password).await?;
+
+    // 重置账号登录错误状态
+    service::user_state::ACCOUNT_TAG.invalidate(&stu_id).await;
 
     Ok("绑定成功".into())
 }
@@ -216,5 +238,77 @@ async fn get_auth_qrcode_info(req: &mut Request) -> RouterResult {
         }
     } else {
         Err("未找到二维码".into())
+    }
+}
+
+#[handler]
+async fn get_tfa(req: &mut Request) -> RouterResult {
+    let stu_id = utils::jwt::auth(req)?;
+    #[derive(Serialize, Debug)]
+    struct GetTFARes {
+        phone: String,
+    }
+    let Some(tfa_token) =
+        service::user_state::tfa::TFA_TOKEN.get(&stu_id).await
+    else {
+        return Ok(serde_json::Value::Null.into());
+    };
+    Ok(GetTFARes {
+        phone: tfa_token.phone().to_string(),
+    }
+    .into())
+}
+
+#[handler]
+async fn tfa_send_sms(req: &mut Request) -> RouterResult {
+    let stu_id = utils::jwt::auth(req)?;
+    let Some(tfa_token) =
+        service::user_state::tfa::TFA_TOKEN.get(&stu_id).await
+    else {
+        return Err("未找到双因子认证信息(NO_TOAST)".into());
+    };
+    match tfa_token.send_sms().await {
+        Ok(SMSResult::Success) => Ok("发送成功".into()),
+        Ok(SMSResult::Valid) => Ok("之前发送的验证码仍有效".into()),
+        Ok(SMSResult::Other(e)) => {
+            tracing::error!(e = ?e, tfa_token = ?tfa_token, "发送双因子认证短信时遇到未知错误");
+            Err(AppError::Text("发送失败，遇到未知错误".to_string()))
+        }
+        Err(e) => Err(throw_error(e, "发送双因子认证短信失败")),
+    }
+}
+
+#[handler]
+async fn tfa_verify(req: &mut Request) -> RouterResult {
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(default_source(from = "body")))]
+    struct TFAVerifyReq {
+        pub code: String,
+    }
+    let TFAVerifyReq { code } = req.extract().await?;
+    let stu_id = utils::jwt::auth(req)?;
+    let Some(tfa_token) =
+        service::user_state::tfa::TFA_TOKEN.remove(&stu_id).await
+    else {
+        return Err("未找到双因子认证信息(NO_TOAST)".into());
+    };
+    match tfa_token.verify(&code).await {
+        Ok(VerifyResult::Expired) => {
+            Err("双因子认证已过期(NO_TOAST)".into())
+        }
+        Ok(VerifyResult::Success(cas_token)) => {
+            service::user_state::tfa::apply_verified_cas_token(
+                &stu_id, &cas_token,
+            )
+            .await;
+            Ok("验证通过".into())
+        }
+        Ok(VerifyResult::CodeError(tfa_token)) => {
+            service::user_state::tfa::TFA_TOKEN
+                .insert(stu_id.to_string(), tfa_token.clone())
+                .await;
+            Err("验证码错误".into())
+        }
+        Err(e) => Err(throw_error(e, "验证双因子验证码失败")),
     }
 }

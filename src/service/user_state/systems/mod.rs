@@ -7,10 +7,16 @@ pub mod netflow;
 pub mod pt;
 pub mod xgxt;
 
+use std::sync::LazyLock;
+
 use super::cache::{CACHE, CacheEnum};
 use crate::{
     result::{AppError, AppResult, throw_error},
-    service::{self},
+    service::{
+        self,
+        user_state::{account_tag::ACCOUNT_TAG, tfa::TFA_TOKEN},
+    },
+    utils::seg_lock::SegLock,
 };
 use framework::NextAction;
 use hnu_query::cas::login::CasToken;
@@ -29,16 +35,45 @@ async fn with_cas_token<F, R>(stu_id: &str, f: F) -> AppResult<R>
 where
     F: AsyncFn(&mut CasToken) -> Result<R, SpiderError<AccountIssue>>,
 {
-    fn map_e(e: &SpiderError<AccountIssue>) -> AppError {
+    async fn handle_error(
+        stu_id: &str,
+        e: &SpiderError<AccountIssue>,
+    ) -> AppError {
         match e {
             SpiderError::Other(AccountIssue::PasswordError) => {
+                ACCOUNT_TAG
+                    .insert(
+                        stu_id.to_string(),
+                        AppError::PasswordError,
+                    )
+                    .await;
                 AppError::PasswordError
             }
             SpiderError::Other(
                 AccountIssue::PasswordShouldChange,
-            ) => "请前往个人门户修改密码后重试".into(),
+            ) => {
+                let e: AppError =
+                    "请前往个人门户修改密码后重试".into();
+                ACCOUNT_TAG
+                    .insert(stu_id.to_string(), e.clone())
+                    .await;
+                e
+            }
             SpiderError::Other(AccountIssue::AccountLocked) => {
-                "账号被锁定，请10分钟之后再试".into()
+                let e: AppError =
+                    "账号被锁定，请10分钟之后再试".into();
+                ACCOUNT_TAG
+                    .insert(stu_id.to_string(), e.clone())
+                    .await;
+                e
+            }
+            SpiderError::Other(AccountIssue::TFARequired(
+                tfa_token,
+            )) => {
+                TFA_TOKEN
+                    .insert(stu_id.to_string(), tfa_token.clone())
+                    .await;
+                AppError::Text("需要双因子认证".to_string())
             }
             err => throw_error(
                 err,
@@ -46,8 +81,19 @@ where
             ),
         }
     }
+    // TODO 每次请求都获取一次密码，会不会有性能问题？
     let password = service::user_info::get_password(stu_id).await?;
     let mut f_result = None;
+    // TODO 更细颗粒度的加锁
+    let _guard = USER_LOCK.lock(stu_id).await;
+    // 上一次就出现了登录问题，直接返回
+    if let Some(err) = ACCOUNT_TAG.get(stu_id).await {
+        return Err(err);
+    };
+    // 需要 TFA
+    if TFA_TOKEN.contains_key(stu_id) {
+        return Err(AppError::Text("需要双因子认证".to_string()));
+    }
     let cookies = CACHE
         .try_get_with((CacheEnum::CasToken, stu_id.to_string()), async {
             // 初始时对应的 Cookie 必然是空字符串
@@ -66,8 +112,11 @@ where
             };
             Ok(cookie.to_string())
         })
-        .await
-        .map_err(|e| map_e(e.as_ref()))?;
+        .await;
+    let Ok(cookies) = cookies else {
+        let e = cookies.expect_err("cookies 为 Ok");
+        return Err(handle_error(stu_id, &e).await);
+    };
     if let Some(f_result) = f_result {
         return Ok(f_result);
     }
@@ -75,7 +124,12 @@ where
         CasToken::from_cookie_unchecked(&cookies, stu_id, &password);
     // TODO 这里可能还是会出现 cas_token 过期，然后此时多个并发请求过来反复更新 cas_token 的情况
     // 后面需要进一步优化
-    let f_result = f(&mut cas_token).await.map_err(|e| map_e(&e))?;
+    // https://github.com/qnxg/hnu_query/issues/26
+    let f_result = f(&mut cas_token).await;
+    let Ok(f_result) = f_result else {
+        let e = f_result.err().expect("f_result 为 Ok");
+        return Err(handle_error(stu_id, &e).await);
+    };
     // 可能刷新了 CasToken 内部的 cookie，所以需要写回缓存
     CACHE
         .insert(
@@ -117,3 +171,6 @@ fn default_retry_strategy<E: std::error::Error>(
         _ => NextAction::Retry,
     }
 }
+
+pub static USER_LOCK: LazyLock<SegLock<1000>> =
+    LazyLock::new(SegLock::new);
