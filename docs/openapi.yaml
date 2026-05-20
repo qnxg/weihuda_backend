@@ -1,0 +1,1550 @@
+openapi: 3.0.3
+info:
+  title: 湖南大学微生活后端 API
+  description: |
+    back_2024 后端接口文档，基于 Salvo 框架。
+
+    ## 统一响应格式
+    成功时 HTTP 200，响应体：
+    ```json
+    { "code": 200, "data": <业务数据>, "msg": "请求成功" }
+    ```
+    失败时 `code` 与 HTTP 状态码可能不一致，常见：`400` 参数错误、`401` 鉴权失败、`408` 超时、`500` 服务器错误。
+
+    ## 鉴权
+    需登录接口在请求头携带：`Authorization: <JWT>`（无需 Bearer 前缀）。
+
+    ## 学年学期约定
+    - `xn`：学年起始年，如 2025-2026 学年为 `2025`
+    - `xq`：`0` 秋季、`1` 春季、`2` 夏季
+  version: 1.0.0
+  contact:
+    name: qnxg
+
+servers:
+  - url: http://localhost:8000
+    description: 本地开发（config.toml 默认端口）
+  - url: https://example.com
+    description: 实际的url
+
+tags:
+  - name: 系统
+    description: health检查与监控
+  - name: 认证
+    description: 微信绑定、Token、扫码登录
+  - name: 用户
+    description: 个人信息与用户设置
+  - name: 学期
+    description: 学期信息与开学日期
+  - name: 公告
+    description: 小程序公告
+  - name: 课表
+    description: 教务课表与自定义课程
+  - name: 成绩
+    description: 成绩、排名、绩点
+  - name: 考试
+    description: 考试安排与考号
+  - name: 一卡通
+    description: 校园卡信息与消费记录
+  - name: 体育
+    description: 体测成绩与预约
+  - name: 邮箱
+    description: 校园邮箱
+  - name: 电费
+    description: 宿舍电费与寝室信息
+  - name: 流量
+    description: 校园网流量
+  - name: 实验室
+    description: 实验课与虚拟实验
+  - name: 积分
+    description: 微生活积分系统
+  - name: 知湖
+    description: 知湖文章
+  - name: 通知
+    description: 用户通知
+  - name: 反馈
+    description: 问题反馈
+  - name: 留言
+    description: 毕业留言
+  - name: 公共
+    description: 空教室查询等
+
+security:
+  - BearerAuth: []
+
+paths:
+  /ping:
+    get:
+      tags: [系统]
+      summary: health检查
+      security: []
+      responses:
+        "200":
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /metrics:
+    get:
+      tags: [系统]
+      summary: Prometheus 指标
+      description: 返回 Prometheus 文本格式，非 JSON
+      security: []
+      responses:
+        "200":
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /announcement:
+    get:
+      tags: [公告]
+      summary: 获取小程序公告列表
+      security: []
+      responses:
+        "200":
+          description: 公告列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Announcement"
+
+  /token:
+    get:
+      tags: [认证]
+      summary: jwt鉴权
+      description: 需已绑定微信；返回 data 为 JWT 字符串
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 微信小程序 wx.login 获取的 code
+      responses:
+        "200":
+          description: 成功返回 token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /bind:
+    post:
+      tags: [认证]
+      summary: 绑定微信与学号
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BindUserReq"
+      responses:
+        "200":
+          description: 绑定成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /unbind:
+    post:
+      tags: [认证]
+      summary: 解绑微信
+      responses:
+        "200":
+          description: 解绑成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /auth-qrcode:
+    get:
+      tags: [认证]
+      summary: 生成扫码登录二维码
+      description: 主要用于工作台；返回 data 为二维码 code
+      security: []
+      responses:
+        "200":
+          description: 二维码 code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /auth-qrcode/status/{code}:
+    get:
+      tags: [认证]
+      summary: 查询扫码状态
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/QrCode"
+      responses:
+        "200":
+          description: 状态 unused / using / confirmed / canceled / used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    put:
+      tags: [认证]
+      summary: 更新扫码状态
+      parameters:
+        - $ref: "#/components/parameters/QrCode"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [using, confirmed, canceled]
+      responses:
+        "200":
+          description: 更新后的状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /auth-qrcode/info/{code}:
+    get:
+      tags: [认证]
+      summary: 消费已确认的二维码并获取学号
+      description: 仅 status 为 used 时可用；用于工作台登录
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/QrCode"
+      responses:
+        "200":
+          description: 含 stu_id 等信息
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          code:
+                            type: string
+                          status:
+                            type: string
+                          info:
+                            type: object
+                            properties:
+                              stu_id:
+                                type: string
+                              name:
+                                type: string
+                          create_time:
+                            type: string
+
+  /info/user:
+    get:
+      tags: [用户]
+      summary: 获取当前用户基本信息
+      responses:
+        "200":
+          description: 用户信息
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserInfo"
+
+  /user-settings/all:
+    get:
+      tags: [用户]
+      summary: 获取用户全部设置
+      responses:
+        "200":
+          description: JSON 对象，键值由业务定义
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseObject"
+    post:
+      tags: [用户]
+      summary: 更新用户全部设置
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: 设置提交成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /info/smester:
+    get:
+      tags: [学期]
+      summary: 获取当前学期信息
+      security: []
+      responses:
+        "200":
+          description: 学期信息
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SemesterInfo"
+
+  /hdjw/class-start-date:
+    get:
+      tags: [学期]
+      summary: 获取指定学年学期开学日期
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Xn"
+        - $ref: "#/components/parameters/Xq"
+      responses:
+        "200":
+          description: 开学日期字符串
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /hdjw/class-table:
+    get:
+      tags: [课表]
+      summary: 获取课表
+      parameters:
+        - $ref: "#/components/parameters/Xn"
+        - $ref: "#/components/parameters/Xq"
+      responses:
+        "200":
+          description: 课表数据
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /hdjw/class-table-extra:
+    get:
+      tags: [课表]
+      summary: 获取课表附加信息
+      parameters:
+        - $ref: "#/components/parameters/Xn"
+        - $ref: "#/components/parameters/Xq"
+      responses:
+        "200":
+          description: 附加课程信息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /course:
+    post:
+      tags: [课表]
+      summary: 添加自定义课表课程
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddCourseReq"
+      responses:
+        "200":
+          description: 添加成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+    delete:
+      tags: [课表]
+      summary: 删除自定义课表课程
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: uint32
+      responses:
+        "200":
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /course/get-custom-details-by-id:
+    get:
+      tags: [课表]
+      summary: 根据 ID 查询自定义课程详情
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: uint32
+      responses:
+        "200":
+          description: 课程详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /hdjw/grade:
+    get:
+      tags: [成绩]
+      summary: 获取成绩列表
+      parameters:
+        - $ref: "#/components/parameters/Xn"
+        - $ref: "#/components/parameters/Xq"
+      responses:
+        "200":
+          description: 成绩列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /hdjw/grade/detail:
+    get:
+      tags: [成绩]
+      summary: 获取单科成绩详情
+      parameters:
+        - name: jx0404id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 教学班 ID
+      responses:
+        "200":
+          description: 成绩详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /hdjw/grade-rank:
+    get:
+      tags: [成绩]
+      summary: 教务系统排名查询
+      parameters:
+        - name: course
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: "1=全部 2=必修 3=核心"
+        - name: rank
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: "1=算术平均 2=加权平均 3=绩点"
+        - name: year
+          in: query
+          schema:
+            type: integer
+          description: 学年，可选
+        - name: term
+          in: query
+          schema:
+            type: integer
+          description: 学期，可选
+      responses:
+        "200":
+          description: 排名数据
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /hdjw/grade-rank-from-ca:
+    get:
+      tags: [成绩]
+      summary: 获取绩点排名
+      responses:
+        "200":
+          description: 绩点排名
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /hdjw/grade-rank-from-ca/refresh:
+    get:
+      tags: [成绩]
+      summary: 刷新绩点排名
+      responses:
+        "200":
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseNull"
+
+  /hdjw/exam-arrange:
+    get:
+      tags: [考试]
+      summary: 获取考试安排
+      parameters:
+        - name: xn
+          in: query
+          schema:
+            type: integer
+          description: 学年，默认当前学期
+        - name: xq
+          in: query
+          schema:
+            type: integer
+          description: 学期，默认当前学期
+      responses:
+        "200":
+          description: 考试安排列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ExamArrange"
+
+  /exam-num:
+    get:
+      tags: [考试]
+      summary: 获取考号列表
+      responses:
+        "200":
+          description: 考号列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    post:
+      tags: [考试]
+      summary: 添加考号
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExamNumberReq"
+      responses:
+        "200":
+          description: 添加成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+    delete:
+      tags: [考试]
+      summary: 删除考号
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: uint32
+      responses:
+        "200":
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /hdjw/empty-room:
+    get:
+      tags: [公共]
+      summary: 查询空教室
+      parameters:
+        - name: buildId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 楼栋 ID
+        - name: day
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: 星期几
+        - name: jc
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 节次，逗号分隔
+        - name: week
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: 周次
+        - name: xn
+          in: query
+          schema:
+            type: integer
+        - name: xq
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 空教室列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /pt/card-info:
+    get:
+      tags: [一卡通]
+      summary: 获取校园卡信息
+      responses:
+        "200":
+          description: 卡信息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /pt/card-history:
+    get:
+      tags: [一卡通]
+      summary: 获取校园卡消费记录
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 消费记录
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /pt/email:
+    get:
+      tags: [邮箱]
+      summary: 获取校园邮箱未读数
+      description: 失败或无权时data为null？？？
+      responses:
+        "200":
+          description: 未读数量或 null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /pt/fitness:
+    get:
+      tags: [体育]
+      summary: 获取体测成绩
+      parameters:
+        - name: xn
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 学年字符串
+      responses:
+        "200":
+          description: 体测成绩
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /pt/fitness-appoint:
+    get:
+      tags: [体育]
+      summary: 获取体测预约信息
+      responses:
+        "200":
+          description: 预约信息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /electricity:
+    get:
+      tags: [电费]
+      summary: 查询宿舍电费
+      parameters:
+        - name: refresh
+          in: query
+          required: true
+          schema:
+            type: integer
+            enum: [0, 1]
+          description: "1=强制刷新缓存"
+      responses:
+        "200":
+          description: 电费信息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /dormitory/query:
+    get:
+      tags: [电费]
+      summary: 查询寝室信息
+      responses:
+        "200":
+          description: 寝室信息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /dormitory/update:
+    get:
+      tags: [电费]
+      summary: 从教务更新寝室信息
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /netflow:
+    get:
+      tags: [流量]
+      summary: 获取流量账户概览
+      responses:
+        "200":
+          description: 流量信息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /netflow/order:
+    get:
+      tags: [流量]
+      summary: 获取流量订购记录
+      responses:
+        "200":
+          description: 订购记录
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /netflow/month-detail:
+    get:
+      tags: [流量]
+      summary: 获取月度流量明细
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 月度明细
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /netflow/day-detail:
+    get:
+      tags: [流量]
+      summary: 获取日流量明细
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: day
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 日明细
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /lab/list:
+    get:
+      tags: [实验室]
+      summary: 获取实验课表
+      description: 未设置实验密码时data为null？？？
+      responses:
+        "200":
+          description: 实验安排
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /lab/setPassword:
+    post:
+      tags: [实验室]
+      summary: 设置/校验实验系统密码
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+      responses:
+        "200":
+          description: 设置结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          success:
+                            type: boolean
+                          msg:
+                            type: string
+                            nullable: true
+
+  /lab/sem_info:
+    get:
+      tags: [实验室]
+      summary: 获取实验学期信息
+      responses:
+        "200":
+          description: 学期信息，未设密码时data为null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /lab/grade:
+    get:
+      tags: [实验室]
+      summary: 获取实验课程成绩
+      parameters:
+        - name: sem_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成绩，未设密码时data为null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /lab/virtual_grade:
+    get:
+      tags: [实验室]
+      summary: 获取虚拟实验成绩
+      responses:
+        "200":
+          description: 虚拟实验成绩
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /jifen/total:
+    get:
+      tags: [积分]
+      summary: 获取当前用户积分
+      responses:
+        "200":
+          description: 积分信息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /jifen/record:
+    get:
+      tags: [积分]
+      summary: 获取积分记录
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: key
+          in: query
+          schema:
+            type: string
+        - name: param
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 分页列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedApiResponse"
+
+  /jifen/goods:
+    get:
+      tags: [积分]
+      summary: 获取积分商品列表
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: name
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 商品列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedApiResponse"
+
+  /jifen/rules:
+    get:
+      tags: [积分]
+      summary: 获取积分规则列表
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: key
+          in: query
+          schema:
+            type: string
+        - name: name
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 规则列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedApiResponse"
+
+  /jifen/desc:
+    get:
+      tags: [积分]
+      summary: 获取积分说明文案
+      security: []
+      responses:
+        "200":
+          description: 说明文本
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /jifen/exchange-record:
+    get:
+      tags: [积分]
+      summary: 获取兑换记录
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 兑换记录
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    post:
+      tags: [积分]
+      summary: 兑换积分商品
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [goodsId]
+              properties:
+                goodsId:
+                  type: integer
+                  format: uint32
+      responses:
+        "200":
+          description: 兑换成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /jifen/webview-read:
+    get:
+      tags: [积分]
+      summary: 阅读知湖文章并领取积分
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 领取结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /jifen:
+    post:
+      tags: [积分]
+      summary: 添加积分
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key:
+                  type: string
+                  example: qiandao
+                  description: 目前支持签到
+                param:
+                  type: string
+                  description: 兼容字段，可传空
+      responses:
+        "200":
+          description: 积分变动结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /zhihu:
+    get:
+      tags: [知湖]
+      summary: 获取知湖文章列表
+      parameters:
+        - name: offset
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+        - name: req_count
+          in: query
+          required: true
+          schema:
+            type: integer
+            maximum: 100
+          description: 每页条数，最大 100
+        - name: title
+          in: query
+          schema:
+            type: string
+        - name: typ
+          in: query
+          schema:
+            type: string
+        - name: tags
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 文章列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedApiResponse"
+
+  /zhihu/tags:
+    get:
+      tags: [知湖]
+      summary: 获取知湖标签列表
+      security: []
+      responses:
+        "200":
+          description: 标签列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /zhihu/{id}:
+    get:
+      tags: [知湖]
+      summary: 根据 ID 获取知湖文章详情
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: uint32
+      responses:
+        "200":
+          description: 文章详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /notice:
+    get:
+      tags: [通知]
+      summary: 获取通知列表
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 通知列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedApiResponse"
+
+  /notice/{id}:
+    put:
+      tags: [通知]
+      summary: 更新通知状态
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: uint32
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: integer
+                  format: uint32
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /feedback:
+    get:
+      tags: [反馈]
+      summary: 获取我的反馈列表
+      parameters:
+        - name: page
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: 反馈列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedApiResponse"
+    post:
+      tags: [反馈]
+      summary: 提交反馈（Token 可选）
+      description: |
+        已登录：忽略 body 中的 stuId，使用 JWT 对应学号。
+        未登录：stuId 与 contact 必填，且不保存 stuId 到库。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddFeedbackReq"
+      responses:
+        "200":
+          description: 提交成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /feedback/no_auth:
+    post:
+      tags: [反馈]
+      summary: 提交反馈（无需 Token，同 POST /feedback）
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddFeedbackReq"
+      responses:
+        "200":
+          description: 提交成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+  /feedback/msg:
+    get:
+      tags: [反馈]
+      summary: 获取反馈对话消息
+      parameters:
+        - name: feedbackId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: uint32
+      responses:
+        "200":
+          description: 消息列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /message-left:
+    post:
+      tags: [留言]
+      summary: 提交毕业留言
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostLeftMessageReq"
+      responses:
+        "200":
+          description: 留言成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: 直接填写 JWT 字符串
+
+  parameters:
+    QrCode:
+      name: code
+      in: path
+      required: true
+      schema:
+        type: string
+    Xn:
+      name: xn
+      in: query
+      required: true
+      schema:
+        type: integer
+      description: 学年起始年
+    Xq:
+      name: xq
+      in: query
+      required: true
+      schema:
+        type: integer
+      description: "0=秋 1=春 2=夏"
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        default: 10
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        data: {}
+        msg:
+          type: string
+          example: 请求成功
+
+    ApiResponseString:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: string
+
+    ApiResponseNull:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              nullable: true
+
+    ApiResponseObject:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              additionalProperties: true
+
+    PagedApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                count:
+                  type: integer
+                rows:
+                  type: array
+                  items: {}
+
+    Announcement:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+
+    BindUserReq:
+      type: object
+      required: [code, stuId, password]
+      properties:
+        code:
+          type: string
+          description: 微信 code
+        stuId:
+          type: string
+          description: 学号
+        password:
+          type: string
+          description: 个人门户密码
+
+    UserInfo:
+      type: object
+      properties:
+        class:
+          type: string
+        name:
+          type: string
+        major:
+          type: string
+        enter:
+          type: integer
+        college:
+          type: string
+        sex:
+          type: string
+        xz:
+          type: integer
+          description: 学制
+        stuId:
+          type: string
+
+    SemesterInfo:
+      type: object
+      properties:
+        startDate:
+          type: string
+        term:
+          type: integer
+        year:
+          type: integer
+        vacation:
+          type: string
+        next:
+          type: string
+
+    AddCourseReq:
+      type: object
+      required: [classname, week, section, day, xn, xq]
+      properties:
+        classname:
+          type: string
+        location:
+          type: string
+        teachers:
+          type: string
+        week:
+          type: string
+        section:
+          type: string
+        day:
+          type: string
+        xn:
+          type: integer
+        xq:
+          type: integer
+
+    ExamArrange:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 课程代码
+        name:
+          type: string
+        place:
+          type: string
+        date:
+          type: string
+          description: YYYY-MM-DD
+        time:
+          type: string
+          description: 如 14:00~16:00
+        seat:
+          type: string
+
+    ExamNumberReq:
+      type: object
+      required: [examNum, examName, examDate]
+      properties:
+        examNum:
+          type: string
+        examName:
+          type: string
+        examDate:
+          type: string
+
+    AddFeedbackReq:
+      type: object
+      required: [desc]
+      properties:
+        stuId:
+          type: string
+          description: 未登录时必填
+        desc:
+          type: string
+        contact:
+          type: string
+          description: 未登录时必填
+        imgUrl:
+          type: string
+
+    PostLeftMessageReq:
+      type: object
+      required: [desc, isAgree, isSend, sendTime]
+      properties:
+        desc:
+          type: string
+        isAgree:
+          type: integer
+          description: 非 0 表示同意
+        isSend:
+          type: integer
+          description: 非 0 表示定时发送
+        sendTime:
+          type: string
+          format: date-time
+          description: 发送时间
+        email:
+          type: string
