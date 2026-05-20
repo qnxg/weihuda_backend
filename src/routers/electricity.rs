@@ -2,7 +2,9 @@ use salvo::{Request, Router, handler, macros::Extractible};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{result::RouterResult, service, utils};
+use crate::{
+    result::RouterResult, routers::demo::DEMO_STU_ID, service, utils,
+};
 
 pub fn routers() -> Router {
     Router::new()
@@ -18,12 +20,16 @@ pub fn routers() -> Router {
 
 #[handler]
 async fn get_electricity(req: &mut Request) -> RouterResult {
+    let stu_id = utils::jwt::auth(req)?;
+    if stu_id == DEMO_STU_ID {
+        return Ok("79.6度".into());
+    }
+
     #[derive(Deserialize, Debug, Extractible)]
     #[salvo(extract(default_source(from = "query")))]
     struct GetElectricityReq {
         pub refresh: u8,
     }
-    let stu_id = utils::jwt::auth(req)?;
     let GetElectricityReq { refresh } = req.extract().await?;
     let res =
         service::electricity::get_electricity(&stu_id, refresh != 0)
@@ -34,6 +40,15 @@ async fn get_electricity(req: &mut Request) -> RouterResult {
 #[handler]
 async fn get_dormitory(req: &mut Request) -> RouterResult {
     let stu_id = utils::jwt::auth(req)?;
+    if stu_id == DEMO_STU_ID {
+        return Ok(GetDormitoryRes {
+            room: "375".to_string(),
+            build: "三区28栋".to_string(),
+            park: "天马园区".to_string(),
+        }
+        .into());
+    }
+
     #[derive(Serialize, Debug)]
     struct GetDormitoryRes {
         pub park: String,

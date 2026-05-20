@@ -2,6 +2,7 @@ mod announcement;
 mod auth;
 mod card;
 mod course;
+mod demo;
 mod electricity;
 mod email;
 mod exam;

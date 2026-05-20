@@ -1,4 +1,5 @@
-use crate::service::card::CardHistoryType;
+use crate::routers::demo::DEMO_STU_ID;
+use crate::service::card::{CardHistory, CardHistoryType, CardInfo};
 use crate::{result::RouterResult, service, utils};
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
@@ -12,12 +13,30 @@ pub fn routers() -> Router {
 #[handler]
 async fn get_card_info(req: &mut Request) -> RouterResult {
     let stu_id = utils::jwt::auth(req)?;
+    if stu_id == DEMO_STU_ID {
+        return Ok(CardInfo {
+            account: 368246,
+            balance: 84.0,
+        }
+        .into());
+    }
+
     let res = service::card::get_card_info(&stu_id).await?;
     Ok(res.into())
 }
 
 #[handler]
 async fn get_card_history(req: &mut Request) -> RouterResult {
+    let stu_id = utils::jwt::auth(req)?;
+    if stu_id == DEMO_STU_ID {
+        return Ok(CardHistory {
+            TranCount: 0.0,
+            total: 0.0,
+            items: vec![],
+        }
+        .into());
+    }
+
     #[derive(Deserialize, Debug, Extractible)]
     #[salvo(extract(default_source(from = "query")))]
     struct GetCardHistoryReq {
@@ -31,7 +50,6 @@ async fn get_card_history(req: &mut Request) -> RouterResult {
         month,
         _type: typ,
     } = req.extract().await?;
-    let stu_id = utils::jwt::auth(req)?;
     let history_type = match typ.as_str() {
         "1" => CardHistoryType::Consumption,
         _ => CardHistoryType::Recharge,

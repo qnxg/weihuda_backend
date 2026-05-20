@@ -1,4 +1,9 @@
-use crate::{result::AppError, utils::serde::empty_string_as_none};
+use crate::{
+    result::AppError, routers::demo::DEMO_STU_ID,
+    service::public_info::EmptyRoom,
+    utils::serde::empty_string_as_none,
+};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
 
@@ -6,6 +11,36 @@ use crate::{result::RouterResult, service, utils};
 
 pub fn routers() -> Router {
     Router::with_path("hdjw/empty-room").get(get_empty_room)
+}
+
+fn mock_empty_rooms(
+    week: u8,
+    day: u8,
+    jc: Vec<u8>,
+) -> Vec<EmptyRoom> {
+    let seed = (week as u64) * 1000 + (day as u64) * 100;
+    let mut rng = StdRng::seed_from_u64(seed);
+
+    let room_nums = (101..=122).chain(201..=221);
+
+    room_nums
+        .filter_map(|room_num| {
+            // 明显时间跨度越大，可用的空教室就越少
+            let probability = 0.7 - jc.len() as f64 * 0.1;
+
+            if rng.gen_bool(probability) {
+                let seat = rng.gen_range(3..=6) * 10;
+                Some(EmptyRoom {
+                    name: room_num.to_string(),
+                    _type: "多媒体教室".to_string(),
+                    seat,
+                    exam_seat: seat / 3,
+                })
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 #[handler]
@@ -51,6 +86,11 @@ async fn get_empty_room(req: &mut Request) -> RouterResult {
             _ => Err(AppError::ParseError),
         })
         .collect::<Result<Vec<u8>, AppError>>()?;
+
+    if stu_id == DEMO_STU_ID {
+        return Ok(mock_empty_rooms(query.week, query.day, jc).into());
+    }
+
     let res = service::public_info::get_empty_room(
         &stu_id,
         &query.build_id,

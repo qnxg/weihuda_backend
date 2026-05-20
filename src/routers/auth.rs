@@ -1,5 +1,6 @@
 use crate::{
     result::{AppError, RouterResult, throw_error},
+    routers::demo::{DEMO_PASSWORD, DEMO_STU_ID},
     service::{self, auth::qrcode::AuthQrCodeStatus},
     utils,
 };
@@ -57,36 +58,46 @@ async fn bind_user(req: &mut Request) -> RouterResult {
     let stu_id = utils::format_stuid(&stu_id);
     let openid = service::auth::user::get_openid(&code).await?;
 
-    let mut cas_token =
-        hnu_query::cas::login::CasToken::new(&stu_id, &password);
+    // 演示账号特判
+    if stu_id == DEMO_STU_ID && password != DEMO_PASSWORD {
+        return Err(AppError::Text("密码错误".to_string()));
+    }
 
-    match hnu_query::pt::login::PtToken::acquire_by_cas_login(
-        &mut cas_token,
-    )
-    .await
-    {
-        Ok(_) => {}
-        Err(hnu_query::Error::Other(AccountIssue::PasswordError)) => {
-            return Err(AppError::PasswordError);
-        }
-        Err(hnu_query::Error::Other(
-            AccountIssue::PasswordShouldChange,
-        )) => {
-            return Err(AppError::Text(
-                "请前往个人门户修改密码后重试".to_string(),
-            ));
-        }
-        Err(hnu_query::Error::Other(AccountIssue::AccountLocked)) => {
-            return Err(AppError::Text(
-                "账号被锁定，请10分钟之后再试".to_string(),
-            ));
-        }
-        // 需要双因子认证的话，反而说明密码验证通过了
-        Err(hnu_query::Error::Other(AccountIssue::TFARequired(
-            _,
-        ))) => {}
-        Err(e) => {
-            return Err(throw_error(e, "验证密码失败"));
+    if stu_id != DEMO_STU_ID {
+        let mut cas_token =
+            hnu_query::cas::login::CasToken::new(&stu_id, &password);
+        match hnu_query::pt::login::PtToken::acquire_by_cas_login(
+            &mut cas_token,
+        )
+        .await
+        {
+            Ok(_) => {}
+            Err(hnu_query::Error::Other(
+                AccountIssue::PasswordError,
+            )) => {
+                return Err(AppError::PasswordError);
+            }
+            Err(hnu_query::Error::Other(
+                AccountIssue::PasswordShouldChange,
+            )) => {
+                return Err(AppError::Text(
+                    "请前往个人门户修改密码后重试".to_string(),
+                ));
+            }
+            Err(hnu_query::Error::Other(
+                AccountIssue::AccountLocked,
+            )) => {
+                return Err(AppError::Text(
+                    "账号被锁定，请10分钟之后再试".to_string(),
+                ));
+            }
+            // 需要双因子认证的话，反而说明密码验证通过了
+            Err(hnu_query::Error::Other(
+                AccountIssue::TFARequired(_),
+            )) => {}
+            Err(e) => {
+                return Err(throw_error(e, "验证密码失败"));
+            }
         }
     }
 
