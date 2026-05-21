@@ -15,7 +15,11 @@ use serde_json::json;
 pub fn routers() -> Router {
     Router::new()
         .push(Router::with_path("token").get(get_auth)) // 用jscode换取token
-        .push(Router::with_path("bind").post(bind_user)) // 绑定用户
+        .push(
+            Router::with_path("bind")
+                .post(bind_user)
+                .push(Router::with_path("pow").get(get_pow)),
+        ) // 绑定用户
         .push(Router::with_path("unbind").post(unbind_user))
         .push(
             Router::with_path("auth-qrcode")
@@ -46,16 +50,37 @@ async fn bind_user(req: &mut Request) -> RouterResult {
         rename_all = "camelCase"
     ))]
     struct BindUserReq {
+        pub pow_ticket: String,
+        pub pow_answer: usize,
         pub code: String,
         pub stu_id: String,
         pub password: String,
     }
     let BindUserReq {
+        pow_ticket,
+        pow_answer,
         code,
         stu_id,
         password,
     } = req.extract().await?;
+
+    let Some(pow_stu_id) =
+        service::auth::pow::verify_pow(&pow_ticket, pow_answer)
+            .await?
+    else {
+        return Err(AppError::Text(
+            "pow 验证失败，请重试".to_string(),
+        ));
+    };
+
     let stu_id = utils::format_stuid(&stu_id);
+    if pow_stu_id != stu_id {
+        return Err(AppError::Text(
+            "pow 验证失败，请重试".to_string(),
+        ));
+    }
+
+    let password = utils::crypto::decrypt_frontend(&password)?;
     let openid = service::auth::user::get_openid(&code).await?;
 
     // 演示账号特判
@@ -120,6 +145,32 @@ async fn unbind_user(req: &mut Request) -> RouterResult {
         service::auth::user::clear_openid(&openid).await?;
     }
     Ok("解绑成功".into())
+}
+
+#[handler]
+async fn get_pow(req: &mut Request) -> RouterResult {
+    #[derive(Deserialize, Debug, Extractible)]
+    #[salvo(extract(
+        default_source(from = "query"),
+        rename_all = "camelCase"
+    ))]
+    struct GetPowReq {
+        pub stu_id: String,
+    }
+    let GetPowReq { stu_id } = req.extract().await?;
+    let pow = service::auth::pow::generate_pow(&stu_id).await?;
+    #[derive(Serialize, Debug)]
+    #[serde(rename_all = "camelCase")]
+    struct GetPowRes {
+        pub ticket: String,
+        pub difficulty: usize,
+    }
+    let GetPowRes { ticket, difficulty } = GetPowRes {
+        ticket: pow,
+        difficulty: service::auth::pow::POW_DIFFICULTY,
+    };
+    let res = GetPowRes { ticket, difficulty };
+    Ok(res.into())
 }
 
 /// 根据微信提供的 jscode 下发 jwt
