@@ -60,6 +60,12 @@ pub struct Captcha {
 pub static CFG: LazyLock<Configs> =
     LazyLock::new(self::Configs::init);
 
+pub static FRONTEND_RSA_PRIVATE_KEY: LazyLock<String> =
+    LazyLock::new(|| {
+        read_to_string("config/frontend_private.pem")
+            .expect("Failed to read frontend private key")
+    });
+
 fn try_config_file(config_file: &str) -> Result<Configs, String> {
     let cfg_contents = read_to_string(config_file).map_err(|e| {
         format!("Cannot read configuration file: {}", e)

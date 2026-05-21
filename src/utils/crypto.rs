@@ -4,6 +4,11 @@ use aes::cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit};
 use base64::engine::Engine as _;
 use base64::engine::general_purpose::STANDARD as base64;
 use rand_core::{OsRng, RngCore};
+use rsa::pkcs8::DecodePrivateKey;
+use rsa::{Pkcs1v15Encrypt, RsaPrivateKey};
+
+use crate::config::FRONTEND_RSA_PRIVATE_KEY;
+use crate::result::{AppError, ThrowError};
 
 type Aes256CbcEnc = cbc::Encryptor<aes::Aes256>;
 type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
@@ -81,6 +86,18 @@ pub fn decrypt(
     Ok(String::from_utf8(res)?)
 }
 
+/// 解密前端 node-forge RSAES-PKCS1-V1_5 加密的 Base64 密文
+pub fn decrypt_frontend(data: &str) -> Result<String, AppError> {
+    let private_key =
+        RsaPrivateKey::from_pkcs8_pem(&FRONTEND_RSA_PRIVATE_KEY)
+            .throw_error("解析私钥失败")?;
+    let cipher = base64.decode(data).throw_error("解码密文失败")?;
+    let plain = private_key
+        .decrypt(Pkcs1v15Encrypt, &cipher)
+        .throw_error("解密失败")?;
+    String::from_utf8(plain).throw_error("解密失败")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -91,5 +108,12 @@ mod tests {
         let encrypted = encrypt(data);
         let decrypted = decrypt(&encrypted).unwrap();
         assert_eq!(data, decrypted);
+    }
+
+    #[test]
+    fn test_decrypt_frontend() {
+        let data = "YN7iKaCd2WrxL3yZla9EqjzqQaHV17SYuU58NwMFwpCdIs3yRiIpTeMZmSVbP6quB0myLAem/5lQ+YJxdlkwgBUHYuX8Jx0M12Ef1nELg+dXyDyXzgthETE7PO+Z5ZFOtPbyyyl1/FcFNc4ItED69FGyarzzSCFnei/2yXN8uzwmTPWp6bJ72T9cwr78zw49CkYDlAQwnkv9BU/EEeSURZr3OxAboz45F8Pio2UhuFdnZ3q5CNbp2+qxxlGZ+RyABK+dV0qivTg+f5rib2sIvQ2Rxave5KILizP4cfjfizTjsrXatxXrcu6Hxf2S8pG4CGS5D/11/YBxn4Md3V2brQ==";
+        let decrypted = decrypt_frontend(data).unwrap();
+        assert_eq!(decrypted, "11111111111111111111");
     }
 }
