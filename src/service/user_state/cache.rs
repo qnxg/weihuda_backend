@@ -16,6 +16,7 @@ pub enum CacheEnum {
     PtToken,
     NetflowToken,
     XGXTToken,
+    YjsxtToken,
 }
 
 impl CacheEnum {
@@ -31,6 +32,7 @@ impl CacheEnum {
             PtToken => Some(Duration::from_secs(1800)),
             NetflowToken => Some(Duration::from_secs(1800)),
             XGXTToken => Some(Duration::from_secs(600)),
+            YjsxtToken => Some(Duration::from_secs(600)),
         }
     }
 }

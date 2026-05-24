@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 
+use hnu_query::xgxt::personal_info::Level;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     infra::{self},
     result::{AppResult, ThrowError},
     service::{
-        self,
-        user_state::{Hdjw, with_token},
+        self, user_info,
+        user_state::{Hdjw, Yjsxt, with_token},
     },
 };
 
@@ -146,6 +147,54 @@ fn push_hdjw_course(
     Ok(())
 }
 
+/// 将爬虫返回的研究生课程信息解析，放入课表中
+fn push_yjsxt_course(
+    classtable: &mut Vec<CourseInfo>,
+    item: hnu_query::yjsxt::class_table::Course,
+) -> AppResult<()> {
+    // yjsxt 的 schedule 是 Option<Vec<CourseSchedule>>
+    // 如果是无节次课程则为 None，直接跳过
+    let Some(schedule) = item.schedule else {
+        return Ok(());
+    };
+    // 将天数，节次，地点相同的课程的周次合并到一起
+    let mut record = HashMap::new();
+    for schedule_item in schedule {
+        for time in schedule_item.time {
+            record
+                .entry((
+                    schedule_item.day,
+                    time,
+                    schedule_item.place.clone(),
+                ))
+                .or_insert(Vec::new())
+                .push(schedule_item.week);
+        }
+    }
+    for ((day, time, place), weeks) in record {
+        let item = CourseInfo {
+            course_name: item.course_name.clone(),
+            course_id: Some(item.course_id.clone()),
+            // 研究生课表不显示课程类型，这里按理说应该给 None，但是现在前后端
+            // 接口对接有点混乱，所以暂时给一个空字符串
+            _type: "".to_string(),
+            class_name: Some(item.class_name.clone()),
+            place: Some(place),
+            area: None,
+            teacher: item.teacher.clone(),
+            weeks: weeks.into_iter().collect(),
+            credit: None,
+            extra: None,
+            customize_id: -1,
+            day,
+            time,
+            people: 0,
+        };
+        classtable.push(item);
+    }
+    Ok(())
+}
+
 /// 注意，调用后会使得某些元素的周次变成空的，因此需要调用该函数后手动清除这些元素，由于可能的性能原因，该函数不负责清除工作
 fn apply_flex_time(
     classtable: &mut Vec<CourseInfo>,
@@ -199,13 +248,32 @@ pub async fn get_classtable(
     for item in customize_course {
         push_customize_course(&mut classtable, item)?;
     }
-    let hdjw_course =
-        with_token(Hdjw::new(stu_id), async move |token| {
-            hnu_query::hdjw::get_class_table(&token, xn, xq).await
-        })
-        .await?;
-    for item in hdjw_course {
-        push_hdjw_course(&mut classtable, item)?;
+    // 根据学号判断是本科（hdjw）还是研究生（yjsxt）
+    if is_postgraduate(stu_id).await? {
+        let yjsxt_course =
+            with_token(Yjsxt::new(stu_id), async move |token| {
+                let termcode = hnu_query::yjsxt::term::get_termcode(
+                    &token, xn, xq,
+                )
+                .await?;
+                hnu_query::yjsxt::class_table::get_class_table(
+                    &token, termcode,
+                )
+                .await
+            })
+            .await?;
+        for item in yjsxt_course {
+            push_yjsxt_course(&mut classtable, item)?;
+        }
+    } else {
+        let hdjw_course =
+            with_token(Hdjw::new(stu_id), async move |token| {
+                hnu_query::hdjw::get_class_table(&token, xn, xq).await
+            })
+            .await?;
+        for item in hdjw_course {
+            push_hdjw_course(&mut classtable, item)?;
+        }
     }
     // 处理调休
     let mut flex_time = get_flex_time_list().await?;
@@ -228,6 +296,10 @@ pub async fn get_extra_course(
     xn: u16,
     xq: u8,
 ) -> AppResult<Vec<ExtraCourseInfo>> {
+    // 研究生系统不支持 extra course，返回空
+    if is_postgraduate(stu_id).await? {
+        return Ok(Vec::new());
+    }
     let spider_res =
         with_token(Hdjw::new(stu_id), async move |token| {
             hnu_query::hdjw::get_class_table_extra(&token, xn, xq)
@@ -281,6 +353,12 @@ pub async fn get_flex_time_list() -> AppResult<Vec<FlexTime>> {
         serde_json::from_str(&config.value)
             .expect("解析调休信息失败");
     Ok(flex_time)
+}
+
+/// 判断学号是否为研究生
+async fn is_postgraduate(stu_id: &str) -> AppResult<bool> {
+    let info = user_info::get_person_info(stu_id, false).await?;
+    Ok(info.level == Level::Postgraduate)
 }
 
 #[cfg(test)]

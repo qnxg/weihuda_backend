@@ -6,6 +6,7 @@ pub mod lab;
 pub mod netflow;
 pub mod pt;
 pub mod xgxt;
+pub mod yjsxt;
 
 use std::sync::LazyLock;
 
