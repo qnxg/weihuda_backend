@@ -13,3 +13,4 @@ pub use systems::lab::Lab;
 pub use systems::netflow::Netflow;
 pub use systems::pt::Pt;
 pub use systems::xgxt::Xgxt;
+pub use systems::yjsxt::Yjsxt;
