@@ -27,7 +27,7 @@ impl HnuSystem for Pt {
     type Token = PtToken;
     type Error = Infallible;
     fn name() -> &'static str {
-        "学工系统"
+        "个人门户"
     }
     fn cache_key() -> CacheEnum {
         CacheEnum::PtToken
