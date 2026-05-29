@@ -20,8 +20,13 @@ use crate::{
     utils::seg_lock::SegLock,
 };
 use framework::NextAction;
-use hnu_query::cas::login::CasToken;
-use hnu_query::{Error as SpiderError, cas::login::AccountIssue};
+use hnu_query::{
+    Error as SpiderError,
+    cas::{
+        error::TokenExpired as CasTokenExpired,
+        login::{AccountIssue, CasToken},
+    },
+};
 
 pub const MAX_RETRY_COUNT: usize = 3;
 
@@ -31,61 +36,67 @@ pub const MAX_RETRY_COUNT: usize = 3;
 ///
 /// - `stu_id`: 学号
 /// - `f`: 处理函数，该函数应使用 CasToken 进行一些登录相关的请求，
-///   返回的错误为 [`SpiderError<AccountIssue>`]
+///   返回的错误为 [`SpiderError<CasTokenExpired>`]
+#[expect(clippy::too_many_lines)]
 async fn with_cas_token<F, R>(stu_id: &str, f: F) -> AppResult<R>
 where
-    F: AsyncFn(&mut CasToken) -> Result<R, SpiderError<AccountIssue>>,
+    F: AsyncFn(&CasToken) -> Result<R, SpiderError<CasTokenExpired>>,
 {
-    async fn handle_error(
-        stu_id: &str,
-        e: &SpiderError<AccountIssue>,
-    ) -> AppError {
-        match e {
-            SpiderError::Other(AccountIssue::PasswordError) => {
-                ACCOUNT_TAG
-                    .insert(
-                        stu_id.to_string(),
-                        AppError::PasswordError,
-                    )
-                    .await;
-                AppError::PasswordError
-            }
-            SpiderError::Other(
-                AccountIssue::PasswordShouldChange,
-            ) => {
-                let e: AppError =
-                    "请前往个人门户修改密码后重试".into();
-                ACCOUNT_TAG
-                    .insert(stu_id.to_string(), e.clone())
-                    .await;
-                e
-            }
-            SpiderError::Other(AccountIssue::AccountLocked) => {
-                let e: AppError =
-                    "账号被锁定，请10分钟之后再试".into();
-                ACCOUNT_TAG
-                    .insert(stu_id.to_string(), e.clone())
-                    .await;
-                e
-            }
-            SpiderError::Other(AccountIssue::TFARequired(
-                tfa_token,
-            )) => {
-                TFA_TOKEN
-                    .insert(stu_id.to_string(), tfa_token.clone())
-                    .await;
-                AppError::Text("需要双因子认证".to_string())
-            }
-            err => throw_error(
-                err,
-                "with_cas_token 初始化缓存时发生错误",
-            ),
+    // 获取新的 CasToken，返回 cookie
+    async fn get_cas_token(stu_id: &str) -> AppResult<String> {
+        let password =
+            service::user_info::get_password(stu_id).await?;
+        let cas_token =
+            CasToken::acquire_by_login(stu_id, &password).await;
+        match cas_token {
+            Ok(cas_token) => Ok(cas_token.cookie().to_string()),
+            Err(e) => match e {
+                SpiderError::Other(AccountIssue::PasswordError) => {
+                    ACCOUNT_TAG
+                        .insert(
+                            stu_id.to_string(),
+                            AppError::PasswordError,
+                        )
+                        .await;
+                    Err(AppError::PasswordError)
+                }
+                SpiderError::Other(
+                    AccountIssue::PasswordShouldChange,
+                ) => {
+                    let e: AppError =
+                        "请前往个人门户修改密码后重试".into();
+                    ACCOUNT_TAG
+                        .insert(stu_id.to_string(), e.clone())
+                        .await;
+                    Err(e)
+                }
+                SpiderError::Other(AccountIssue::AccountLocked) => {
+                    let e: AppError =
+                        "账号被锁定，请10分钟之后再试".into();
+                    ACCOUNT_TAG
+                        .insert(stu_id.to_string(), e.clone())
+                        .await;
+                    Err(e)
+                }
+                SpiderError::Other(AccountIssue::TFARequired(
+                    tfa_token,
+                )) => {
+                    TFA_TOKEN
+                        .insert(stu_id.to_string(), tfa_token.clone())
+                        .await;
+                    Err(AppError::Text("需要双因子认证".to_string()))
+                }
+                err => {
+                    Err(throw_error(err, "获取 cas_token 时发生错误"))
+                }
+            },
         }
     }
-    // TODO 每次请求都获取一次密码，会不会有性能问题？
-    let password = service::user_info::get_password(stu_id).await?;
-    let mut f_result = None;
     // TODO 更细颗粒度的加锁
+    // 这里对学号加锁，确保同一学号同一时刻只有一个请求
+    // 这样可以确保不会有多个请求反复触发 AccountIssue（比如反复触发密码错误，导致账号被锁定）
+    // 同时可以确保 CasToken 过期的话，不会反复刷新 CasToken
+    // TODO 这里对持有锁的时间进行指标统计
     let _guard = USER_LOCK.lock(stu_id).await;
     // 上一次就出现了登录问题，直接返回
     if let Some(err) = ACCOUNT_TAG.get(stu_id).await {
@@ -95,50 +106,54 @@ where
     if TFA_TOKEN.contains_key(stu_id) {
         return Err(AppError::Text("需要双因子认证".to_string()));
     }
+    // 这里只是单纯用一下 moka 的 get_with 如果缓存不命中则刷新的作用，
+    // 由于这里对学号加锁，所以 get_with 的同步作用这里没有利用到
     let cookies = CACHE
-        .try_get_with((CacheEnum::CasToken, stu_id.to_string()), async {
-            // 初始时对应的 Cookie 必然是空字符串
-            let mut cas_token =
-                CasToken::from_cookie_unchecked("", stu_id, &password);
-            // 现在缓存中没有 CasToken，目前传进来的函数 f 理论上应该会使用这个 CasToken 进行请求
-            // 从而会刷新 CasToken 内部的 cookie
-            // 所以我们在当前计算缓存的代码块中调用 f，然后再把 CasToken 内刷新的 cookie 写回缓存
-            f_result = Some(f(&mut cas_token).await?);
-            // TODO 这里如果遇到 AccountIssue，应该进行相应的处理
-            let Some(cookie) = cas_token.cookie() else {
-                tracing::warn!("调用函数 f 成功后 CasToken 内的 cookie 仍为空");
-                // 不写回缓存，这样可以保证缓存内的 CasToken 都是有有效 Cookie 的
-                // 这里加一个类型注释来帮助编译器进行类型推导
-                return Ok::<_, SpiderError<AccountIssue>>(String::new());
-            };
-            Ok(cookie.to_string())
-        })
-        .await;
-    let Ok(cookies) = cookies else {
-        let e = cookies.expect_err("cookies 为 Ok");
-        return Err(handle_error(stu_id, &e).await);
-    };
-    if let Some(f_result) = f_result {
-        return Ok(f_result);
+        .try_get_with(
+            (CacheEnum::CasToken, stu_id.to_string()),
+            async {
+                let cookies = get_cas_token(stu_id).await?;
+                Ok(cookies)
+            },
+        )
+        .await?;
+    let cas_token = CasToken::from_cookie_unchecked(&cookies, stu_id);
+    let f_result = f(&cas_token).await;
+    match f_result {
+        Ok(res) => return Ok(res),
+        Err(e) => match e {
+            SpiderError::Other(CasTokenExpired) => {
+                // 下面继续刷新
+            }
+            err => {
+                return Err(throw_error(
+                    err,
+                    "使用 cas_token 请求时发生错误",
+                ));
+            }
+        },
     }
-    let mut cas_token =
-        CasToken::from_cookie_unchecked(&cookies, stu_id, &password);
-    // TODO 这里可能还是会出现 cas_token 过期，然后此时多个并发请求过来反复更新 cas_token 的情况
-    // 后面需要进一步优化
-    // https://github.com/qnxg/hnu_query/issues/26
-    let f_result = f(&mut cas_token).await;
-    let Ok(f_result) = f_result else {
-        let e = f_result.err().expect("f_result 为 Ok");
-        return Err(handle_error(stu_id, &e).await);
-    };
-    // 可能刷新了 CasToken 内部的 cookie，所以需要写回缓存
+    // 走到这里说明旧的 cas_token 过期了，需要刷新
+    let cookies = get_cas_token(stu_id).await?;
     CACHE
         .insert(
             (CacheEnum::CasToken, stu_id.to_string()),
-            cas_token.cookie().unwrap_or_default().to_string(),
+            cookies.clone(),
         )
         .await;
-    Ok(f_result)
+    let cas_token = CasToken::from_cookie_unchecked(&cookies, stu_id);
+    let f_result = f(&cas_token).await;
+    match f_result {
+        Ok(res) => Ok(res),
+        Err(e) => match e {
+            SpiderError::Other(CasTokenExpired) => {
+                Err(throw_error(e, "CasToken 在刷新后仍过期"))
+            }
+            err => {
+                Err(throw_error(err, "使用 cas_token 请求时发生错误"))
+            }
+        },
+    }
 }
 
 /// 默认请求重试策略

@@ -89,10 +89,8 @@ async fn bind_user(req: &mut Request) -> RouterResult {
     }
 
     if stu_id != DEMO_STU_ID {
-        let mut cas_token =
-            hnu_query::cas::login::CasToken::new(&stu_id, &password);
-        match hnu_query::pt::login::PtToken::acquire_by_cas_login(
-            &mut cas_token,
+        match hnu_query::cas::login::CasToken::acquire_by_login(
+            &stu_id, &password,
         )
         .await
         {
