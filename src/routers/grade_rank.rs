@@ -2,7 +2,7 @@ use crate::routers::demo::{
     DEMO_COURSE_ID, DEMO_COURSE_NAME, DEMO_STU_ID,
 };
 use crate::service::grade_rank::{
-    GradeInfo, HdjwRank, HdjwRankMethod, HdjwRankRange,
+    GradeInfo, HdjwRankDataSource, HdjwRankDisplay, HdjwRankRange,
 };
 use crate::utils::serde::empty_string_as_none;
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
     utils,
 };
 use salvo::{Request, Router, handler, macros::Extractible};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 pub fn routers() -> Router {
     Router::with_path("hdjw")
@@ -65,49 +65,46 @@ async fn get_grade(req: &mut Request) -> RouterResult {
 async fn get_rank_from_hdjw(req: &mut Request) -> RouterResult {
     #[derive(Deserialize, Debug, Extractible)]
     #[salvo(extract(default_source(from = "query")))]
-    struct GetRankFromHdjwReq {
+    struct Request {
         #[serde(default)]
         #[serde(deserialize_with = "empty_string_as_none")]
-        pub year: Option<u16>,
+        pub xn: Option<u16>,
         #[serde(default)]
         #[serde(deserialize_with = "empty_string_as_none")]
-        pub term: Option<u8>,
-        pub course: u32,
-        pub rank: u32,
+        pub xq: Option<u8>,
+        pub range: u8,
+        pub data_source: u8,
+        pub display: u8,
     }
-    #[derive(Serialize, Debug)]
-    struct GetRankFromHdjwRes {
-        pub rank: String,
-        pub score: String,
-    }
-    let query: GetRankFromHdjwReq = req.extract().await?;
+    let query: Request = req.extract().await?;
     let stu_id = utils::jwt::auth(req)?;
 
-    let range = match query.course {
-        1 => HdjwRankRange::All,
-        2 => HdjwRankRange::Must,
-        3 => HdjwRankRange::Core,
+    let range = match query.range {
+        1 => HdjwRankRange::Major,
+        2 => HdjwRankRange::Minor,
         _ => return Err(AppError::ParseError),
     };
-    let method = match query.rank {
-        1 => HdjwRankMethod::ArithmeticAvg,
-        2 => HdjwRankMethod::WeightedAvg,
-        3 => HdjwRankMethod::Gpa,
+    let data_source = match query.data_source {
+        1 => HdjwRankDataSource::Total,
+        2 => HdjwRankDataSource::Execution,
         _ => return Err(AppError::ParseError),
     };
-    let Some(HdjwRank { rank, score }) =
-        service::grade_rank::get_rank_from_hdjw(
-            &stu_id, range, method, query.year, query.term,
-        )
-        .await?
-    else {
-        return Ok(GetRankFromHdjwRes {
-            rank: "无数据".to_string(),
-            score: "无数据".to_string(),
-        }
-        .into());
+    let display = match query.display {
+        1 => HdjwRankDisplay::Max,
+        2 => HdjwRankDisplay::Initial,
+        _ => return Err(AppError::ParseError),
     };
-    Ok(GetRankFromHdjwRes { rank, score }.into())
+
+    let res = service::grade_rank::get_rank_from_hdjw(
+        &stu_id,
+        query.xn,
+        query.xq,
+        range,
+        data_source,
+        display,
+    )
+    .await?;
+    Ok(res.into())
 }
 
 #[handler]
