@@ -18,15 +18,7 @@ pub async fn apply_verified_cas_token(
     CACHE
         .insert(
             (CacheEnum::CasToken, stu_id.to_string()),
-            cas_token
-                .cookie()
-                .unwrap_or_else(|| {
-                    tracing::warn!(
-                        "通过双因子认证后 CasToken 内的 cookie 为空"
-                    );
-                    ""
-                })
-                .to_string(),
+            cas_token.cookie().to_string(),
         )
         .await;
 }

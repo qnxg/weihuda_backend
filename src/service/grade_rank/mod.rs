@@ -15,7 +15,7 @@ pub struct GradeInfo {
     pub course_type1: Option<String>, // 课程性质1（必修还是选修）
     pub course_type2: String, // 课程性质2（通识必修/专业核心等）
     pub gpa: f32,             // 绩点
-    pub score: u8,            // 成绩
+    pub score: f64,           // 成绩
     pub tags: Vec<String>, // 其他标签，如缓考还是什么（参考 SpiderGradeInfo 的 cjbs 说明），或者辅修等
     pub jx0404id: Option<String>, // 用于获取成绩详情
 }

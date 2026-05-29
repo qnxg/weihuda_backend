@@ -43,7 +43,7 @@ async fn get_grade(req: &mut Request) -> RouterResult {
             course_type1: Some("必修".to_string()),
             course_type2: "通识必修".to_string(),
             gpa: 1.5,
-            score: 81,
+            score: 81.0,
             tags: vec![],
             jx0404id: None,
         }]
