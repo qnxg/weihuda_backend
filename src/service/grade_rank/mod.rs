@@ -54,29 +54,41 @@ pub async fn get_grade(
     Ok(res)
 }
 
-pub enum HdjwRankRange {
-    /// 全部课程
-    All,
-    /// 必修课程
-    Must,
-    /// 核心课程
-    Core,
+#[derive(Serialize, Debug)]
+pub struct HdjwRankDetail {
+    /// 算数平均成绩
+    pub arithmetic: String,
+    pub arithmetic_rank: String,
+    pub gpa: String,
+    pub gpa_rank: String,
+    pub weighted: String,
+    pub weighted_rank: String,
 }
 
-pub enum HdjwRankMethod {
-    /// 算术平均
-    ArithmeticAvg,
-    /// 加权平均
-    WeightedAvg,
-    /// 绩点
-    Gpa,
+impl From<hnu_query::hdjw::rank::RankDetail> for HdjwRankDetail {
+    fn from(value: hnu_query::hdjw::rank::RankDetail) -> Self {
+        Self {
+            arithmetic: value.arithmetic,
+            arithmetic_rank: value.arithmetic_rank,
+            gpa: value.gpa,
+            gpa_rank: value.gpa_rank,
+            weighted: value.weighted,
+            weighted_rank: value.weighted_rank,
+        }
+    }
 }
 
 #[derive(Serialize, Debug)]
 pub struct HdjwRank {
-    pub rank: String,
-    pub score: String,
+    pub all: Option<HdjwRankDetail>,
+    pub must: Option<HdjwRankDetail>,
+    pub core: Option<HdjwRankDetail>,
 }
+
+pub use hnu_query::hdjw::rank::{
+    DataSource as HdjwRankDataSource, Display as HdjwRankDisplay,
+    Range as HdjwRankRange,
+};
 
 /// 从 hdjw 中获取排名信息
 ///
@@ -89,11 +101,12 @@ pub struct HdjwRank {
 /// - `xq`: 学期，如果为 None 则为所有学期
 pub async fn get_rank_from_hdjw(
     stu_id: &str,
-    range: HdjwRankRange,
-    method: HdjwRankMethod,
     xn: Option<u16>,
     xq: Option<u8>,
-) -> AppResult<Option<HdjwRank>> {
+    range: hnu_query::hdjw::rank::Range,
+    data_source: hnu_query::hdjw::rank::DataSource,
+    display: hnu_query::hdjw::rank::Display,
+) -> AppResult<HdjwRank> {
     let selection = match xn {
         Some(xn) => match xq {
             Some(xq) => {
@@ -110,33 +123,19 @@ pub async fn get_rank_from_hdjw(
             hnu_query::hdjw::get_rank(
                 &token,
                 selection.as_slice(),
-                hnu_query::hdjw::rank::Range::Major,
-                hnu_query::hdjw::rank::DataSource::Total,
-                hnu_query::hdjw::rank::Display::Max,
+                range,
+                data_source,
+                display,
             )
             .await
         })
         .await?;
-    let rank_detail = match range {
-        HdjwRankRange::All => spider_res.all,
-        HdjwRankRange::Must => spider_res.must,
-        HdjwRankRange::Core => spider_res.core,
+    let res = HdjwRank {
+        all: spider_res.all.map(Into::into),
+        must: spider_res.must.map(Into::into),
+        core: spider_res.core.map(Into::into),
     };
-    let Some(rank_detail) = rank_detail else {
-        return Ok(None);
-    };
-    let (rank, score) = match method {
-        HdjwRankMethod::ArithmeticAvg => {
-            (rank_detail.arithmetic_rank, rank_detail.arithmetic)
-        }
-        HdjwRankMethod::WeightedAvg => {
-            (rank_detail.weighted_rank, rank_detail.weighted)
-        }
-        HdjwRankMethod::Gpa => {
-            (rank_detail.gpa_rank, rank_detail.gpa)
-        }
-    };
-    Ok(Some(HdjwRank { rank, score }))
+    Ok(res)
 }
 
 #[derive(Serialize, Debug)]
