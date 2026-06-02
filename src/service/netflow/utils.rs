@@ -20,11 +20,11 @@ pub fn parse_year_month(str: &str) -> Option<NaiveDate> {
 }
 
 /// 将字节转为 GB
-pub fn bytes_to_gb(bytes: f64) -> String {
-    if bytes == 0.0 {
+pub fn bytes_to_gb(bytes: usize) -> String {
+    if bytes == 0 {
         "0 GB".to_string()
     } else {
-        format!("{:.2} GB", bytes / 1024.0 / 1024.0 / 1024.0)
+        format!("{:.2} GB", bytes / 1024 / 1024 / 1024)
     }
 }
 

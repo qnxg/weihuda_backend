@@ -378,6 +378,7 @@ dependencies = [
  "futures",
  "hex",
  "hnu_query",
+ "indexmap",
  "jsonwebtoken",
  "lapin",
  "md5",
@@ -1488,9 +1489,9 @@ dependencies = [
 
 [[package]]
 name = "hnu_query"
-version = "2.0.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efa55c656ef93ce1e70dcf784c35663f0c3f382c198aa25321b85b960a5d6f17"
+checksum = "d0150aa3215bfb8a9b15c921e50e3965c61773c8259405098195a40f6079272f"
 dependencies = [
  "aes",
  "base64",
