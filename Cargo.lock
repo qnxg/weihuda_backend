@@ -378,7 +378,6 @@ dependencies = [
  "futures",
  "hex",
  "hnu_query",
- "indexmap",
  "jsonwebtoken",
  "lapin",
  "md5",
