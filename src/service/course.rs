@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use hnu_query::xgxt::personal_info::Level;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     infra::{self},
     result::{AppResult, ThrowError},
     service::{
-        self, user_info,
+        self,
+        user_info::is_graduate,
         user_state::{Hdjw, Yjsxt, with_token},
     },
 };
@@ -248,8 +248,7 @@ pub async fn get_classtable(
     for item in customize_course {
         push_customize_course(&mut classtable, item)?;
     }
-    // 根据学号判断是本科（hdjw）还是研究生（yjsxt）
-    if is_postgraduate(stu_id).await? {
+    if is_graduate(stu_id).await? {
         let yjsxt_course =
             with_token(Yjsxt::new(stu_id), async move |token| {
                 let termcode = hnu_query::yjsxt::term::get_termcode(
@@ -297,7 +296,7 @@ pub async fn get_extra_course(
     xq: u8,
 ) -> AppResult<Vec<ExtraCourseInfo>> {
     // 研究生系统不支持 extra course，返回空
-    if is_postgraduate(stu_id).await? {
+    if is_graduate(stu_id).await? {
         return Ok(Vec::new());
     }
     let spider_res =
@@ -353,12 +352,6 @@ pub async fn get_flex_time_list() -> AppResult<Vec<FlexTime>> {
         serde_json::from_str(&config.value)
             .expect("解析调休信息失败");
     Ok(flex_time)
-}
-
-/// 判断学号是否为研究生
-async fn is_postgraduate(stu_id: &str) -> AppResult<bool> {
-    let info = user_info::get_person_info(stu_id, false).await?;
-    Ok(info.level == Level::Postgraduate)
 }
 
 #[cfg(test)]

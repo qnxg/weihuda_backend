@@ -7,6 +7,18 @@ use super::{
 use crate::result::{AppResult, ThrowError};
 use hnu_query::hdjw::login::HdjwToken;
 use hnu_query::{Error as SpiderError, hdjw::error::TokenExpired};
+use std::collections::VecDeque;
+use std::sync::LazyLock;
+use tokio::sync::Mutex;
+
+/// 号池最大容量
+const POOL_MAX_SIZE: usize = 5;
+
+/// 存放最近登录成功过的学号
+///
+/// 考虑到号池不大，直接使用 VecDeque
+pub static TOKEN_POOL: LazyLock<Mutex<VecDeque<String>>> =
+    LazyLock::new(|| Mutex::new(VecDeque::new()));
 
 pub struct Hdjw {
     stu_id: String,
@@ -35,10 +47,22 @@ impl HnuSystem for Hdjw {
         self.stu_id.as_str()
     }
     async fn acquire_token(&mut self) -> AppResult<HdjwToken> {
-        with_cas_token(self.stu_id.as_str(), async |cas_token| {
-            HdjwToken::acquire_by_cas_login(cas_token).await
-        })
-        .await
+        let res =
+            with_cas_token(self.stu_id.as_str(), async |cas_token| {
+                // 把 HdjwToken 缓存
+                HdjwToken::acquire_by_cas_login(cas_token).await
+            })
+            .await;
+        let mut pool = TOKEN_POOL.lock().await; // 拿锁
+        // 如果账号已经在号池内就不添加了
+        if res.is_ok() && !pool.iter().any(|x| x == &self.stu_id) {
+            // 为了维护号池内账号始终是新的，淘汰旧账号以添加新账号
+            if pool.len() >= POOL_MAX_SIZE {
+                pool.pop_front(); // 前出
+            }
+            pool.push_back(self.stu_id.clone()); // 后进
+        }
+        res
     }
     fn serialize_token(
         &mut self,

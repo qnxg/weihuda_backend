@@ -8,7 +8,7 @@ use crate::{
     },
 };
 
-pub use hnu_query::xgxt::personal_info::PersonalInfo;
+pub use hnu_query::xgxt::personal_info::{Level, PersonalInfo};
 pub use infra::mysql::user::get_user_setting;
 pub use infra::mysql::user::update_user_setting;
 
@@ -38,6 +38,13 @@ pub async fn get_person_info(
     let person_info = serde_json::from_str(&res)
         .throw_error("反序列化个人信息失败")?;
     Ok(person_info)
+}
+
+/// 判断学号是否为研究生
+pub async fn is_graduate(stu_id: &str) -> AppResult<bool> {
+    let info = get_person_info(stu_id, false).await?;
+    Ok(info.level == Level::Postgraduate
+        || info.level == Level::Doctoral)
 }
 
 pub async fn get_password(stu_id: &str) -> AppResult<String> {
