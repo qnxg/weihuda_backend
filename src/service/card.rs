@@ -34,7 +34,7 @@ pub async fn get_card_history(
     history_type: CardHistoryType,
 ) -> AppResult<CardHistory> {
     let spider_res =
-        with_token(Pt::new(stu_id), async move |token| {
+        with_token(Pt::new(stu_id), |token| async move {
             hnu_query::pt::get_card_history(
                 &token,
                 year,

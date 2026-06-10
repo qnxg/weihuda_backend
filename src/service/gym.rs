@@ -66,7 +66,7 @@ pub async fn get_fitness_grade(
     stu_id: &str,
     xn: u16,
 ) -> AppResult<FitnessGrade> {
-    let grade = with_token(Gym::new(stu_id), async move |token| {
+    let grade = with_token(Gym::new(stu_id), |token| async move {
         hnu_query::gym::get_grade(&token, xn).await
     })
     .await?;
