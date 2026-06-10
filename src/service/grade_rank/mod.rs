@@ -25,7 +25,7 @@ pub async fn get_grade(
     stu_id: &str,
 ) -> AppResult<Vec<GradeInfo>> {
     let spider_res =
-        with_token(Hdjw::new(stu_id), async move |token| {
+        with_token(Hdjw::new(stu_id), |token| async move {
             hnu_query::hdjw::get_grade(&token, xn, xq).await
         })
         .await?;
@@ -118,8 +118,9 @@ pub async fn get_rank_from_hdjw(
         },
         None => vec![],
     };
-    let spider_res =
-        with_token(Hdjw::new(stu_id), async move |token| {
+    let spider_res = with_token(Hdjw::new(stu_id), |token| {
+        let selection = &selection;
+        async move {
             hnu_query::hdjw::get_rank(
                 &token,
                 selection.as_slice(),
@@ -128,8 +129,9 @@ pub async fn get_rank_from_hdjw(
                 display,
             )
             .await
-        })
-        .await?;
+        }
+    })
+    .await?;
     let res = HdjwRank {
         all: spider_res.all.map(Into::into),
         must: spider_res.must.map(Into::into),
@@ -149,15 +151,17 @@ pub async fn get_grade_detail(
     jx0404id: &str,
 ) -> AppResult<Vec<GradeDetailItem>> {
     let jx0404id_value = jx0404id.to_string();
-    let spider_res =
-        with_token(Hdjw::new(stu_id), async move |token| {
+    let spider_res = with_token(Hdjw::new(stu_id), |token| {
+        let jx0404id_value = &jx0404id_value;
+        async move {
             hnu_query::hdjw::get_grade_detail(
                 &token,
                 jx0404id_value.as_str(),
             )
             .await
-        })
-        .await?;
+        }
+    })
+    .await?;
     let mut res = Vec::new();
     for item in spider_res {
         let tmp = GradeDetailItem {

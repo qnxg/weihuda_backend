@@ -23,7 +23,7 @@ pub async fn get_exam_arrange(
     xq: u8,
 ) -> AppResult<Vec<ExamArrange>> {
     let spider_res =
-        with_token(Hdjw::new(stu_id), async move |token| {
+        with_token(Hdjw::new(stu_id), |token| async move {
             hnu_query::hdjw::get_exam_schedule(&token, xn, xq).await
         })
         .await?;

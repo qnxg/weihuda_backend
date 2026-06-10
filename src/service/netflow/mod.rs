@@ -155,7 +155,7 @@ pub async fn get_netflow_day_detail(
     day: u8,
 ) -> AppResult<NetflowDetailRes> {
     let spider_res =
-        with_token(NetflowSystem::new(stu_id), async move |token| {
+        with_token(NetflowSystem::new(stu_id), |token| async move {
             hnu_query::netflow::get_day_detail(
                 &token, year, month, day,
             )
@@ -171,7 +171,7 @@ pub async fn get_netflow_month_detail(
     month: u8,
 ) -> AppResult<NetflowDetailRes> {
     let spider_res =
-        with_token(NetflowSystem::new(stu_id), async move |token| {
+        with_token(NetflowSystem::new(stu_id), |token| async move {
             hnu_query::netflow::get_month_detail(&token, year, month)
                 .await
         })

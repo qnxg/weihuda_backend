@@ -33,11 +33,15 @@ pub async fn get_empty_room(
     let try_query = async |stu_id: &str| {
         let build_id = build_id.to_string();
         let jc = jc.clone();
-        with_token(Hdjw::new(stu_id), async move |token| {
-            hnu_query::hdjw::get_empty_classroom(
-                &token, &build_id, week, day, &jc, xn, xq,
-            )
-            .await
+        with_token(Hdjw::new(stu_id), |token| {
+            let build_id = &build_id;
+            let jc = &jc;
+            async move {
+                hnu_query::hdjw::get_empty_classroom(
+                    &token, build_id, week, day, jc, xn, xq,
+                )
+                .await
+            }
         })
         .await
         .map(|v| {

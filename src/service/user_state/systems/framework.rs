@@ -47,11 +47,74 @@ pub trait HnuSystem {
     ) -> NextAction;
 }
 
-pub async fn with_token<S, F, R>(mut system: S, f: F) -> AppResult<R>
+/// 获取学校对应系统的令牌并进行请求。框架会将自动处理令牌缓存，缓存过期等问题。
+///
+/// # Arguments
+///
+/// - `system`：学校对应系统的示例
+/// - `f`：请求函数，该参数是一个普通闭包，闭包需要接受学校对应系统的令牌 [HnuSystem::Token]，
+///   并返回一个 Future。
+///   - 请求函数本身和返回的 Future 需要是 Send 的，因为 salvo 要求 router 层的 handler
+///     需要是 Send 的。
+///   - Future 的 Output 需要是一个 Result，其中 Err 的错误类型需要是 [SpiderError]<[HnuSystem::Error]>。
+///     一般闭包内直接把调用 hnu_query 的函数抛出的错误再往上抛就行了。
+///   - 请求函数需要是 [Fn] 闭包，因为请求函数抛出错误后，该框架会调用对应系统的错误处理逻辑，
+///     来决定接下来的行为，可能会重试，因此闭包会被多次调用。
+///
+/// # Returns
+///
+/// 该函数会把 `f` 返回的 Future 的输出返回出去。
+///
+/// # Errors
+///
+/// - [HnuSystem::serialize_token]、[HnuSystem::deserialize_token] 失败时会抛出错误
+/// - [HnuSystem::acquire_token] 失败时会抛出错误
+/// - [HnuSystem::handle_retry] 返回 [NextAction::Break] 时会把最后一次 `f` 返回的错误抛出
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let spider_res = with_token(Hdjw::new(stu_id), |token| {
+///     let jx0404id_value = &jx0404id_value;
+///     async move {
+///         hnu_query::hdjw::get_grade_detail(
+///             &token,
+///             jx0404id_value.as_str(),
+///         )
+///         .await
+///     }
+/// });
+/// ```
+///
+/// - 返回的 async block 必须是 `async move` 的，因为闭包返回的 async block 不能引用 `token`，
+///   必须直接拿其所有权。
+/// - 如果 async block 中需要捕获外部的非 Copy 的值（比如这里的 `jx0404id_value`，是个 String）
+///   那么需要在返回 async block 前搞一个 `let jx0404id_value = &jx0404id_value;` 这种代码，
+///   来提示 Rust 外层的这个闭包需要按引用捕获外部的值。
+///
+/// # Notes
+///
+/// `f` 的类型并没有选择 [AsyncFn]，这是因为 [AsyncFn] 有 GAT，Rust 在判断其是否是 Send 时，
+/// 会按高阶生命周期约束，要求 [AsyncFn] 对于任意的生命周期都是 Send 的。当 [AsyncFn] 捕获了
+/// 外部的引用时，Rust 会认为该 [AsyncFn] 的生命周期只能在外部的引用的生命周期下才是 Send 的，
+/// 在其他更大的生命周期下不是 Send 的，于是判断整个 [AsyncFn] 不是 Send 的。因此，这意味着
+/// 我们的 `f` 不能捕获外部的引用，必须 Clone + 传所有权。
+///
+/// [AsyncFn] 出现这样的问题应该是 Rust 编译器自身的缺陷。
+///
+/// 我们现在的这个返回 Future 的方案中，由于 [Fn] 没有 GAT，所以 Rust 不会用高阶生命周期推导。
+///
+/// # References
+///
+/// 可以参考 Rust 的闭包机制，async block，GAT，高阶生命周期约束等内容。
+pub async fn with_token<S, F, Fut, R>(
+    mut system: S,
+    f: F,
+) -> AppResult<R>
 where
     S: HnuSystem,
-    F: AsyncFn(S::Token) -> Result<R, SpiderError<S::Error>>
-        + 'static,
+    F: Fn(S::Token) -> Fut + Send,
+    Fut: Future<Output = Result<R, SpiderError<S::Error>>> + Send,
 {
     let serialized_token = CACHE
         .try_get_with(

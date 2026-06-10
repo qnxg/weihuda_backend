@@ -250,7 +250,7 @@ pub async fn get_classtable(
     }
     if is_graduate(stu_id).await? {
         let yjsxt_course =
-            with_token(Yjsxt::new(stu_id), async move |token| {
+            with_token(Yjsxt::new(stu_id), |token| async move {
                 let termcode = hnu_query::yjsxt::term::get_termcode(
                     &token, xn, xq,
                 )
@@ -266,7 +266,7 @@ pub async fn get_classtable(
         }
     } else {
         let hdjw_course =
-            with_token(Hdjw::new(stu_id), async move |token| {
+            with_token(Hdjw::new(stu_id), |token| async move {
                 hnu_query::hdjw::get_class_table(&token, xn, xq).await
             })
             .await?;
@@ -300,7 +300,7 @@ pub async fn get_extra_course(
         return Ok(Vec::new());
     }
     let spider_res =
-        with_token(Hdjw::new(stu_id), async move |token| {
+        with_token(Hdjw::new(stu_id), |token| async move {
             hnu_query::hdjw::get_class_table_extra(&token, xn, xq)
                 .await
         })

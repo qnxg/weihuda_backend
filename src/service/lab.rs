@@ -140,16 +140,19 @@ async fn get_lab_grade_detail(
 ) -> AppResult<Option<Vec<LabScoreItem>>> {
     let course_id_value = course_id.to_string();
     let sem_id_value = sem_id.to_string();
-    let spider_res =
-        with_token(Lab::new(stu_id), async move |token| {
+    let spider_res = with_token(Lab::new(stu_id), |token| {
+        let course_id_value = &course_id_value;
+        let sem_id_value = &sem_id_value;
+        async move {
             hnu_query::lab::get_lab_grade(
                 &token,
                 course_id_value.as_str(),
                 sem_id_value.as_str(),
             )
             .await
-        })
-        .await?;
+        }
+    })
+    .await?;
     let mut labs = Vec::new();
     // 过滤还没有成绩的实验和虚拟实验
     for item in spider_res {
@@ -206,15 +209,17 @@ pub async fn get_course(
     sem_id: &str,
 ) -> AppResult<Option<LabCourse>> {
     let sem_id_value = sem_id.to_string();
-    let spider_res =
-        with_token(Lab::new(stu_id), async move |token| {
+    let spider_res = with_token(Lab::new(stu_id), |token| {
+        let sem_id_value = &sem_id_value;
+        async move {
             hnu_query::lab::get_course_list(
                 &token,
                 sem_id_value.as_str(),
             )
             .await
-        })
-        .await?;
+        }
+    })
+    .await?;
     if let Some(course) = spider_res.into_iter().next()
         && let Some(labs) =
             get_lab_grade_detail(stu_id, &course.id, sem_id).await?
