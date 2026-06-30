@@ -6,10 +6,10 @@ pub struct Configs {
     pub server: Server,
     pub database: Database,
     pub log: Log,
-    pub jwt: Jwt,
     pub wechat: Wechat,
     pub rabbitmq: RabbitMq,
     pub captcha: Captcha,
+    pub secret: Secret,
 }
 
 #[derive(Deserialize, Debug)]
@@ -36,8 +36,9 @@ pub struct Log {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct Jwt {
-    pub secret: String,
+pub struct Secret {
+    pub jwt: String,
+    pub password: String,
 }
 
 #[derive(Deserialize, Debug)]

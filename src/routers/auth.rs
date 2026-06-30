@@ -135,7 +135,10 @@ async fn bind_user(req: &mut Request) -> RouterResult {
 
 #[handler]
 async fn unbind_user(req: &mut Request) -> RouterResult {
-    let stu_id = utils::jwt::auth(req)?;
+    let Ok(stu_id) = utils::jwt::auth(req) else {
+        // TODO 这里应该要前端处理，但是目前的前端会在 unbind 返回 401 时死循环
+        return Err(AppError::Text("未登录".to_string()));
+    };
     if let Some(user) =
         service::auth::user::check_by_stu_id(&stu_id).await?
         && let Some(openid) = user.openid

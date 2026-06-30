@@ -49,7 +49,7 @@ pub fn generate_jwt(stu_id: &str) -> AppResult<String> {
     let res = encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(CFG.jwt.secret.as_bytes()),
+        &EncodingKey::from_secret(CFG.secret.jwt.as_bytes()),
     )?;
 
     Ok(res)
@@ -58,7 +58,7 @@ pub fn generate_jwt(stu_id: &str) -> AppResult<String> {
 pub fn parse(token: &str) -> AppResult<String> {
     let res = decode::<Claims>(
         token,
-        &DecodingKey::from_secret(CFG.jwt.secret.as_bytes()),
+        &DecodingKey::from_secret(CFG.secret.jwt.as_bytes()),
         &VALIDATION,
     )?;
     let stu_id = utils::format_stuid(&res.claims.stu_id);
