@@ -7,13 +7,11 @@ use rand_core::{OsRng, RngCore};
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::{Pkcs1v15Encrypt, RsaPrivateKey};
 
-use crate::config::FRONTEND_RSA_PRIVATE_KEY;
+use crate::config::{CFG, FRONTEND_RSA_PRIVATE_KEY};
 use crate::result::{AppError, ThrowError};
 
 type Aes256CbcEnc = cbc::Encryptor<aes::Aes256>;
 type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
-
-const PASS_PHRASE: &str = "qnxg-crypto-2023";
 
 /// 生成一个长度为8的随机salt
 #[inline]
@@ -58,7 +56,8 @@ pub fn encrypt(data: &str) -> String {
     // 生成一个长度为8的随机字符串
     let salt = gen_salt();
 
-    let (key, iv) = passphrase_to_key_and_iv(&salt, PASS_PHRASE);
+    let (key, iv) =
+        passphrase_to_key_and_iv(&salt, &CFG.secret.password);
     let key = GenericArray::from_slice(key.as_slice());
     let iv = GenericArray::from_slice(iv.as_slice());
     let res = Aes256CbcEnc::new(key, iv)
@@ -78,7 +77,8 @@ pub fn decrypt(
         return Err("Invalid data length".into());
     }
     let salt = &decode[8..16];
-    let (key, iv) = passphrase_to_key_and_iv(salt, PASS_PHRASE);
+    let (key, iv) =
+        passphrase_to_key_and_iv(salt, &CFG.secret.password);
     let key = GenericArray::from_slice(&key);
     let iv = GenericArray::from_slice(&iv);
     let res = Aes256CbcDec::new(key, iv)
