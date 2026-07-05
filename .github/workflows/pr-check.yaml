@@ -8,17 +8,23 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
-      - uses: https://gitee.com/skr2005/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
+          components: clippy, rustfmt
+          cache-all-crates: "true"
 
       - name: Setup .env
         env:
           TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
         run: echo "DATABASE_URL=$TEST_DATABASE_URL" > .env
-
-      - name: Setup Toolchain
-        uses: ./.gitea/workflows/setup-toolchain
 
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
