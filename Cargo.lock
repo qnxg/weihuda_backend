@@ -364,44 +364,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "back_2024"
-version = "1.1.0"
-dependencies = [
- "aes",
- "anyhow",
- "base64",
- "cbc",
- "chrono",
- "clia-tracing-config",
- "dashmap",
- "flurry",
- "futures",
- "hex",
- "hnu_query",
- "jsonwebtoken",
- "lapin",
- "md5",
- "moka",
- "openssl",
- "prometheus",
- "rand 0.8.5",
- "rand_core 0.6.4",
- "regex",
- "reqwest",
- "rsa",
- "salvo",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "sqlx",
- "thiserror 1.0.69",
- "tokio",
- "toml",
- "tracing",
- "uuid",
-]
-
-[[package]]
 name = "backon"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4526,6 +4488,44 @@ name = "weezl"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
+
+[[package]]
+name = "weihuda_backend"
+version = "1.1.0"
+dependencies = [
+ "aes",
+ "anyhow",
+ "base64",
+ "cbc",
+ "chrono",
+ "clia-tracing-config",
+ "dashmap",
+ "flurry",
+ "futures",
+ "hex",
+ "hnu_query",
+ "jsonwebtoken",
+ "lapin",
+ "md5",
+ "moka",
+ "openssl",
+ "prometheus",
+ "rand 0.8.5",
+ "rand_core 0.6.4",
+ "regex",
+ "reqwest",
+ "rsa",
+ "salvo",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sqlx",
+ "thiserror 1.0.69",
+ "tokio",
+ "toml",
+ "tracing",
+ "uuid",
+]
 
 [[package]]
 name = "whoami"

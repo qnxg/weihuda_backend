@@ -1,0 +1,54 @@
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Musl Tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Setup Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
+          cache-all-crates: "true"
+
+      - name: Setup .env
+        env:
+          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+        run: echo "DATABASE_URL=$TEST_DATABASE_URL" > .env
+
+      - name: Build
+        run: |
+          cargo build --release --bin weihuda_backend --target x86_64-unknown-linux-musl
+
+      - name: Login to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.DOCKER_HOST }}
+          username: ${{ vars.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ vars.DOCKER_HOST }}/weihuda_backend:latest
+
+      - name: Webhook
+        run: |
+          set -e
+          response=$(curl -s -w "%{http_code}" -o response_body.txt "${{ vars.WEBHOOK }}?token=${{ secrets.WEBHOOK_TOKEN }}")
+          cat response_body.txt
+          if [ "$response" != "200" ]; then
+            echo "Webhook failed with HTTP code $response"
+            exit 1
+          fi
