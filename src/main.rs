@@ -24,8 +24,10 @@ mod test;
 use crate::{
     config::CFG,
     middlewares::{
-        cache::cache_middleware, catch_panic::catch_panic_middleware,
-        cors::cors_middleware, default::default_middleware,
+        cache::cache_middleware,
+        catch_panic::{catch_panic_middleware, panic_hook},
+        cors::cors_middleware,
+        default::default_middleware,
         logging::logging_middleware,
         prometheus::prometheus_middleware,
         timeout::timeout_middleware,
@@ -73,5 +75,6 @@ async fn run() {
         .hoop(cors_middleware())
         .hoop(cache_middleware)
         .hoop(timeout_middleware);
+    std::panic::set_hook(Box::new(panic_hook));
     Server::new(listener).serve(service).await;
 }
