@@ -29,6 +29,12 @@ jwt = ""
 # 数据库中存储的密码加密用的密钥
 password = ""
 
+[pow]
+# 工作量证明过期时间，单位：秒
+expired_time = 300
+# 工作量证明难度，值越大，难度越大
+difficulty = 4
+
 [log]
 # 可用的日志等级："debug", "info", "warn", "error"
 filter_level = "error"
