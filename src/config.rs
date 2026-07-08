@@ -10,6 +10,7 @@ pub struct Configs {
     pub rabbitmq: RabbitMq,
     pub captcha: Captcha,
     pub secret: Secret,
+    pub pow: Pow,
 }
 
 #[derive(Deserialize, Debug)]
@@ -56,6 +57,12 @@ pub struct RabbitMq {
 #[derive(Deserialize, Debug)]
 pub struct Captcha {
     pub captcha_url: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Pow {
+    pub expired_time: u64,
+    pub difficulty: u64,
 }
 
 pub static CFG: LazyLock<Configs> =

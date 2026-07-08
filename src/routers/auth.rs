@@ -1,4 +1,5 @@
 use crate::{
+    config::CFG,
     result::{AppError, RouterResult, throw_error},
     routers::demo::{DEMO_PASSWORD, DEMO_STU_ID},
     service::{self, auth::qrcode::AuthQrCodeStatus},
@@ -168,7 +169,7 @@ async fn get_pow(req: &mut Request) -> RouterResult {
     }
     let GetPowRes { ticket, difficulty } = GetPowRes {
         ticket: pow,
-        difficulty: service::auth::pow::POW_DIFFICULTY,
+        difficulty: CFG.pow.difficulty as usize,
     };
     let res = GetPowRes { ticket, difficulty };
     Ok(res.into())
