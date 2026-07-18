@@ -1,6 +1,6 @@
 use crate::{
+    error::AppResult,
     infra::{self},
-    result::AppResult,
     service,
 };
 use serde::{Deserialize, Serialize};

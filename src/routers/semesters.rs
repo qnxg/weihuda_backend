@@ -1,7 +1,7 @@
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::{Deserialize, Serialize};
 
-use crate::{result::RouterResult, service};
+use crate::{error::RouterResult, routers::ThrowParseError, service};
 
 pub fn routers() -> Router {
     // 这个信息完全来自小程序配置，根本就不应该在hdjw的路由里
@@ -48,7 +48,8 @@ async fn get_class_start_date(req: &mut Request) -> RouterResult {
         pub xn: u32,
         pub xq: u32,
     }
-    let GetClassStartDateReq { xn, xq } = req.extract().await?;
+    let GetClassStartDateReq { xn, xq } =
+        req.extract().await.parse_error()?;
     let res = service::semester::get_class_start_date_by_xnxq(xn, xq)
         .await?;
     Ok(res.into())

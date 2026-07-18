@@ -12,7 +12,6 @@ mod gym;
 mod jifen;
 mod lab;
 mod left_message;
-mod metrics;
 mod netflow;
 mod notice;
 mod ping;
@@ -23,6 +22,8 @@ mod user_setting;
 mod zhihu;
 
 use salvo::Router;
+
+use crate::error::AppError;
 
 pub fn routers() -> Router {
     Router::new()
@@ -39,7 +40,6 @@ pub fn routers() -> Router {
         .push(jifen::routers())
         .push(lab::routers())
         .push(left_message::routers())
-        .push(metrics::routers())
         .push(netflow::routers())
         .push(notice::routers())
         .push(ping::routers())
@@ -48,4 +48,17 @@ pub fn routers() -> Router {
         .push(user_setting::routers())
         .push(user::routers())
         .push(zhihu::routers())
+}
+
+pub trait ThrowParseError<T> {
+    fn parse_error(self) -> Result<T, AppError>;
+}
+
+impl<T> ThrowParseError<T> for Result<T, salvo::http::ParseError> {
+    fn parse_error(self) -> Result<T, AppError> {
+        self.map_err(|e| {
+            tracing::error!(error = ?e, "parse error");
+            AppError::parse_error()
+        })
+    }
 }

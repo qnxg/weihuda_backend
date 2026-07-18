@@ -1,5 +1,6 @@
 use crate::{
-    result::AppError, routers::demo::DEMO_STU_ID,
+    error::AppError,
+    routers::{ThrowParseError, demo::DEMO_STU_ID},
     service::public_info::EmptyRoom,
     utils::serde::empty_string_as_none,
 };
@@ -7,7 +8,7 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
 
-use crate::{result::RouterResult, service, utils};
+use crate::{error::RouterResult, service, utils};
 
 pub fn routers() -> Router {
     Router::with_path("hdjw/empty-room").get(get_empty_room)
@@ -68,7 +69,7 @@ async fn get_empty_room(req: &mut Request) -> RouterResult {
         #[serde(deserialize_with = "empty_string_as_none")]
         pub xq: Option<u32>,
     }
-    let query: GetEmptyRoomReq = req.extract().await?;
+    let query: GetEmptyRoomReq = req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     let (current_xn, current_xq) =
         service::semester::get_now_xnxq().await?;
@@ -83,7 +84,7 @@ async fn get_empty_room(req: &mut Request) -> RouterResult {
             "0506" => Ok(3),
             "0708" => Ok(4),
             "091011" => Ok(5),
-            _ => Err(AppError::ParseError),
+            _ => Err(AppError::parse_error()),
         })
         .collect::<Result<Vec<u8>, AppError>>()?;
 

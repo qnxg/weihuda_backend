@@ -1,12 +1,14 @@
-use crate::routers::demo::{
-    DEMO_COURSE_ID, DEMO_COURSE_NAME, DEMO_STU_ID,
-};
-use crate::service::exam::ExamArrange;
-use crate::utils::serde::empty_string_as_none;
 use crate::{
-    result::RouterResult,
-    service::{self, exam::ExamNumberInfo},
-    utils,
+    error::RouterResult,
+    routers::{
+        ThrowParseError,
+        demo::{DEMO_COURSE_ID, DEMO_COURSE_NAME, DEMO_STU_ID},
+    },
+    service::{
+        self,
+        exam::{ExamArrange, ExamNumberInfo},
+    },
+    utils::{self, serde::empty_string_as_none},
 };
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
@@ -48,7 +50,7 @@ async fn add_exam_num(req: &mut Request) -> RouterResult {
         exam_num,
         exam_name,
         exam_date,
-    } = req.extract().await?;
+    } = req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
 
     service::exam::add_exam_num(
@@ -72,7 +74,8 @@ async fn delete_exam_num(req: &mut Request) -> RouterResult {
     struct DeleteExamNumberReq {
         pub id: u32,
     }
-    let DeleteExamNumberReq { id } = req.extract().await?;
+    let DeleteExamNumberReq { id } =
+        req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     service::exam::delete_exam_num(&stu_id, id).await?;
     Ok("删除成功".into())
@@ -103,7 +106,8 @@ async fn get_exam_arrange(req: &mut Request) -> RouterResult {
         #[serde(deserialize_with = "empty_string_as_none")]
         pub xq: Option<u32>,
     }
-    let GetExamArrangeReq { xn, xq } = req.extract().await?;
+    let GetExamArrangeReq { xn, xq } =
+        req.extract().await.parse_error()?;
     let (current_xn, current_xq) =
         service::semester::get_now_xnxq().await?;
     let xn = xn.unwrap_or(current_xn) as u16;

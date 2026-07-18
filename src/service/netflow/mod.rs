@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use tokio::try_join;
 
 use crate::{
-    result::{AppError, AppResult},
+    error::AppResult,
     service::{
         netflow::utils::{
             bytes_to_gb, convert_netflow_detail, parse_year_month,
@@ -114,12 +114,7 @@ pub async fn get_netflow_order(
             downloadName: bytes_to_gb(item.download_usage),
             realOverTraffic: item.over_usage,
         };
-        res.push((
-            parse_year_month(&temp.month).ok_or(AppError::Text(
-                "异常的年月字符串".to_string(),
-            ))?,
-            temp,
-        ));
+        res.push((parse_year_month(&temp.month)?, temp));
     }
     res.sort_by_key(|(month, _)| *month);
     res.reverse();

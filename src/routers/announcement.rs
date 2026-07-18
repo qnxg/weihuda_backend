@@ -1,6 +1,6 @@
 use salvo::{Router, handler};
 
-use crate::{result::RouterResult, service};
+use crate::{error::RouterResult, service};
 
 pub fn routers() -> Router {
     Router::with_path("announcement").get(get_announcement_list) // 获取小程序公告

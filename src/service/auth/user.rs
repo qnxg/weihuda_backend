@@ -1,5 +1,5 @@
 use crate::utils;
-use crate::{infra, result::AppResult};
+use crate::{error::AppResult, infra};
 
 pub use infra::mysql::user::clear_openid;
 pub use infra::mysql::user::get_by_openid as check_by_openid;

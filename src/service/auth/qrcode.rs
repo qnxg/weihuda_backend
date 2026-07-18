@@ -1,5 +1,5 @@
 use crate::utils::cache::CacheEnum::AuthQrCode;
-use crate::{result::AppResult, utils::cache::CACHE};
+use crate::{error::AppResult, utils::cache::CACHE};
 use rand::{Rng, distributions::Alphanumeric};
 use serde::{Deserialize, Serialize};
 

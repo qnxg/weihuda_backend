@@ -1,16 +1,17 @@
 use crate::{
-    routers::demo::{DEMO_COURSE_ID, DEMO_COURSE_NAME, DEMO_STU_ID},
-    service::course::CourseInfo,
-    utils::serde::empty_string_as_none,
+    error::RouterResult,
+    routers::{
+        ThrowParseError,
+        demo::{DEMO_COURSE_ID, DEMO_COURSE_NAME, DEMO_STU_ID},
+    },
+    service::{
+        self,
+        course::{CourseInfo, CustomizeCourseInfo},
+    },
+    utils::{self, serde::empty_string_as_none},
 };
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
-
-use crate::{
-    result::RouterResult,
-    service::{self, course::CustomizeCourseInfo},
-    utils,
-};
 
 pub fn routers() -> Router {
     Router::new()
@@ -51,7 +52,7 @@ async fn add_course(req: &mut Request) -> RouterResult {
         pub xn: u32,
         pub xq: u32,
     }
-    let course: AddCourseReq = req.extract().await?;
+    let course: AddCourseReq = req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     service::course::add_customize_course(
         CustomizeCourseInfo {
@@ -78,7 +79,7 @@ async fn delete_course(req: &mut Request) -> RouterResult {
     struct DeleteCourseReq {
         pub id: u32,
     }
-    let DeleteCourseReq { id } = req.extract().await?;
+    let DeleteCourseReq { id } = req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     service::course::delete_customize_course(id, &stu_id).await?;
     Ok("删除成功".into())
@@ -93,7 +94,8 @@ async fn get_custom_course_details_by_id(
     struct GetCustomCourseDetailsReq {
         pub id: u32,
     }
-    let GetCustomCourseDetailsReq { id } = req.extract().await?;
+    let GetCustomCourseDetailsReq { id } =
+        req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     let details =
         service::course::get_custom_course_details_by_id(id, &stu_id)
@@ -120,7 +122,7 @@ async fn update_course(req: &mut Request) -> RouterResult {
         pub section: String,
     }
 
-    let body: UpdateCourseReq = req.extract().await?;
+    let body: UpdateCourseReq = req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     service::course::update_customize_course(
         body.id,
@@ -171,7 +173,8 @@ async fn get_classtable(req: &mut Request) -> RouterResult {
         pub xn: u16,
         pub xq: u8,
     }
-    let GetClasstableReq { xn, xq } = req.extract().await?;
+    let GetClasstableReq { xn, xq } =
+        req.extract().await.parse_error()?;
     let classtable =
         service::course::get_classtable(&stu_id, xn, xq).await?;
     Ok(classtable.into())
@@ -185,7 +188,8 @@ async fn get_extra_course(req: &mut Request) -> RouterResult {
         pub xn: u16,
         pub xq: u8,
     }
-    let GetExtraCourseReq { xn, xq } = req.extract().await?;
+    let GetExtraCourseReq { xn, xq } =
+        req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     let extra_course =
         service::course::get_extra_course(&stu_id, xn, xq).await?;

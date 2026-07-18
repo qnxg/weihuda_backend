@@ -1,8 +1,9 @@
-use crate::result::AppError;
+use crate::error::AppError;
+use crate::routers::ThrowParseError;
 use crate::service::jifen::{JifenGoods, JifenRecord, JifenRule};
 use crate::utils;
 use crate::utils::serde::empty_string_as_none;
-use crate::{result::RouterResult, service};
+use crate::{error::RouterResult, service};
 use salvo::macros::Extractible;
 use salvo::{Request, Router, handler};
 use serde::{Deserialize, Serialize};
@@ -28,7 +29,7 @@ async fn get_jifen(req: &mut Request) -> RouterResult {
     let stu_id = utils::jwt::auth(req)?;
     let res = service::jifen::get_jifen(&stu_id)
         .await?
-        .ok_or(AppError::Unauthorized)?;
+        .ok_or_else(AppError::unauthorized)?;
     Ok(res.into())
 }
 
@@ -58,7 +59,8 @@ async fn get_jifen_record(req: &mut Request) -> RouterResult {
         pub count: u32,
         pub rows: Vec<JifenRecord>,
     }
-    let query: GetJifenRecordReq = req.extract().await?;
+    let query: GetJifenRecordReq =
+        req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     let res = service::jifen::get_jifen_record_list(
         &stu_id,
@@ -102,7 +104,7 @@ async fn get_jifen_goods(req: &mut Request) -> RouterResult {
         page,
         page_size,
         name,
-    } = req.extract().await?;
+    } = req.extract().await.parse_error()?;
     let res = service::jifen::get_goods_list(
         name,
         page.unwrap_or(1),
@@ -143,7 +145,8 @@ async fn get_jifen_rules(req: &mut Request) -> RouterResult {
         pub count: u32,
         pub rows: Vec<JifenRule>,
     }
-    let query: GetJifenRulesReq = req.extract().await?;
+    let query: GetJifenRulesReq =
+        req.extract().await.parse_error()?;
     let res = service::jifen::get_jifen_rule_list(
         query.key,
         query.name,
@@ -169,12 +172,15 @@ async fn post_record(req: &mut Request) -> RouterResult {
         #[expect(unused)]
         pub param: String,
     }
-    let PostRecordReq { key, .. } = req.extract().await?;
+    let PostRecordReq { key, .. } =
+        req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     // 这里这么做主要是兼容当前前端
     let res = match key.as_str() {
         "qiandao" => service::jifen::sign_in(&stu_id).await?,
-        _ => return Err("不支持的积分类型".into()),
+        _ => {
+            return Err(AppError::customized("不支持的积分类型"));
+        }
     };
     Ok(res.into())
 }
@@ -190,7 +196,8 @@ async fn exchange_goods(req: &mut Request) -> RouterResult {
     struct ExchangeGoodsReq {
         pub goods_id: u32,
     }
-    let ExchangeGoodsReq { goods_id } = req.extract().await?;
+    let ExchangeGoodsReq { goods_id } =
+        req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     service::jifen::exchange_goods(&stu_id, goods_id).await?;
     Ok("兑换成功".into())
@@ -209,7 +216,7 @@ async fn get_exchange_record_list(req: &mut Request) -> RouterResult {
         pub page_size: Option<u32>,
     }
     let GetExchangeRecordListReq { page, page_size } =
-        req.extract().await?;
+        req.extract().await.parse_error()?;
     let page = page.unwrap_or(1);
     let page_size = page_size.unwrap_or(10);
     let res = service::jifen::get_exchange_record_list(
@@ -226,7 +233,7 @@ async fn get_webview_read(req: &mut Request) -> RouterResult {
     struct GetWebviewReq {
         pub url: String,
     }
-    let GetWebviewReq { url } = req.extract().await?;
+    let GetWebviewReq { url } = req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     let res = service::jifen::read_zhihu(&stu_id, &url).await?;
     Ok(res.into())

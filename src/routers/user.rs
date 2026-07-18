@@ -3,7 +3,7 @@ use salvo::{Request, Router, handler};
 use serde::Serialize;
 
 use crate::{
-    result::RouterResult,
+    error::RouterResult,
     routers::demo::{DEMO_NAME, DEMO_STU_ID},
     service, utils,
 };

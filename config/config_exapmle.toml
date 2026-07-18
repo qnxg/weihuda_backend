@@ -1,6 +1,10 @@
 [server]
 name = "back_2024"
 address = "0.0.0.0:8000"
+# 后端在启动后除了上报 trace 外还会向标准输出中打印日志，日志是 pretty 格式的，便于阅读
+# 日志等级："debug", "info", "warn", "error"
+# 该日志等级只会影响标准输出的日志，不影响上报 trace 的日志等级
+log_level = "info"
 
 [database]
 max_connections = 100
@@ -35,18 +39,12 @@ expired_time = 300
 # 工作量证明难度，值越大，难度越大
 difficulty = 4
 
-[log]
-# 可用的日志等级："debug", "info", "warn", "error"
-filter_level = "error"
-# 有ansi字符美化控制台输出
-with_ansi = false
-# 输出到控制台，当打开时候不会写入到日志。在生产环境中应关闭
-to_stdout = true
-# 日志目录
-directory = "./logs"
-# 日志前缀
-file_name = "qnxg.log"
-# 可用的日志滚动策略："minutely", "hourly", "daily", "never"
-rolling = "daily"
-# 日志输出格式。调试时可以使用 pretty 格式。生产环境中使用 json 格式用于日志收集
-format = "pretty"
+# 可观测性（可选）。如果不配置整个 observability 段，或是不配置 endpoint，则不上报 tracing。
+[observability]
+# GreptimeDB 的 OTLP base（代码会自动在末尾追加 /v1/traces）
+endpoint = "http://localhost:4000/v1/otlp"
+# OTLP resource 的 service.name。不配置时默认为 "weihuda_backend"
+service_name = "weihuda_backend"
+# Basic Auth（GreptimeDB 未开启鉴权时省略下面两行）
+# username = ""
+# password = ""

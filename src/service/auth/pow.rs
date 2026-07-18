@@ -1,4 +1,4 @@
-use crate::{config::CFG, result::AppResult};
+use crate::{config::CFG, error::AppResult};
 use moka::{Expiry, future::Cache};
 use sha2::Digest;
 use std::{sync::LazyLock, time::Duration};

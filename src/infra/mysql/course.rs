@@ -1,5 +1,5 @@
-use super::Result;
 use super::get_db_pool;
+use crate::error::{AppResult, ThrowInternalErrorResult};
 use crate::utils;
 use serde::{Deserialize, Serialize};
 
@@ -14,11 +14,12 @@ pub struct CustomizeCourseInfo {
     pub id: u32,
 }
 
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_course_list(
     stu_id: &str,
     xn: u16,
     xq: u8,
-) -> Result<Vec<CustomizeCourseInfo>> {
+) -> AppResult<Vec<CustomizeCourseInfo>> {
     let res = sqlx::query_as!(
         CustomizeCourseInfo,
         r#"
@@ -29,17 +30,19 @@ pub async fn get_course_list(
         stu_id,
     )
     .fetch_all(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res)
 }
 
 /// CustomizeCourseInfo 的 id 会被忽略
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn add_course(
     course: CustomizeCourseInfo,
     xn: u32,
     xq: u32,
     stu_id: &str,
-) -> Result<()> {
+) -> AppResult<()> {
     let now = utils::time::now_time();
     sqlx::query!(
         r#"
@@ -58,14 +61,16 @@ pub async fn add_course(
         now,
     )
     .execute(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(())
 }
 
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn delete_course(
     course_id: u32,
     stu_id: &str,
-) -> Result<()> {
+) -> AppResult<()> {
     let now = utils::time::now_time();
     sqlx::query!(
         r#"
@@ -77,16 +82,18 @@ pub async fn delete_course(
         stu_id,
     )
     .execute(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(())
 }
 
 /// 更新自定义课程
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn update_course(
     course_id: u32,
     stu_id: &str,
     course: CustomizeCourseInfo,
-) -> Result<()> {
+) -> AppResult<()> {
     let now = utils::time::now_time();
     sqlx::query!(
         r#"
@@ -106,13 +113,15 @@ pub async fn update_course(
         stu_id,
     )
     .execute(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(())
 }
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_custom_course_details_by_id(
     course_id: u32,
     stu_id: &str,
-) -> Result<CustomizeCourseInfo> {
+) -> AppResult<CustomizeCourseInfo> {
     let res = sqlx::query_as!(
         CustomizeCourseInfo,
         r#"
@@ -128,6 +137,7 @@ pub async fn get_custom_course_details_by_id(
         stu_id
     )
     .fetch_one(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res)
 }

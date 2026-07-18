@@ -1,6 +1,6 @@
-use crate::{
+﻿use crate::{
+    error::{AppError, AppResult, ThrowInternalError},
     infra::{self},
-    result::{AppError, AppResult, ThrowError},
     service::user_state::{Xgxt, with_token},
     utils::{
         self,
@@ -15,6 +15,14 @@ pub use infra::mysql::user::update_user_setting;
 /// 带缓存
 ///
 /// - `refresh` 是否强制刷新，如果为 true，则忽略缓存，重新获取
+#[tracing::instrument(
+    fields(
+        otel.kind = "internal", 
+        event_type = "service", 
+        cache_result = "hit",
+    ),
+    err
+)]
 pub async fn get_person_info(
     stu_id: &str,
     refresh: bool,
@@ -25,18 +33,21 @@ pub async fn get_person_info(
     }
     let res = CACHE
         .try_get_with(key, async {
+            utils::record!(cache_result = "miss");
             let person_info =
                 with_token(Xgxt::new(stu_id), async move |token| {
                     hnu_query::xgxt::get_person_info(&token).await
                 })
                 .await?;
             let cached_value = serde_json::to_string(&person_info)
-                .throw_error("序列化个人信息失败")?;
+                .map_err(|e| {
+                    e.internal_err().with("序列化个人信息失败")
+                })?;
             Ok(cached_value)
         })
         .await?;
     let person_info = serde_json::from_str(&res)
-        .throw_error("反序列化个人信息失败")?;
+        .map_err(|e| e.internal_err().with("反序列化个人信息失败"))?;
     Ok(person_info)
 }
 
@@ -50,11 +61,11 @@ pub async fn is_graduate(stu_id: &str) -> AppResult<bool> {
 pub async fn get_password(stu_id: &str) -> AppResult<String> {
     let password = infra::mysql::user::get_password(stu_id)
         .await?
-        .ok_or(AppError::PasswordError)?;
+        .ok_or_else(AppError::password_error)?;
     let password =
         utils::crypto::decrypt(&password).map_err(|e| {
             tracing::error!(error = %e, "解密密码失败");
-            AppError::PasswordError
+            AppError::password_error()
         })?;
     Ok(password)
 }
@@ -62,11 +73,11 @@ pub async fn get_password(stu_id: &str) -> AppResult<String> {
 pub async fn get_lab_password(stu_id: &str) -> AppResult<String> {
     let password = infra::mysql::user::get_lab_password(stu_id)
         .await?
-        .ok_or(AppError::PasswordError)?;
+        .ok_or_else(AppError::password_error)?;
     let password =
         utils::crypto::decrypt(&password).map_err(|e| {
             tracing::error!(error = %e, "解密密码失败");
-            AppError::PasswordError
+            AppError::password_error()
         })?;
     Ok(password)
 }

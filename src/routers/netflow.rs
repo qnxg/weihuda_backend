@@ -4,8 +4,8 @@ use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
 
 use crate::{
-    result::RouterResult,
-    routers::demo::DEMO_STU_ID,
+    error::RouterResult,
+    routers::{ThrowParseError, demo::DEMO_STU_ID},
     service::{
         self,
         netflow::{
@@ -116,7 +116,7 @@ async fn get_netflow_month_detail(req: &mut Request) -> RouterResult {
         pub month: u8,
     }
     let GetNetflowMonthDetailReq { year, month } =
-        req.extract().await?;
+        req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
 
     if stu_id == DEMO_STU_ID {
@@ -156,7 +156,7 @@ async fn get_netflow_day_detail(req: &mut Request) -> RouterResult {
         pub day: u8,
     }
     let GetNetflowDayDetailReq { year, month, day } =
-        req.extract().await?;
+        req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     let res = service::netflow::get_netflow_day_detail(
         &stu_id, year, month, day,

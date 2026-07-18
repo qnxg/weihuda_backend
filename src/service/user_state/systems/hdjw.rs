@@ -4,7 +4,7 @@ use super::{
     framework::{HnuSystem, NextAction},
     with_cas_token,
 };
-use crate::result::{AppResult, ThrowError};
+use crate::error::{AppResult, ThrowInternalErrorResult};
 use hnu_query::hdjw::login::HdjwToken;
 use hnu_query::{Error as SpiderError, hdjw::error::TokenExpired};
 use std::collections::VecDeque;
@@ -70,8 +70,7 @@ impl HnuSystem for Hdjw {
     ) -> AppResult<String> {
         let headers_wrapped =
             SerializableHeaderMap::new(token.headers().clone());
-        serde_json::to_string(&headers_wrapped)
-            .throw_error("序列化 hdjw HeaderMap 失败")
+        serde_json::to_string(&headers_wrapped).internal_err()
     }
     fn deserialize_token(
         &mut self,
@@ -79,7 +78,7 @@ impl HnuSystem for Hdjw {
     ) -> AppResult<HdjwToken> {
         let header =
             serde_json::from_str::<SerializableHeaderMap>(serialized)
-                .throw_error("反序列化 hdjw HeaderMap 失败")?;
+                .internal_err()?;
         Ok(HdjwToken::from_headers_unchecked(header.into_inner()))
     }
     fn handle_retry(
@@ -91,9 +90,10 @@ impl HnuSystem for Hdjw {
             return NextAction::Break;
         }
         match error {
-            SpiderError::NetworkError(..)
-            | SpiderError::Unexpected { .. } => NextAction::Retry,
-            SpiderError::ParseError { .. } => {
+            SpiderError::Network(_) | SpiderError::Unexpected(_) => {
+                NextAction::Retry
+            }
+            SpiderError::Parse(_) => {
                 // 解析错误可能是由于 token 过期
                 if self.token_expired_flag {
                     // 已经过期过了，说明不太可能是令牌过期导致解析错误的

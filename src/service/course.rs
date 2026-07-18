@@ -1,16 +1,15 @@
-use std::collections::HashMap;
-
-use serde::{Deserialize, Serialize};
-
-use crate::{
+﻿use crate::{
+    error::{AppError, AppResult, ThrowInternalErrorResult},
     infra::{self},
-    result::{AppResult, ThrowError},
     service::{
         self,
         user_info::is_graduate,
         user_state::{Hdjw, Yjsxt, with_token},
     },
+    utils,
 };
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 pub use infra::mysql::course::CustomizeCourseInfo;
 pub use infra::mysql::course::add_course as add_customize_course;
@@ -65,19 +64,12 @@ fn push_customize_course(
     let weeks_from_str: Vec<&str> = item.week.split(',').collect();
     let mut weeks = Vec::new();
     for week in weeks_from_str {
-        let week = week
-            .trim()
-            .parse::<u8>()
-            .throw_error("课程周次解析失败")?;
+        let week = week.trim().parse::<u8>().internal_err()?;
         weeks.push(week);
     }
-    let day =
-        item.day.parse::<u8>().throw_error("课程星期解析失败")?;
+    let day = item.day.parse::<u8>().internal_err()?;
     for time in &times {
-        let time = time
-            .trim()
-            .parse::<u8>()
-            .throw_error("课程节次解析失败")?;
+        let time = time.trim().parse::<u8>().internal_err()?;
         let tmp = CourseInfo {
             course_name: item.classname.clone(),
             course_id: None,
@@ -237,6 +229,14 @@ fn apply_flex_time(
 
 /// 包含了用户自定义的课程，同时根据调休将课程进行了调整
 /// 这个函数会生成一个 `Vec<CourseInfo>` 表示课表。`Vec<CourseInfo>` 内的每个元素表示前端课表页面上的一个格子
+#[tracing::instrument(
+    fields(
+        otel.kind = "internal", 
+        event_type = "service", 
+        is_graduate = tracing::field::Empty,
+    ),
+    err
+)]
 pub async fn get_classtable(
     stu_id: &str,
     xn: u16,
@@ -248,19 +248,35 @@ pub async fn get_classtable(
     for item in customize_course {
         push_customize_course(&mut classtable, item)?;
     }
-    if is_graduate(stu_id).await? {
-        let yjsxt_course =
+    let is_graduate = is_graduate(stu_id).await?;
+    utils::record!(is_graduate = is_graduate);
+    if is_graduate {
+        let semester =
             with_token(Yjsxt::new(stu_id), |token| async move {
-                let termcode = hnu_query::yjsxt::term::get_termcode(
-                    &token, xn, xq,
-                )
-                .await?;
-                hnu_query::yjsxt::class_table::get_class_table(
-                    &token, termcode,
-                )
-                .await
+                hnu_query::yjsxt::get_semester(&token).await
             })
             .await?;
+        let semester_id = semester
+            .into_iter()
+            .find_map(|v| {
+                if v.xn == xn && v.xq == xq {
+                    Some(v.id)
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| AppError::customized("学期不存在"))?;
+        let yjsxt_course = with_token(Yjsxt::new(stu_id), |token| {
+            let semester_id_value = &semester_id;
+            async move {
+                hnu_query::yjsxt::class_table::get_class_table(
+                    &token,
+                    semester_id_value,
+                )
+                .await
+            }
+        })
+        .await?;
         for item in yjsxt_course {
             push_yjsxt_course(&mut classtable, item)?;
         }

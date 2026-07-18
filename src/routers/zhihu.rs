@@ -1,9 +1,12 @@
-use crate::utils::serde::empty_string_as_none;
+use crate::{
+    error::AppError, routers::ThrowParseError,
+    utils::serde::empty_string_as_none,
+};
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    result::RouterResult,
+    error::RouterResult,
     service::{self, zhihu::ZhihuListItem},
     utils,
 };
@@ -38,9 +41,9 @@ async fn get_zhihu_page(req: &mut Request) -> RouterResult {
         pub count: u32,
         pub rows: Vec<ZhihuListItem>,
     }
-    let query: GetZhihuPageReq = req.extract().await?;
+    let query: GetZhihuPageReq = req.extract().await.parse_error()?;
     if query.req_count > 100 {
-        return Err("count不能大于100".into());
+        return Err(AppError::customized("count不能大于100"));
     }
     let stu_id = utils::jwt::auth(req)?;
     let (total, rows) = service::zhihu::get_zhihu_list(
@@ -62,11 +65,11 @@ async fn get_zhihu_by_id(req: &mut Request) -> RouterResult {
     struct GetZhihuByIdReq {
         pub id: u32,
     }
-    let GetZhihuByIdReq { id } = req.extract().await?;
+    let GetZhihuByIdReq { id } = req.extract().await.parse_error()?;
     if let Some(zhihu) = service::zhihu::get_zhihu_by_id(id).await? {
         Ok(zhihu.into())
     } else {
-        Err("找不到该知湖文章".into())
+        Err(AppError::customized("找不到该知湖文章"))
     }
 }
 

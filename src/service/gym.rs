@@ -4,7 +4,7 @@ use hnu_query::{
 use serde::Serialize;
 
 use crate::{
-    result::AppResult,
+    error::AppResult,
     service::{
         self,
         user_state::{Gym, with_token},

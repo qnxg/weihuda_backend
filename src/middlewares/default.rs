@@ -1,15 +1,12 @@
+﻿use crate::utils;
 use salvo::{
     Depot, FlowCtrl, Request, Response, handler, writing::Json,
 };
 use serde_json::json;
 
-use crate::result::AppError;
-
 /// 中间件，处理任何无返回体的结果
 ///
-/// 主要用途：
-/// 1.  在请求不存在的接口时返回错误信息
-/// 2.  在接口（错误地）没有返回体的时候返回错误信息
+/// 当请求没有进入 router 层时，响应体的内容为空
 #[handler]
 pub async fn default_middleware(
     req: &mut Request,
@@ -24,20 +21,22 @@ pub async fn default_middleware(
     }
 
     match res.status_code {
-        None => {
-            tracing::error!("服务器未返回有效信息");
-            res.render(AppError::Text(
-                "服务器未返回有效信息".to_string(),
-            ))
-        }
+        // 这种情况下，status code 不可能为 None
+        None => panic!("status code should not be none"),
         Some(status_code) => {
+            let status_message =
+                status_code.canonical_reason().unwrap_or("未知错误");
             res.stuff(
                 status_code,
                 Json(json!({
                     "code": status_code.as_u16(),
                     "data": null,
-                    "msg": status_code.canonical_reason().unwrap_or("未知错误"),
+                    "msg": status_message,
                 })),
+            );
+            utils::record!(
+                otel.status_code = "error",
+                otel.status_message = %status_message,
             );
         }
     }

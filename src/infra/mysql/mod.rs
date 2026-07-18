@@ -18,6 +18,7 @@ use tokio::sync::OnceCell;
 static DB_POOL: OnceCell<MySqlPool> = OnceCell::const_new();
 
 /// # Side Effects
+///
 /// 数据库连接异常时，这个函数可能会结束进程。
 async fn get_db_pool() -> &'static MySqlPool {
     DB_POOL
@@ -45,5 +46,3 @@ async fn get_db_pool() -> &'static MySqlPool {
         })
         .await
 }
-
-type Result<T> = std::result::Result<T, sqlx::Error>;

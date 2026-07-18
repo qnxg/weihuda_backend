@@ -1,7 +1,7 @@
 use salvo::{Request, Router, handler};
 use serde_json::Value;
 
-use crate::{result::RouterResult, service, utils};
+use crate::{error::RouterResult, service, utils};
 
 pub fn routers() -> Router {
     Router::with_path("pt/email").get(get_campus_email_unread_count)
