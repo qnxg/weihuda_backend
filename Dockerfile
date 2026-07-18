@@ -1,7 +1,7 @@
-FROM ubuntu:latest
+FROM debian:trixie-slim
 
-# 安装调试常用工具：ca-certificates、curl、vim、less、procps、iproute2、net-tools、tzdata
-RUN apt-get update && apt-get install -y tzdata && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends curl grep tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
 # 时区设置为 Asia/Shanghai
 ENV TZ=Asia/Shanghai
