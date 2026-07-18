@@ -27,7 +27,7 @@ pub async fn get_openid(code: &str) -> AppResult<String> {
 
     let url = format!(
         "https://api.weixin.qq.com/sns/jscode2session?appid={}&secret={}&js_code={}&grant_type=authorization_code",
-        &CFG.wechat.appid, &CFG.wechat.secret, code,
+        CFG.wechat.appid, CFG.wechat.secret, code,
     );
     let value: OpenID = serde_json::from_str(
         &reqwest::get(&url)
