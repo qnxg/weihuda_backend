@@ -23,9 +23,6 @@ use opentelemetry::trace::TraceContextExt;
 ///     http.response.status_class = %"2xx",
 /// );
 /// ```
-///
-/// [`tracing::record_all!`]: tracing::macro@record_all
-/// [`tracing::Span::current()`]: tracing::Span::current
 macro_rules! record {
     ($($fields:tt)*) => {
         ::tracing::record_all!(::tracing::Span::current(), $($fields)*)

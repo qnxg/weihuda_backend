@@ -185,10 +185,10 @@ where
 /// 该策略假定 HnuSystem 不需要处理 [framework::HnuSystem::Error]
 ///
 /// * 最多重试 [MAX_RETRY_COUNT] 次
-/// * 如果遇到 [SpiderError::ParseError]，则可能是令牌过期导致返回了爬虫库暂时无法识别出来的内容
-///   所以就先大胆假设成令牌过期，刷新令牌重试。如果又遇到 [SpiderError::ParseError]，则大概率是
+/// * 如果遇到 [SpiderError::Parse]，则可能是令牌过期导致返回了爬虫库暂时无法识别出来的内容
+///   所以就先大胆假设成令牌过期，刷新令牌重试。如果又遇到 [SpiderError::Parse]，则大概率是
 ///   真的解析错误。解析错误一般也没必要重试，直接返回。
-/// * 对于 [SpiderError::NetworkError] 和 [SpiderError::Unexpected]，有重试的必要，直接重试。
+/// * 对于 [SpiderError::Network] 和 [SpiderError::Unexpected]，有重试的必要，直接重试。
 fn default_retry_strategy<E: std::error::Error>(
     token_expired_flag: &mut bool,
     tried_count: usize,
