@@ -64,12 +64,12 @@ pub async fn tracing_middleware(
         otel.kind = "server",
         // tracing opentelemetry 会将 otel.name 覆盖掉上面的 span name
         otel.name = %route,
-        // - 当 panic 时，otel.status_code 由 catch_panic 中间件设置，otel.status_message 不会被设置
+        // - 当 panic 时，otel.status_code 由 catch_panic 中间件设置，otel.status_description 不会被设置
         // - 当没有发生 panic 且请求进入 router 层时，将由 error.rs 中渲染 RouterResult 时设置
         //   只要产生了 AppError，无论是否为服务器内部错误，span 的 status code 都会被设置为 error
         // - 当没有发生 panic 且请求没有进入 router 层时，将由 default 中间件设置
         otel.status_code = tracing::field::Empty,
-        otel.status_message = tracing::field::Empty,
+        otel.status_description = tracing::field::Empty,
         // -------- 下面的是我们自己定义的 span 属性 --------
         event_type = "http_request",
         request_id = %request_id,

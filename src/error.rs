@@ -125,7 +125,7 @@ impl Scribe for AppError {
         };
         utils::record!(
             otel.status_code = "error",
-            otel.status_message = %status_message,
+            otel.status_description = %status_message,
         );
     }
 }

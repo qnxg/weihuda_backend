@@ -116,12 +116,12 @@ async fn ca_task_worker(worker_id: u8) {
             originating_span_id =
                 %context.as_ref().map(|(_, span_id)| span_id.clone()).unwrap_or_default(),
             otel.status_code = tracing::field::Empty,
-            otel.status_message = tracing::field::Empty,
+            otel.status_description = tracing::field::Empty,
         );
         if let Err(e) = fetch(&stu_id).instrument(span.clone()).await
         {
             span.record("otel.status_code", "error");
-            span.record("otel.status_message", format!("{e}"));
+            span.record("otel.status_description", format!("{e}"));
         }
         // 无论成功与否，都要从队列中移除，防止重复处理
         queue.remove(&stu_id).await;

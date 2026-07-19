@@ -36,7 +36,7 @@ pub async fn default_middleware(
             );
             utils::record!(
                 otel.status_code = "error",
-                otel.status_message = %status_message,
+                otel.status_description = %status_message,
             );
         }
     }

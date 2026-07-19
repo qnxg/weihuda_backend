@@ -84,7 +84,7 @@ fn panic_hook(info: &PanicHookInfo) {
     let location = info
         .location()
         .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()));
-    // 产生一个 error 等级且不含 message 的 span event，tracing opentelemetry 会自动设置 span 的 status_code 和 status_message
+    // 产生一个 error 等级且不含 message 的 span event，tracing opentelemetry 会自动设置 span 的 status_code 和 status_description
     tracing::error!(error = %format!("thread panicked: {}", msg), ?location);
 }
 
