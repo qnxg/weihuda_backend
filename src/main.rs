@@ -122,7 +122,7 @@ async fn shutdown_signal_handler(handle: ServerHandle) {
         _ = terminate => tracing::info!("terminate signal received"),
     };
 
-    observability::shutdown();
     handle.stop_graceful(None);
+    observability::shutdown();
     std::process::exit(0);
 }
