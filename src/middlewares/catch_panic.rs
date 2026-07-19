@@ -1,7 +1,8 @@
-use crate::result::AppError;
+﻿use crate::error::{AppError, ThrowInternalErrorMsg};
+use crate::utils;
 use futures::FutureExt;
 use salvo::{Depot, FlowCtrl, Request, Response, handler};
-use std::panic::{AssertUnwindSafe, PanicHookInfo};
+use std::panic::AssertUnwindSafe;
 
 #[handler]
 pub async fn catch_panic_middleware(
@@ -15,23 +16,10 @@ pub async fn catch_panic_middleware(
         .await
         .is_err()
     {
-        // 该中间件主要是用来 panic 时返回给用户恰当的错误信息。输出相关日志在 [panic_hook] 中进行。
-        res.render(AppError::Text("服务器内部错误".to_string()));
-    }
-}
-
-pub fn panic_hook(info: &PanicHookInfo) {
-    let msg = info
-        .payload()
-        .downcast_ref::<&str>()
-        .map(|s| s.to_string())
-        .or_else(|| info.payload().downcast_ref::<String>().cloned())
-        .unwrap_or(format!(
-            "Unknown panic, type_id: {:?}",
-            info.payload().type_id()
+        // panic 的内容和产生位置由 panic_hook 记录，放到出现 panic 的 span 的 span event 中
+        utils::record!(panic = true, otel.status_code = "error");
+        res.render(Into::<AppError>::into(
+            "thread panicked".internal_err(),
         ));
-    let location = info
-        .location()
-        .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()));
-    tracing::error!(%msg, ?location, "thread panicked");
+    }
 }

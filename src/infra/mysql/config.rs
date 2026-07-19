@@ -1,5 +1,5 @@
-use super::Result;
 use super::get_db_pool;
+use crate::error::{AppResult, ThrowInternalErrorResult};
 use serde::Serialize;
 
 #[derive(Serialize, Debug)]
@@ -8,7 +8,8 @@ pub struct Config {
     pub value: String,
 }
 
-pub async fn get_config(key: &str) -> Result<Option<Config>> {
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
+pub async fn get_config(key: &str) -> AppResult<Option<Config>> {
     let res = sqlx::query_as!(
         Config,
         r#"
@@ -23,6 +24,7 @@ pub async fn get_config(key: &str) -> Result<Option<Config>> {
         key,
     )
     .fetch_optional(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res)
 }

@@ -1,5 +1,8 @@
-use super::super::cache::{CACHE, CacheEnum};
-use crate::result::{AppError, AppResult, throw_error};
+﻿use super::super::cache::{CACHE, CacheEnum};
+use crate::{
+    error::{AppError, AppResult, ThrowInternalError},
+    utils,
+};
 use hnu_query::Error as SpiderError;
 
 /// 重试时遇到错误时的下一个动作
@@ -107,6 +110,20 @@ pub trait HnuSystem {
 /// # References
 ///
 /// 可以参考 Rust 的闭包机制，async block，GAT，高阶生命周期约束等内容。
+#[tracing::instrument(
+    skip(system, f),
+    fields(
+        otel.kind = "client",
+        event_type = "hnu_call",
+        system = S::name(),
+        stu_id = %system.stu_id(),
+        // 尝试调用 f 多少次
+        tried_count = tracing::field::Empty,
+        // 是否复用了上一次的 token。为 false 说明本次调用刷新了 token
+        token_hit = true
+    ),
+    err
+)]
 pub async fn with_token<S, F, Fut, R>(
     mut system: S,
     f: F,
@@ -120,6 +137,7 @@ where
         .try_get_with(
             (S::cache_key(), system.stu_id().to_string()),
             async {
+                utils::record!(token_hit = false);
                 let token = system.acquire_token().await?;
                 let serialized = system.serialize_token(&token)?;
                 Ok::<_, AppError>(serialized)
@@ -127,59 +145,50 @@ where
         )
         .await?;
     let mut token = system.deserialize_token(&serialized_token)?;
-    let mut retry_count = 0;
+    let mut tried_count = 0;
     loop {
+        tried_count += 1;
+        utils::record!(tried_count = tried_count);
         match f(token.clone()).await {
-            Ok(res) => {
-                if retry_count > 0 {
-                    tracing::warn!(
-                        "在第 {} 次重试后成功请求 {}",
-                        retry_count,
-                        S::name()
-                    );
+            Ok(res) => return Ok(res),
+            Err(e) => {
+                match system.handle_retry(tried_count - 1, &e) {
+                    NextAction::Retry => {
+                        tracing::warn!(
+                            tried_count = %tried_count,
+                            error = %utils::debug_error_chain(&e),
+                            "retry"
+                        );
+                        continue;
+                    }
+                    NextAction::Break => {
+                        return Err(e.internal_err().into());
+                    }
+                    NextAction::Refresh => {
+                        tracing::warn!(
+                            tried_count = %tried_count,
+                            error = %utils::debug_error_chain(&e),
+                            "refresh token"
+                        );
+                        utils::record!(token_hit = false);
+                        let new_token =
+                            system.acquire_token().await?;
+                        let serialized =
+                            system.serialize_token(&new_token)?;
+                        CACHE
+                            .insert(
+                                (
+                                    S::cache_key(),
+                                    system.stu_id().to_string(),
+                                ),
+                                serialized,
+                            )
+                            .await;
+                        token = new_token;
+                        continue;
+                    }
                 }
-                return Ok(res);
             }
-            Err(e) => match system.handle_retry(retry_count, &e) {
-                NextAction::Retry => {
-                    tracing::warn!(
-                        error = ?e,
-                        "在第 {} 次重试后请求 {} 失败",
-                        retry_count,
-                        S::name()
-                    );
-                    retry_count += 1;
-                    continue;
-                }
-                NextAction::Break => {
-                    return Err(throw_error(
-                        e,
-                        &format!("请求 {} 失败", S::name()),
-                    ));
-                }
-                NextAction::Refresh => {
-                    tracing::warn!(
-                        error = ?e,
-                        "在第 {} 次重试后请求 {} 失败，尝试刷新令牌",
-                        retry_count,
-                        S::name()
-                    );
-                    let new_token = system.acquire_token().await?;
-                    let serialized =
-                        system.serialize_token(&new_token)?;
-                    CACHE
-                        .insert(
-                            (
-                                S::cache_key(),
-                                system.stu_id().to_string(),
-                            ),
-                            serialized,
-                        )
-                        .await;
-                    token = new_token;
-                    continue;
-                }
-            },
         }
     }
 }

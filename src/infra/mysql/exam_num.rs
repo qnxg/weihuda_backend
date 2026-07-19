@@ -1,5 +1,5 @@
-use super::Result;
 use super::get_db_pool;
+use crate::error::{AppResult, ThrowInternalErrorResult};
 use crate::utils;
 use serde::Serialize;
 use sqlx::FromRow;
@@ -13,9 +13,10 @@ pub struct ExamNumberInfo {
     pub id: u32,
 }
 
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_exam_num_list(
     stu_id: &str,
-) -> Result<Vec<ExamNumberInfo>> {
+) -> AppResult<Vec<ExamNumberInfo>> {
     let res = sqlx::query_as!(
         ExamNumberInfo,
         r#"
@@ -24,15 +25,17 @@ pub async fn get_exam_num_list(
         stu_id,
     )
     .fetch_all(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res)
 }
 
 /// exam_num 的 id 会被忽略
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn add_exam_num(
     stu_id: &str,
     exam_num: ExamNumberInfo,
-) -> Result<()> {
+) -> AppResult<()> {
     let now = utils::time::now_time();
     sqlx::query!(
         r#"
@@ -46,14 +49,16 @@ pub async fn add_exam_num(
         now,
     )
     .execute(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(())
 }
 
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn delete_exam_num(
     stu_id: &str,
     exam_num_id: u32,
-) -> Result<()> {
+) -> AppResult<()> {
     let now = utils::time::now_time();
     sqlx::query!(
         r#"
@@ -65,6 +70,7 @@ pub async fn delete_exam_num(
         stu_id
     )
     .execute(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(())
 }

@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     config::CFG,
-    result::{AppError, AppResult},
+    error::{AppError, AppResult},
     utils,
 };
 
@@ -31,7 +31,9 @@ static VALIDATION: LazyLock<Validation> = LazyLock::new(|| {
 });
 
 /// 用mini_bind_id和stu_id生成token
-pub fn generate_jwt(stu_id: &str) -> AppResult<String> {
+pub fn generate_jwt(
+    stu_id: &str,
+) -> Result<String, jsonwebtoken::errors::Error> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards")
@@ -55,7 +57,9 @@ pub fn generate_jwt(stu_id: &str) -> AppResult<String> {
     Ok(res)
 }
 
-pub fn parse(token: &str) -> AppResult<String> {
+pub fn parse(
+    token: &str,
+) -> Result<String, jsonwebtoken::errors::Error> {
     let res = decode::<Claims>(
         token,
         &DecodingKey::from_secret(CFG.secret.jwt.as_bytes()),
@@ -72,10 +76,27 @@ pub fn auth(req: &mut Request) -> AppResult<String> {
     let jwt = req
         .headers()
         .get("Authorization")
-        .ok_or(AppError::Unauthorized)?
+        .ok_or_else(|| {
+            tracing::error!("Authorization header is missing");
+            AppError::unauthorized()
+        })?
         .to_str()
-        .map_err(|_| AppError::Unauthorized)?;
-    parse(jwt)
+        .map_err(|e| {
+            tracing::error!(
+                ?e,
+                error_chain = utils::debug_error_chain(&e),
+                "Failed to parse Authorization header"
+            );
+            AppError::unauthorized()
+        })?;
+    parse(jwt).map_err(|e| {
+        tracing::error!(
+            ?e,
+            error_chain = utils::debug_error_chain(&e),
+            "Failed to parse JWT"
+        );
+        AppError::unauthorized()
+    })
 }
 
 #[cfg(test)]

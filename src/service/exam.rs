@@ -1,5 +1,5 @@
 use crate::service::user_state::{Hdjw, with_token};
-use crate::{infra, result::AppResult};
+use crate::{error::AppResult, infra};
 use serde::Serialize;
 
 pub use infra::mysql::exam_num::ExamNumberInfo;

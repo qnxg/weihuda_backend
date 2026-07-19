@@ -1,5 +1,5 @@
 use crate::{
-    result::AppResult,
+    error::AppResult,
     service::user_state::{Pt, with_token},
 };
 use serde::Serialize;

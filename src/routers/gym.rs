@@ -2,8 +2,11 @@ use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
 
 use crate::{
-    result::{AppError, RouterResult},
-    routers::demo::{DEMO_NAME, DEMO_STU_ID},
+    error::{AppError, RouterResult},
+    routers::{
+        ThrowParseError,
+        demo::{DEMO_NAME, DEMO_STU_ID},
+    },
     service::{
         self,
         gym::{
@@ -112,8 +115,11 @@ async fn get_fitness_grade(req: &mut Request) -> RouterResult {
     struct GetFitnessReq {
         pub xn: String,
     }
-    let GetFitnessReq { xn } = req.extract().await?;
-    let xn = xn.parse::<u16>().map_err(|_| AppError::ParseError)?;
+    let GetFitnessReq { xn } = req.extract().await.parse_error()?;
+    let xn = xn.parse::<u16>().map_err(|e| {
+        tracing::error!(error = ?e, "解析学年失败");
+        AppError::parse_error()
+    })?;
     let res = service::gym::get_fitness_grade(&stu_id, xn).await?;
     Ok(res.into())
 }

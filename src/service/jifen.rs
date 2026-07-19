@@ -1,8 +1,8 @@
-use std::sync::OnceLock;
+﻿use std::{sync::OnceLock, time::Instant};
 
 use crate::{
+    error::{AppError, AppResult, ThrowInternalErrorMsg},
     infra::{self},
-    result::{AppError, AppResult},
     service, utils,
 };
 
@@ -71,38 +71,59 @@ pub async fn add_jifen(
     // 获取增加后的积分数值
     let res = infra::mysql::jifen::get_jifen(stu_id)
         .await?
-        .ok_or(AppError::Unauthorized)?;
+        .ok_or_else(|| "积分获取到了空值".internal_err())?;
     Ok(res)
 }
 
 /// 兑换商品，返回减少后的积分数值
+#[tracing::instrument(
+    fields(
+        otel.kind = "internal", 
+        event_type = "service", 
+        // 物品锁等待时间，单位：毫秒
+        lock_wait = tracing::field::Empty,
+        // 物品锁持有时间，只在函数成功执行后记录，单位：毫秒
+        lock_hold = tracing::field::Empty,
+    ),
+    err
+)]
 pub async fn exchange_goods(
     stu_id: &str,
     goods_id: u32,
 ) -> AppResult<i32> {
     const EXCHANGE_GOODS_KEY: &str = "exchange";
-    let goods = service::jifen::get_goods(goods_id).await?.ok_or(
-        AppError::Text(format!("没有找到商品：{}", goods_id)),
-    )?;
+    let goods = service::jifen::get_goods(goods_id)
+        .await?
+        .ok_or_else(|| {
+            AppError::customized(format!(
+                "没有找到商品：{}",
+                goods_id
+            ))
+        })?;
     // 学号和 goods_id 均加锁
     let Some(_guard1) =
         get_jifen_lock(format!("{}-{}", EXCHANGE_GOODS_KEY, stu_id))
     else {
-        return Err("请求过于频繁，请稍后再试(NO_TOAST)".into());
+        return Err(AppError::customized(
+            "请求过于频繁，请稍后再试(NO_TOAST)",
+        ));
     };
+    let timer = Instant::now();
     let _guard2 = goods_lock()[goods_id as usize % 64].lock().await;
+    utils::record!(lock_wait = timer.elapsed().as_millis());
+    let timer = Instant::now();
     // 检查商品库存
     if !goods.enabled {
-        return Err("商品已下架".into());
+        return Err(AppError::customized("商品已下架"));
     }
     if goods.count == 0 {
-        return Err("商品库存不足".into());
+        return Err(AppError::customized("商品库存不足"));
     }
     let user_jifen = service::jifen::get_jifen(stu_id)
         .await?
-        .ok_or(AppError::Unauthorized)?;
+        .ok_or_else(|| "积分获取到了空值".internal_err())?;
     if user_jifen < goods.price {
-        return Err("积分不足".into());
+        return Err(AppError::customized("积分不足"));
     }
     // 减少库存
     infra::mysql::jifen::update_goods_count(goods.id, 1).await?;
@@ -118,6 +139,7 @@ pub async fn exchange_goods(
         -goods.price,
     )
     .await?;
+    utils::record!(lock_hold = timer.elapsed().as_millis());
     Ok(res)
 }
 
@@ -136,9 +158,10 @@ async fn check_jifen_record(
     key: &str,
     param: &str,
 ) -> AppResult<bool> {
-    let jifen_rule = service::jifen::get_jifen_rule(key)
-        .await?
-        .ok_or(AppError::Text(format!("没有积分规则：{}", key)))?;
+    let jifen_rule =
+        service::jifen::get_jifen_rule(key).await?.ok_or_else(
+            || AppError::customized(format!("没有积分规则：{}", key)),
+        )?;
     // 查询是否重复添加
     if service::jifen::get_jifen_record(stu_id, key, param)
         .await?
@@ -173,14 +196,16 @@ pub async fn sign_in(stu_id: &str) -> AppResult<i32> {
     let param =
         utils::time::now_time().format("%Y-%m-%d").to_string();
     let Some(_guard) = get_jifen_lock(lock_key) else {
-        return Err("请求过于频繁，请稍后再试(NO_TOAST)".into());
+        return Err(AppError::customized(
+            "请求过于频繁，请稍后再试(NO_TOAST)",
+        ));
     };
     if !check_jifen_record(stu_id, SIGN_IN_KEY, &param).await? {
-        return Err("已经签到过了".into());
+        return Err(AppError::customized("已经签到过了"));
     }
     let rule = service::jifen::get_jifen_rule(SIGN_IN_KEY)
         .await?
-        .ok_or(AppError::Text("没有 qiandao 规则".to_string()))?;
+        .ok_or_else(|| "没有 qiandao 规则".internal_err())?;
     let res = add_jifen(
         stu_id,
         SIGN_IN_KEY,
@@ -197,15 +222,19 @@ pub async fn read_zhihu(stu_id: &str, url: &str) -> AppResult<i32> {
     const READ_ZHIHU_KEY: &str = "yuedu";
     let lock_key = format!("{}-{}", READ_ZHIHU_KEY, stu_id);
     let Some(_guard) = get_jifen_lock(lock_key) else {
-        return Err("请求过于频繁，请稍后再试(NO_TOAST)".into());
+        return Err(AppError::customized(
+            "请求过于频繁，请稍后再试(NO_TOAST)",
+        ));
     };
     if !check_jifen_record(stu_id, READ_ZHIHU_KEY, url).await? {
         // 前端会特判 NO_TOAST，然后就不会弹出错误提示框
-        return Err("已经阅读或超过单日上限(NO_TOAST)".into());
+        return Err(AppError::customized(
+            "已经阅读或超过单日上限(NO_TOAST)",
+        ));
     }
     let rule = service::jifen::get_jifen_rule(READ_ZHIHU_KEY)
         .await?
-        .ok_or(AppError::Text("没有 yuedu 规则".to_string()))?;
+        .ok_or_else(|| "没有 yuedu 规则".internal_err())?;
     add_jifen(stu_id, READ_ZHIHU_KEY, url, &rule.name, rule.jifen)
         .await?;
     Ok(rule.jifen)

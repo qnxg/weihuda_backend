@@ -1,13 +1,14 @@
 #![expect(unused)]
-use super::Result;
 use super::get_db_pool;
+use crate::error::{AppResult, ThrowInternalErrorResult};
 use crate::utils;
 use anyhow::anyhow;
 use chrono::{DateTime, Local, NaiveDateTime};
 use serde::Serialize;
 
 /// 如果学号不存在，则返回 None
-pub async fn get_jifen(stu_id: &str) -> Result<Option<i32>> {
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
+pub async fn get_jifen(stu_id: &str) -> AppResult<Option<i32>> {
     let res = sqlx::query_scalar!(
         r#"
         SELECT jifen FROM mini_bind WHERE stuId = ?
@@ -15,15 +16,17 @@ pub async fn get_jifen(stu_id: &str) -> Result<Option<i32>> {
         stu_id
     )
     .fetch_optional(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res)
 }
 
 /// 调用前请确保学号是存在的，否则不会产生任何影响
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn update_jifen(
     stu_id: &str,
     increment: i32,
-) -> Result<()> {
+) -> AppResult<()> {
     sqlx::query!(
         r#"
         UPDATE mini_bind
@@ -34,7 +37,8 @@ pub async fn update_jifen(
         stu_id
     )
     .execute(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(())
 }
 
@@ -50,13 +54,14 @@ pub struct JifenRecord {
     pub created_at: NaiveDateTime,
 }
 /// key 和 param 是模糊查询。如果传 None 则表示不限制该字段
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_jifen_record_list(
     stu_id: &str,
     page: u32,
     page_size: u32,
     key: Option<String>,
     param: Option<String>,
-) -> Result<Vec<JifenRecord>> {
+) -> AppResult<Vec<JifenRecord>> {
     let res = sqlx::query_as!(
         JifenRecord,
         r#"
@@ -84,16 +89,18 @@ pub async fn get_jifen_record_list(
         page_size,
     )
     .fetch_all(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res)
 }
 
 /// 获取指定 key 和 param 的用户积分记录
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_jifen_record(
     stu_id: &str,
     key: &str,
     param: &str,
-) -> Result<Option<JifenRecord>> {
+) -> AppResult<Option<JifenRecord>> {
     let res = sqlx::query_as!(
         JifenRecord,
         r#"
@@ -115,16 +122,18 @@ pub async fn get_jifen_record(
         stu_id
     )
     .fetch_optional(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res)
 }
 
 /// 获取某个人指定时间之后的某 key 的积分记录的数量
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_jifen_record_count(
     stu_id: &str,
     key: &str,
     since: NaiveDateTime,
-) -> Result<u32> {
+) -> AppResult<u32> {
     let res = sqlx::query_scalar!(
         r#"
         SELECT 
@@ -139,16 +148,18 @@ pub async fn get_jifen_record_count(
         since
     )
     .fetch_one(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res as u32)
 }
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn add_jifen_record(
     stu_id: &str,
     key: &str,
     param: &str,
     jifen: i32,
     desc: &str,
-) -> Result<u64> {
+) -> AppResult<u64> {
     let now = utils::time::now_time();
     let res = sqlx::query!(
         r#"
@@ -165,7 +176,8 @@ pub async fn add_jifen_record(
         now
     )
     .execute(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res.last_insert_id())
 }
 
@@ -181,12 +193,13 @@ pub struct JifenGoods {
 }
 
 /// name 是模糊查询。如果传 None 则表示不限制该字段
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_goods_list(
     name: Option<String>,
     page: u32,
     page_size: u32,
     enabled: bool,
-) -> Result<Vec<JifenGoods>> {
+) -> AppResult<Vec<JifenGoods>> {
     let res = sqlx::query!(
         r#"
         SELECT 
@@ -214,7 +227,8 @@ pub async fn get_goods_list(
         page_size,
     )
     .fetch_all(get_db_pool().await)
-    .await?
+    .await
+    .internal_err()?
     .into_iter()
     .map(|row| JifenGoods {
         id: row.id,
@@ -229,7 +243,10 @@ pub async fn get_goods_list(
     Ok(res)
 }
 
-pub async fn get_goods(goods_id: u32) -> Result<Option<JifenGoods>> {
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
+pub async fn get_goods(
+    goods_id: u32,
+) -> AppResult<Option<JifenGoods>> {
     let goods = sqlx::query!(
         r#"
         SELECT 
@@ -248,7 +265,8 @@ pub async fn get_goods(goods_id: u32) -> Result<Option<JifenGoods>> {
         goods_id
     )
     .fetch_optional(get_db_pool().await)
-    .await?
+    .await
+    .internal_err()?
     .map(|row| JifenGoods {
         id: row.id,
         name: row.name,
@@ -272,11 +290,12 @@ pub struct GoodsExchangeRecord {
     pub created_at: NaiveDateTime,
 }
 
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_exchange_record_list(
     stu_id: &str,
     page: u32,
     page_size: u32,
-) -> Result<Vec<GoodsExchangeRecord>> {
+) -> AppResult<Vec<GoodsExchangeRecord>> {
     let res = sqlx::query_as!(
         GoodsExchangeRecord,
         r#"
@@ -300,14 +319,16 @@ pub async fn get_exchange_record_list(
         (page - 1) * page_size,
     )
     .fetch_all(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res)
 }
 
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn add_exchange_record(
     stu_id: &str,
     goods_id: u32,
-) -> Result<u64> {
+) -> AppResult<u64> {
     let now = utils::time::now_time();
     let res = sqlx::query!(
         r#"
@@ -321,14 +342,16 @@ pub async fn add_exchange_record(
         now
     )
     .execute(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res.last_insert_id())
 }
 
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn update_goods_count(
     goods_id: u32,
     decrement: i32,
-) -> Result<()> {
+) -> AppResult<()> {
     sqlx::query!(
         r#"
         UPDATE jifen_goods
@@ -339,7 +362,8 @@ pub async fn update_goods_count(
         goods_id
     )
     .execute(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(())
 }
 
@@ -355,13 +379,14 @@ pub struct JifenRule {
     pub is_show: bool,
 }
 /// name 和 key 是模糊查询。如果传 None 则表示不限制该字段
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_jifen_rule_list(
     key: Option<String>,
     name: Option<String>,
     page: u32,
     page_size: u32,
     is_show: bool,
-) -> Result<Vec<JifenRule>> {
+) -> AppResult<Vec<JifenRule>> {
     let res = sqlx::query!(
         r#"
         SELECT 
@@ -388,7 +413,8 @@ pub async fn get_jifen_rule_list(
         (page - 1) * page_size,
     )
     .fetch_all(get_db_pool().await)
-    .await?
+    .await
+    .internal_err()?
     .into_iter()
     .map(|row| JifenRule {
         id: row.id,
@@ -404,7 +430,10 @@ pub async fn get_jifen_rule_list(
 }
 
 /// 获取指定 key 的积分规则
-pub async fn get_jifen_rule(key: &str) -> Result<Option<JifenRule>> {
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
+pub async fn get_jifen_rule(
+    key: &str,
+) -> AppResult<Option<JifenRule>> {
     let res = sqlx::query!(
         r#"
         SELECT 
@@ -424,7 +453,8 @@ pub async fn get_jifen_rule(key: &str) -> Result<Option<JifenRule>> {
         key
     )
     .fetch_optional(get_db_pool().await)
-    .await?
+    .await
+    .internal_err()?
     .map(|row| JifenRule {
         id: row.id,
         key: row.key,

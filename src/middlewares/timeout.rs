@@ -5,7 +5,7 @@ use salvo::{
     http::headers::{Connection, HeaderMapExt},
 };
 
-use crate::result::AppError;
+use crate::error::AppError;
 
 #[handler]
 pub async fn timeout_middleware(
@@ -18,7 +18,7 @@ pub async fn timeout_middleware(
         _ = ctrl.call_next(req, depot, res) => {},
         _ = tokio::time::sleep(Duration::from_secs(60)) => {
             res.headers_mut().typed_insert(Connection::close());
-            res.render(AppError::TimeoutError);
+            res.render(AppError::timeout());
             ctrl.skip_rest();
         }
     }

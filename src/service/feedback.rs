@@ -1,6 +1,6 @@
 use crate::{
+    error::AppResult,
     infra::{self, rabbitmq::RabbitMessage},
-    result::AppResult,
 };
 
 pub use infra::mysql::feedback::FeedbackInfo;

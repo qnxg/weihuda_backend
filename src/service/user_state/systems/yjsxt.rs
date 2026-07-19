@@ -4,7 +4,7 @@ use super::{
     framework::{HnuSystem, NextAction},
     with_cas_token,
 };
-use crate::result::AppResult;
+use crate::error::AppResult;
 use hnu_query::yjsxt::login::YjsxtToken;
 use hnu_query::{Error as SpiderError, yjsxt::error::TokenExpired};
 
@@ -61,9 +61,10 @@ impl HnuSystem for Yjsxt {
             return NextAction::Break;
         }
         match error {
-            SpiderError::NetworkError(..)
-            | SpiderError::Unexpected { .. } => NextAction::Retry,
-            SpiderError::ParseError { .. } => {
+            SpiderError::Network(_) | SpiderError::Unexpected(_) => {
+                NextAction::Retry
+            }
+            SpiderError::Parse(_) => {
                 if self.token_expired_flag {
                     return NextAction::Break;
                 }

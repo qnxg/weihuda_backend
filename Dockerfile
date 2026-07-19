@@ -1,6 +1,6 @@
 FROM debian:trixie-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl grep tzdata \
+RUN apt-get update && apt-get install -y --no-install-recommends curl grep tzdata ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # 时区设置为 Asia/Shanghai

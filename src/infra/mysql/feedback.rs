@@ -1,5 +1,5 @@
-use super::Result;
 use super::get_db_pool;
+use crate::error::{AppResult, ThrowInternalErrorResult};
 use crate::utils;
 use chrono::NaiveDateTime;
 use serde::Serialize;
@@ -16,11 +16,12 @@ pub struct FeedbackInfo {
     pub updated_at: NaiveDateTime,
     pub status: u32,
 }
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_feedback_list(
     stu_id: &str,
     page_size: u32,
     page: u32,
-) -> Result<Vec<FeedbackInfo>> {
+) -> AppResult<Vec<FeedbackInfo>> {
     let res: Vec<FeedbackInfo> = sqlx::query_as!(
         FeedbackInfo,
         r#"
@@ -35,13 +36,15 @@ pub async fn get_feedback_list(
         (page - 1) * page_size
     )
     .fetch_all(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res)
 }
 
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_feedback(
     feedback_id: u32,
-) -> Result<Option<FeedbackInfo>> {
+) -> AppResult<Option<FeedbackInfo>> {
     let res: Option<FeedbackInfo> = sqlx::query_as!(
         FeedbackInfo,
         r#"
@@ -50,16 +53,18 @@ pub async fn get_feedback(
         feedback_id
     )
     .fetch_optional(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res)
 }
 
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn add_feedback(
     desc: &str,
     contact: Option<&String>,
     img_url: Option<&String>,
     stu_id: Option<&str>,
-) -> Result<u64> {
+) -> AppResult<u64> {
     let now = utils::time::now_time();
     let res = sqlx::query!(
         r#"
@@ -76,7 +81,8 @@ pub async fn add_feedback(
         now,
     )
     .execute(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res.last_insert_id())
 }
 
@@ -89,9 +95,10 @@ pub struct FeedbackMsg {
     pub stu_id: String,
     pub created_at: NaiveDateTime,
 }
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_feedback_msg(
     feedback_id: u32,
-) -> Result<Vec<FeedbackMsg>> {
+) -> AppResult<Vec<FeedbackMsg>> {
     let res: Vec<FeedbackMsg> = sqlx::query_as!(
         FeedbackMsg,
         r#"
@@ -104,6 +111,7 @@ pub async fn get_feedback_msg(
         feedback_id
     )
     .fetch_all(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res)
 }

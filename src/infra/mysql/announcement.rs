@@ -1,4 +1,5 @@
-use super::{Result, get_db_pool};
+use super::get_db_pool;
+use crate::error::{AppResult, ThrowInternalErrorResult};
 use chrono::NaiveDateTime;
 use serde::Serialize;
 
@@ -13,9 +14,10 @@ pub struct AnnouncementInfo {
 }
 
 /// count 表示最多获取多少条消息
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_announcement_list(
     count: u32,
-) -> Result<Vec<AnnouncementInfo>> {
+) -> AppResult<Vec<AnnouncementInfo>> {
     let announcement = sqlx::query_as!(
         AnnouncementInfo,
         r#"
@@ -24,6 +26,7 @@ pub async fn get_announcement_list(
         count
     )
     .fetch_all(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(announcement)
 }

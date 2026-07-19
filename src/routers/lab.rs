@@ -1,5 +1,6 @@
 use crate::{
-    result::{AppError, RouterResult},
+    error::RouterResult,
+    routers::ThrowParseError,
     service::{self, lab::CheckPasswordResult},
     utils,
 };
@@ -31,7 +32,8 @@ async fn set_lab_password(req: &mut Request) -> RouterResult {
         pub success: bool,
         pub msg: Option<String>,
     }
-    let SetLabPasswordReq { password } = req.extract().await?;
+    let SetLabPasswordReq { password } =
+        req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     let res =
         service::lab::check_password(&stu_id, &password).await?;
@@ -64,8 +66,13 @@ async fn get_lab_arrange(req: &mut Request) -> RouterResult {
     let stu_id = utils::jwt::auth(req)?;
     match service::lab::get_lab_arrange(&stu_id).await {
         Ok(res) => Ok(res.into()),
-        Err(AppError::PasswordError) => Ok(Value::Null.into()),
-        Err(e) => Err(e),
+        Err(e) => {
+            if e.is_password_error() {
+                Ok(Value::Null.into())
+            } else {
+                Err(e)
+            }
+        }
     }
 }
 
@@ -74,8 +81,13 @@ async fn get_lab_sem_info(req: &mut Request) -> RouterResult {
     let stu_id = utils::jwt::auth(req)?;
     match service::lab::get_sem_info(&stu_id).await {
         Ok(res) => Ok(res.into()),
-        Err(AppError::PasswordError) => Ok(Value::Null.into()),
-        Err(e) => Err(e),
+        Err(e) => {
+            if e.is_password_error() {
+                Ok(Value::Null.into())
+            } else {
+                Err(e)
+            }
+        }
     }
 }
 
@@ -86,12 +98,18 @@ async fn get_lab_grade(req: &mut Request) -> RouterResult {
     struct GetLabGradeReq {
         sem_id: String,
     }
-    let GetLabGradeReq { sem_id } = req.extract().await?;
+    let GetLabGradeReq { sem_id } =
+        req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     match service::lab::get_course(&stu_id, &sem_id).await {
         Ok(res) => Ok(res.into()),
-        Err(AppError::PasswordError) => Ok(Value::Null.into()),
-        Err(e) => Err(e),
+        Err(e) => {
+            if e.is_password_error() {
+                Ok(Value::Null.into())
+            } else {
+                Err(e)
+            }
+        }
     }
 }
 
@@ -100,7 +118,12 @@ async fn get_virtual_lab_grade(req: &mut Request) -> RouterResult {
     let stu_id = utils::jwt::auth(req)?;
     match service::lab::get_virtual_lab_grade(&stu_id).await {
         Ok(res) => Ok(res.into()),
-        Err(AppError::PasswordError) => Ok(Value::Null.into()),
-        Err(e) => Err(e),
+        Err(e) => {
+            if e.is_password_error() {
+                Ok(Value::Null.into())
+            } else {
+                Err(e)
+            }
+        }
     }
 }

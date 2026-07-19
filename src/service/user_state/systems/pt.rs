@@ -6,7 +6,7 @@ use super::{
     framework::{HnuSystem, NextAction},
     with_cas_token,
 };
-use crate::result::{AppResult, ThrowError};
+use crate::error::{AppResult, ThrowInternalErrorResult};
 use hnu_query::{Error as SpiderError, pt::login::PtToken};
 
 pub struct Pt {
@@ -47,8 +47,7 @@ impl HnuSystem for Pt {
     ) -> AppResult<String> {
         let headers_wrapped =
             SerializableHeaderMap::new(token.headers().clone());
-        serde_json::to_string(&headers_wrapped)
-            .throw_error("序列化 pt HeaderMap 失败")
+        serde_json::to_string(&headers_wrapped).internal_err()
     }
     fn deserialize_token(
         &mut self,
@@ -56,7 +55,7 @@ impl HnuSystem for Pt {
     ) -> AppResult<PtToken> {
         let header =
             serde_json::from_str::<SerializableHeaderMap>(serialized)
-                .throw_error("反序列化 pt HeaderMap 失败")?;
+                .internal_err()?;
         Ok(PtToken::from_headers_unchecked(header.into_inner()))
     }
     fn handle_retry(

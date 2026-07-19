@@ -1,6 +1,6 @@
-use crate::{
+﻿use crate::{
+    error::{AppResult, ThrowInternalError, ThrowInternalErrorMsg},
     infra::{self, captcha::LabCaptchaResolver},
-    result::{AppError, AppResult, throw_error},
     service::user_state::{Lab, with_token},
     utils,
 };
@@ -31,8 +31,10 @@ pub async fn check_password(
         // TODO 把检查密码时获取到的 token 缓存起来
         Ok(_) => Ok(CheckPasswordResult::Success),
         Err(SpiderError::Other(LoginIssue::CaptchaError)) => {
-            tracing::warn!("验证码识别失败");
-            Err(AppError::Text("登陆失败，请重试".to_string()))
+            Err("验证码识别失败"
+                .internal_err()
+                .show("登录失败，请重试")
+                .into())
         }
         Err(SpiderError::Other(LoginIssue::PasswordError)) => {
             Ok(CheckPasswordResult::PasswordError)
@@ -40,7 +42,7 @@ pub async fn check_password(
         Err(SpiderError::Other(LoginIssue::OtherError(error))) => {
             Ok(CheckPasswordResult::OtherError(error))
         }
-        Err(e) => Err(throw_error(e, "检查大物实验系统密码失败")),
+        Err(e) => Err(e.internal_err().into()),
     }
 }
 
@@ -204,6 +206,15 @@ pub struct LabScoreDetailItem {
 /// 一学期一般只有一个物理实验课程。如果一个人修了多个实验课程的话，这个函数可能会出现问题，目前的行为是只返回第一个课程的信息
 ///
 /// 返回 None 说明该学期没有课程
+#[tracing::instrument(
+    fields(
+        otel.kind = "internal", 
+        event_type = "service", 
+        // 课程数量
+        course_count = tracing::field::Empty,
+    ),
+    err
+)]
 pub async fn get_course(
     stu_id: &str,
     sem_id: &str,
@@ -220,6 +231,7 @@ pub async fn get_course(
         }
     })
     .await?;
+    utils::record!(course_count = spider_res.len());
     if let Some(course) = spider_res.into_iter().next()
         && let Some(labs) =
             get_lab_grade_detail(stu_id, &course.id, sem_id).await?
