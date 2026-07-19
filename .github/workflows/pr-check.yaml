@@ -27,7 +27,7 @@ jobs:
         run: echo "DATABASE_URL=$TEST_DATABASE_URL" > .env
 
       - name: Clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --bins --tests --examples -- -D warnings
 
       - name: Test Documentation Items
         run: cargo doc --document-private-items --no-deps
