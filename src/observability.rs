@@ -2,6 +2,7 @@ use crate::config::CFG;
 use base64::Engine;
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_otlp::Protocol;
+use opentelemetry_otlp::RetryPolicy;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_otlp::WithHttpConfig;
 use opentelemetry_sdk::Resource;
@@ -70,6 +71,14 @@ fn build_tracer_provider(otlp_base: &str) -> SdkTracerProvider {
         .with_endpoint(&traces_endpoint)
         .with_protocol(Protocol::HttpBinary)
         .with_headers(greptime_headers())
+        // 短暂网络抖动 / 5xx / 429 时指数退避重试；4xx（除 429）不重试。
+        // 退避上限压在 5s，避免拖满 BatchSpanProcessor 默认 30s 导出超时。
+        .with_retry_policy(RetryPolicy {
+            max_retries: 5,
+            initial_delay_ms: 500,
+            max_delay_ms: 5_000,
+            jitter_ms: 200,
+        })
         .build()
         .expect("构建 OTLP SpanExporter 失败");
 
@@ -77,6 +86,12 @@ fn build_tracer_provider(otlp_base: &str) -> SdkTracerProvider {
     let processor = opentelemetry_sdk::trace::span_processor_with_async_runtime::BatchSpanProcessor::builder(
         exporter,
         opentelemetry_sdk::runtime::Tokio,
+    )
+    .with_batch_config(
+        // 估计每个 span 有 5k，我们可以给 1 个 G 的内存来缓存 20 万个 span
+        opentelemetry_sdk::trace::BatchConfigBuilder::default()
+            .with_max_queue_size(200_000)
+            .build(),
     )
     .build();
     SdkTracerProvider::builder()
