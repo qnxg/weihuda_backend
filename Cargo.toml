@@ -68,6 +68,11 @@ sha2 = "0.11.0"
 hex = "0.4.3"
 rsa = { version = "0.9.10", features = ["pem", "sha2"] }
 hnu_query = { version = "5.0.0", features = ["tracing"] }
+
+[[bench]]
+name = "seg_lock_bench"
+harness = false
+
 #[dev-dependencies]
 
 #[profile.release] # 优化发布release编译时的性能和体积，但会影响编译时间，完整编译大约两分钟多
