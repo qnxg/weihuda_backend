@@ -17,7 +17,7 @@ use crate::{
         self,
         user_state::{account_tag::ACCOUNT_TAG, tfa::TFA_TOKEN},
     },
-    utils::{self, seg_lock::SegLock},
+    utils::{self, seg_lock::NewSegLock},
 };
 use framework::NextAction;
 use hnu_query::{
@@ -210,5 +210,5 @@ fn default_retry_strategy<E: std::error::Error>(
     }
 }
 
-pub static USER_LOCK: LazyLock<SegLock<1000>> =
-    LazyLock::new(SegLock::new);
+pub static USER_LOCK: LazyLock<NewSegLock> =
+    LazyLock::new(NewSegLock::new);
