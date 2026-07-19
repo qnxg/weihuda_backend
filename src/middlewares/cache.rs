@@ -178,6 +178,8 @@ pub async fn cache_middleware(
                     "application/json",
                 ),
             );
+            // render(String) 只写 body，需显式设置 200，否则 tracing 中间件会 panic
+            resp.status_code(StatusCode::OK);
             resp.render(cached_value);
             ctrl.skip_rest();
         } else {
