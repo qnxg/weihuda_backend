@@ -1,6 +1,6 @@
-use crate::routers::demo::DEMO_STU_ID;
+use crate::routers::{ThrowParseError, demo::DEMO_STU_ID};
 use crate::service::card::{CardHistory, CardHistoryType, CardInfo};
-use crate::{result::RouterResult, service, utils};
+use crate::{error::RouterResult, service, utils};
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
 
@@ -49,7 +49,7 @@ async fn get_card_history(req: &mut Request) -> RouterResult {
         year,
         month,
         _type: typ,
-    } = req.extract().await?;
+    } = req.extract().await.parse_error()?;
     let history_type = match typ.as_str() {
         "1" => CardHistoryType::Consumption,
         _ => CardHistoryType::Recharge,

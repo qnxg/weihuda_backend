@@ -42,13 +42,3 @@ jobs:
           file: Dockerfile
           push: true
           tags: ${{ vars.DOCKER_HOST }}/weihuda_backend:latest
-
-      - name: Webhook
-        run: |
-          set -e
-          response=$(curl -s -w "%{http_code}" -o response_body.txt "${{ vars.WEBHOOK }}?token=${{ secrets.WEBHOOK_TOKEN }}")
-          cat response_body.txt
-          if [ "$response" != "200" ]; then
-            echo "Webhook failed with HTTP code $response"
-            exit 1
-          fi

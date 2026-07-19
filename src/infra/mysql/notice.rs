@@ -1,5 +1,5 @@
-use super::Result;
 use super::get_db_pool;
+use crate::error::{AppResult, ThrowInternalErrorResult};
 use chrono::NaiveDateTime;
 use serde::Serialize;
 
@@ -15,11 +15,12 @@ pub struct Notice {
     pub created_at: NaiveDateTime,
 }
 
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_notice_list(
     stu_id: &str,
     page: u32,
     page_size: u32,
-) -> Result<Vec<Notice>> {
+) -> AppResult<Vec<Notice>> {
     let res = sqlx::query!(
         r#"
         SELECT 
@@ -45,7 +46,8 @@ pub async fn get_notice_list(
         page_size,
     )
     .fetch_all(get_db_pool().await)
-    .await?
+    .await
+    .internal_err()?
     .into_iter()
     .map(|r| Notice {
         id: r.id,
@@ -61,7 +63,8 @@ pub async fn get_notice_list(
 }
 
 /// result 和 status 如果是 None 就不更新
-pub async fn update_notice(id: u32, status: u32) -> Result<()> {
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
+pub async fn update_notice(id: u32, status: u32) -> AppResult<()> {
     sqlx::query!(
         r#"
             UPDATE 
@@ -75,6 +78,7 @@ pub async fn update_notice(id: u32, status: u32) -> Result<()> {
         id,
     )
     .execute(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(())
 }

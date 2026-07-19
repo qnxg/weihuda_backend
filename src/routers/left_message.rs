@@ -1,12 +1,12 @@
+use crate::error::RouterResult;
+use crate::routers::ThrowParseError;
+use crate::utils::serde::deserialize_naive_datetime;
+use crate::utils::serde::empty_string_as_none;
+use crate::{service, utils};
 use chrono::NaiveDateTime;
 use salvo::Router;
 use salvo::{Request, handler, macros::Extractible};
 use serde::Deserialize;
-
-use crate::result::RouterResult;
-use crate::utils::serde::deserialize_naive_datetime;
-use crate::utils::serde::empty_string_as_none;
-use crate::{service, utils};
 
 pub fn routers() -> Router {
     Router::with_path("message-left").post(post_left_message)
@@ -29,7 +29,8 @@ async fn post_left_message(req: &mut Request) -> RouterResult {
         #[serde(deserialize_with = "empty_string_as_none")]
         pub email: Option<String>,
     }
-    let body: PostLeftMessageReq = req.extract().await?;
+    let body: PostLeftMessageReq =
+        req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
     let is_agree = body.is_agree != 0;
     let is_send = body.is_send != 0;

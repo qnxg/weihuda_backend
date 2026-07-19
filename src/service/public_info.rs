@@ -1,9 +1,10 @@
-use crate::{
-    result::{AppError, AppResult},
+﻿use crate::{
+    error::{AppResult, ThrowInternalErrorMsg},
     service::{
         user_info::is_graduate,
         user_state::{HDJW_TOKEN_POOL, Hdjw, with_token},
     },
+    utils,
 };
 use serde::Serialize;
 
@@ -17,6 +18,24 @@ pub struct EmptyRoom {
     pub exam_seat: u32,
 }
 
+#[tracing::instrument(
+    fields(
+        otel.kind = "internal", 
+        event_type = "service", 
+        is_graduate = tracing::field::Empty,
+        // 使用号池尝试次数
+        tried_count = tracing::field::Empty,
+        // 号池命中结果，有如下几种取值
+        // - borrow: 使用号池账号并成功
+        // - empty: 号池为空，对于本科生，使用自己的账号
+        // - self: 使用自己账号，但是不保证是成功
+        // - break: 号池所有账号都用光了，研究生查询失败
+        outcome = tracing::field::Empty,
+        // 最后使用哪个账号完成了结果返回
+        using_stu_id = tracing::field::Empty,
+    ),
+    err
+)]
 pub async fn get_empty_room(
     stu_id: &str,
     build_id: &str,
@@ -28,6 +47,7 @@ pub async fn get_empty_room(
 ) -> AppResult<Vec<EmptyRoom>> {
     // 是否是硕士/博士
     let is_graduate = is_graduate(stu_id).await?;
+    utils::record!(is_graduate = is_graduate);
 
     // 尝试请求
     let try_query = async |stu_id: &str| {
@@ -66,6 +86,7 @@ pub async fn get_empty_room(
         }
     };
 
+    let mut tried_count = 0;
     for _ in 0..5 {
         // 从号池取最新的号并踢出
         let Some(stu_id_pool) =
@@ -73,20 +94,22 @@ pub async fn get_empty_room(
         else {
             break;
         };
-
+        tried_count += 1;
+        utils::record!(tried_count = tried_count);
         match try_query(&stu_id_pool).await {
             Ok(res) => {
                 try_add_to_pool(&stu_id_pool).await; // 把借出来的账号放回去
+                utils::record!(outcome = "borrow", using_stu_id = %stu_id_pool);
                 return Ok(res);
             }
-            Err(e) => {
-                tracing::error!(err = ?e, tried = ?stu_id_pool, "使用号池查询空教室失败");
+            Err(_) => {
                 // 本科生：失败后直接用自己账号，如果自己账号也是失败就算了
                 // 不一口气把号池消耗完
                 if !is_graduate {
                     return match try_query(stu_id).await {
                         Ok(res) => {
                             try_add_to_pool(stu_id).await;
+                            utils::record!(outcome = "self");
                             Ok(res)
                         }
                         Err(e) => Err(e),
@@ -98,15 +121,20 @@ pub async fn get_empty_room(
 
     if !is_graduate {
         // 号池本来就是空的，则本科生用自己的账号再试一次
+        utils::record!(outcome = "empty");
         return match try_query(stu_id).await {
             Ok(res) => {
                 try_add_to_pool(stu_id).await;
+                utils::record!(using_stu_id = %stu_id);
                 Ok(res)
             }
             Err(e) => Err(e),
         };
     }
     // 研究生就没辙了
-    tracing::error!(tried = ?stu_id, "号池为空，研究生空教室请求失败");
-    Err(AppError::Text("请求失败，请稍后重试".to_string()))
+    utils::record!(outcome = "break");
+    Err("号池耗尽"
+        .internal_err()
+        .show("请求失败，请稍后重试")
+        .into())
 }

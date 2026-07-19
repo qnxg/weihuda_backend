@@ -1,4 +1,4 @@
-use chrono::{Duration, Local, NaiveDateTime};
+﻿use chrono::{Duration, Local, NaiveDateTime};
 use flurry::HashMap;
 use reqwest::StatusCode;
 use salvo::{
@@ -171,15 +171,19 @@ pub async fn cache_middleware(
             return;
         }
         if let Some(cached_value) = cache.get(&index) {
+            utils::record!(cache_result = "hit");
             resp.headers_mut().insert(
                 salvo::http::header::CONTENT_TYPE,
                 salvo::http::HeaderValue::from_static(
                     "application/json",
                 ),
             );
+            // render(String) 只写 body，需显式设置 200，否则 tracing 中间件会 panic
+            resp.status_code(StatusCode::OK);
             resp.render(cached_value);
             ctrl.skip_rest();
         } else {
+            utils::record!(cache_result = "miss");
             ctrl.call_next(req, depot, resp).await;
             if let Some(StatusCode::OK) = resp.status_code {
                 // if let Ok(body) = .await {

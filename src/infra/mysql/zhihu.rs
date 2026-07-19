@@ -1,5 +1,5 @@
-use super::Result;
 use super::get_db_pool;
+use crate::error::{AppResult, ThrowInternalErrorResult};
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
@@ -20,6 +20,7 @@ pub struct ZhihuListItem {
 
 /// title，typ，tags 是模糊匹配，如果传 None 则不进行过滤
 /// 仅显示已发布状态的，或是自己发布的知湖
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_zhihu_list(
     title: Option<String>,
     typ: Option<String>,
@@ -27,7 +28,7 @@ pub async fn get_zhihu_list(
     stu_id: &str,
     offset: u32,
     count: u32,
-) -> Result<Vec<ZhihuListItem>> {
+) -> AppResult<Vec<ZhihuListItem>> {
     let res: Vec<ZhihuListItem> = sqlx::query!(
         r#"
         SELECT 
@@ -60,7 +61,8 @@ pub async fn get_zhihu_list(
         count
     )
     .fetch_all(get_db_pool().await)
-    .await?
+    .await
+    .internal_err()?
     .into_iter()
     .map(|r| ZhihuListItem {
         id: r.id,
@@ -78,12 +80,13 @@ pub async fn get_zhihu_list(
     Ok(res)
 }
 
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_zhihu_count(
     title: Option<String>,
     typ: Option<String>,
     tags: Option<String>,
     stu_id: &str,
-) -> Result<u32> {
+) -> AppResult<u32> {
     let rec = sqlx::query!(
         r#"
         SELECT 
@@ -101,13 +104,15 @@ pub async fn get_zhihu_count(
         stu_id
     )
     .fetch_one(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(rec.count as u32)
 }
 
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn get_zhihu_by_id(
     id: u32,
-) -> Result<Option<ZhihuListItem>> {
+) -> AppResult<Option<ZhihuListItem>> {
     let res: Option<ZhihuListItem> = sqlx::query!(
         r#"
         SELECT 
@@ -129,7 +134,8 @@ pub async fn get_zhihu_by_id(
         id
     )
     .fetch_optional(get_db_pool().await)
-    .await?
+    .await
+    .internal_err()?
     .map(|r| ZhihuListItem {
         id: r.id,
         title: r.title,

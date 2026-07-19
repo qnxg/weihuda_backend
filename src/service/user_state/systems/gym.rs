@@ -5,7 +5,7 @@ use super::{
     with_cas_token,
 };
 use crate::{
-    result::{AppResult, ThrowError},
+    error::{AppResult, ThrowInternalErrorResult},
     service::{self},
 };
 use hnu_query::{
@@ -61,7 +61,7 @@ impl HnuSystem for Gym {
                     &password,
                 )
                 .await
-                .throw_error("直接登录体测系统失败")
+                .internal_err()
             }
         }
     }
@@ -71,8 +71,7 @@ impl HnuSystem for Gym {
     ) -> AppResult<String> {
         let headers_wrapped =
             SerializableHeaderMap::new(token.headers().clone());
-        serde_json::to_string(&headers_wrapped)
-            .throw_error("序列化 gym HeaderMap 失败")
+        serde_json::to_string(&headers_wrapped).internal_err()
     }
     fn deserialize_token(
         &mut self,
@@ -80,7 +79,7 @@ impl HnuSystem for Gym {
     ) -> AppResult<GymToken> {
         let header =
             serde_json::from_str::<SerializableHeaderMap>(serialized)
-                .throw_error("反序列化 gym HeaderMap 失败")?;
+                .internal_err()?;
         Ok(GymToken::from_headers_unchecked(header.into_inner()))
     }
     fn handle_retry(

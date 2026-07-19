@@ -1,6 +1,6 @@
 use salvo::{Router, handler};
 
-use crate::result::RouterResult;
+use crate::error::RouterResult;
 
 static MESSAGE: &str = "I am fine!";
 

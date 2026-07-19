@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    result::RouterResult, routers::demo::DEMO_STU_ID, service, utils,
+    error::RouterResult,
+    routers::{ThrowParseError, demo::DEMO_STU_ID},
+    service, utils,
 };
 
 pub fn routers() -> Router {
@@ -30,7 +32,8 @@ async fn get_electricity(req: &mut Request) -> RouterResult {
     struct GetElectricityReq {
         pub refresh: u8,
     }
-    let GetElectricityReq { refresh } = req.extract().await?;
+    let GetElectricityReq { refresh } =
+        req.extract().await.parse_error()?;
     let res =
         service::electricity::get_electricity(&stu_id, refresh != 0)
             .await?;

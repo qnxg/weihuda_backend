@@ -8,7 +8,8 @@ use rsa::pkcs8::DecodePrivateKey;
 use rsa::{Pkcs1v15Encrypt, RsaPrivateKey};
 
 use crate::config::{CFG, FRONTEND_RSA_PRIVATE_KEY};
-use crate::result::{AppError, ThrowError};
+use crate::error::{AppError, AppResult, ThrowInternalError};
+use crate::utils;
 
 type Aes256CbcEnc = cbc::Encryptor<aes::Aes256>;
 type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
@@ -87,15 +88,38 @@ pub fn decrypt(
 }
 
 /// 解密前端 node-forge RSAES-PKCS1-V1_5 加密的 Base64 密文
-pub fn decrypt_frontend(data: &str) -> Result<String, AppError> {
+pub fn decrypt_frontend(data: &str) -> AppResult<String> {
     let private_key =
         RsaPrivateKey::from_pkcs8_pem(&FRONTEND_RSA_PRIVATE_KEY)
-            .throw_error("解析私钥失败")?;
-    let cipher = base64.decode(data).throw_error("解码密文失败")?;
+            .map_err(|e| {
+                e.internal_err().with("解析前端 RSA 私钥失败")
+            })?;
+    let cipher = base64.decode(data).map_err(|e| {
+        tracing::error!(
+            ?e,
+            error_chain = utils::debug_error_chain(&e),
+            "Failed to decode frontend RSA private key"
+        );
+        AppError::parse_error()
+    })?;
     let plain = private_key
         .decrypt(Pkcs1v15Encrypt, &cipher)
-        .throw_error("解密失败")?;
-    String::from_utf8(plain).throw_error("解密失败")
+        .map_err(|e| {
+            tracing::error!(
+                ?e,
+                error_chain = utils::debug_error_chain(&e),
+                "Failed to decrypt frontend RSA private key"
+            );
+            AppError::parse_error()
+        })?;
+    String::from_utf8(plain).map_err(|e| {
+        tracing::error!(
+            ?e,
+            error_chain = utils::debug_error_chain(&e),
+            "Failed to convert frontend RSA private key to string"
+        );
+        AppError::parse_error()
+    })
 }
 
 #[cfg(test)]

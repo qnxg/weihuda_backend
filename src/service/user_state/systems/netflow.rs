@@ -6,7 +6,7 @@ use super::{
     framework::{HnuSystem, NextAction},
     with_cas_token,
 };
-use crate::result::{AppResult, ThrowError};
+use crate::error::{AppResult, ThrowInternalErrorResult};
 use hnu_query::{Error as SpiderError, netflow::login::NetflowToken};
 
 pub struct Netflow {
@@ -47,8 +47,7 @@ impl HnuSystem for Netflow {
     ) -> AppResult<String> {
         let headers_wrapped =
             SerializableHeaderMap::new(token.headers().clone());
-        serde_json::to_string(&headers_wrapped)
-            .throw_error("序列化 netflow HeaderMap 失败")
+        serde_json::to_string(&headers_wrapped).internal_err()
     }
     fn deserialize_token(
         &mut self,
@@ -56,7 +55,7 @@ impl HnuSystem for Netflow {
     ) -> AppResult<NetflowToken> {
         let header =
             serde_json::from_str::<SerializableHeaderMap>(serialized)
-                .throw_error("反序列化 netflow HeaderMap 失败")?;
+                .internal_err()?;
         Ok(NetflowToken::from_headers_unchecked(header.into_inner()))
     }
     fn handle_retry(

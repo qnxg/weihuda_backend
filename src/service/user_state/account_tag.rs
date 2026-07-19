@@ -1,7 +1,7 @@
 use moka::future::Cache;
 use std::{sync::LazyLock, time::Duration};
 
-use crate::result::AppError;
+use crate::error::AppError;
 
 pub static ACCOUNT_TAG: LazyLock<Cache<String, AppError>> =
     LazyLock::new(|| {

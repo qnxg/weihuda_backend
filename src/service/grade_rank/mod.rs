@@ -1,7 +1,7 @@
 pub mod ca;
 
 use crate::{
-    result::AppResult,
+    error::AppResult,
     service::user_state::{Hdjw, with_token},
 };
 use serde::Serialize;

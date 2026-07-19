@@ -6,8 +6,11 @@ use super::{
     framework::{HnuSystem, NextAction},
 };
 use crate::{
+    error::{
+        AppError, AppResult, ThrowInternalError,
+        ThrowInternalErrorResult,
+    },
     infra::captcha::LabCaptchaResolver,
-    result::{AppError, AppResult, ThrowError, throw_error},
     service::{self},
 };
 use hnu_query::{
@@ -57,18 +60,17 @@ impl HnuSystem for Lab {
         {
             Ok(token) => Ok(token),
             Err(SpiderError::Other(LoginIssue::CaptchaError)) => {
-                Err(AppError::Text("登录失败，请重试".to_string()))
+                Err(AppError::customized("验证码错误"))
             }
             Err(SpiderError::Other(LoginIssue::PasswordError)) => {
-                Err(AppError::PasswordError)
+                Err(AppError::password_error())
             }
             Err(SpiderError::Other(LoginIssue::OtherError(text))) => {
-                tracing::warn!("验证码识别失败");
-                Err(AppError::Text(
+                Err(AppError::customized(
                     text.unwrap_or("登录时发生未知错误".to_string()),
                 ))
             }
-            Err(e) => Err(throw_error(e, "登录大物实验系统失败")),
+            Err(e) => Err(e.internal_err().into()),
         }
     }
     fn serialize_token(
@@ -77,8 +79,7 @@ impl HnuSystem for Lab {
     ) -> AppResult<String> {
         let headers_wrapped =
             SerializableHeaderMap::new(token.headers().clone());
-        serde_json::to_string(&headers_wrapped)
-            .throw_error("序列化 lab HeaderMap 失败")
+        serde_json::to_string(&headers_wrapped).internal_err()
     }
     fn deserialize_token(
         &mut self,
@@ -86,7 +87,7 @@ impl HnuSystem for Lab {
     ) -> AppResult<LabToken> {
         let header =
             serde_json::from_str::<SerializableHeaderMap>(serialized)
-                .throw_error("反序列化 lab HeaderMap 失败")?;
+                .internal_err()?;
         Ok(LabToken::from_headers_unchecked(
             header.into_inner(),
             self.stu_id.as_str(),

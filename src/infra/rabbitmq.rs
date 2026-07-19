@@ -1,6 +1,7 @@
-use crate::{
+﻿use crate::{
     config::CFG,
-    result::{AppResult, ThrowError},
+    error::{AppResult, ThrowInternalErrorResult},
+    utils,
 };
 use lapin::{
     BasicProperties, Channel, Connection, ConnectionProperties,
@@ -25,7 +26,7 @@ pub async fn get_channel() -> AppResult<Channel> {
             Ok::<Channel, lapin::Error>(channel)
         })
         .await
-        .throw_error("连接 RabbitMQ 失败")?;
+        .internal_err()?;
     Ok(channel.clone())
 }
 
@@ -40,20 +41,29 @@ pub enum RabbitMessage {
     },
 }
 
+#[tracing::instrument(
+    skip_all
+    fields(
+        otel.kind = "client", 
+        event_type = "mq", 
+        exchange = tracing::field::Empty,
+        routing_key = tracing::field::Empty,
+    ),
+    err
+)]
 pub async fn publish_message(msg: RabbitMessage) -> AppResult<()> {
     let channel = get_channel().await?;
-    let exchange_name = match msg {
+    let exchange_name = match &msg {
         RabbitMessage::Feedback { .. } => {
             &CFG.rabbitmq.feedback_exchange
         }
     };
+    utils::record!(exchange = %exchange_name);
     let routing_key = match msg {
         RabbitMessage::Feedback { .. } => "",
     };
-
-    let payload = serde_json::to_vec(&msg)
-        .throw_error("序列化 RabbitMQ 消息失败")?;
-
+    utils::record!(routing_key = routing_key);
+    let payload = serde_json::to_vec(&msg).internal_err()?;
     channel
         .basic_publish(
             exchange_name,
@@ -63,9 +73,8 @@ pub async fn publish_message(msg: RabbitMessage) -> AppResult<()> {
             BasicProperties::default(),
         )
         .await
-        .throw_error("发布 RabbitMQ 消息失败")?
+        .internal_err()?
         .await
-        .throw_error("发布 RabbitMQ 消息失败")?;
-
+        .internal_err()?;
     Ok(())
 }

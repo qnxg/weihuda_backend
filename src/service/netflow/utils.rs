@@ -1,22 +1,23 @@
+use super::{NetflowDetailItemRes, NetflowDetailRes};
+use crate::error::{AppResult, ThrowInternalErrorResult};
 use chrono::{
     NaiveDate,
     format::{Parsed, StrftimeItems},
 };
 
-use super::{NetflowDetailItemRes, NetflowDetailRes};
 use hnu_query::netflow::detail::Detail as SpiderNetflowDetail;
 
 /// 解析`%Y-%m`格式的字符串，将其转为当月的第一天。
-pub fn parse_year_month(str: &str) -> Option<NaiveDate> {
+pub fn parse_year_month(str: &str) -> AppResult<NaiveDate> {
     let mut parsed = Parsed::new();
     chrono::format::parse(
         &mut parsed,
         str,
         StrftimeItems::new("%Y-%m"),
     )
-    .ok()?;
-    parsed.set_day(1).ok()?;
-    parsed.to_naive_date().ok()
+    .internal_err()?;
+    parsed.set_day(1).internal_err()?;
+    parsed.to_naive_date().internal_err()
 }
 
 /// 将字节转为 GB
@@ -66,6 +67,6 @@ mod test {
             parse_year_month("2077-3").unwrap(),
             "2077-03-01".parse().unwrap()
         );
-        assert_eq!(parse_year_month("2077-13"), None);
+        assert!(parse_year_month("2077-13").is_err());
     }
 }

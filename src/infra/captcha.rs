@@ -12,6 +12,14 @@ struct CaptchaResponse {
 pub struct LabCaptchaResolver;
 
 impl CaptchaResolver for LabCaptchaResolver {
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            otel.kind = "client",
+            event_type = "captcha",
+        ),
+        err
+    )]
     async fn resolve(
         &self,
         data: &[u8],

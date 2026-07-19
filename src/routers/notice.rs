@@ -1,4 +1,5 @@
-use crate::result::RouterResult;
+use crate::error::RouterResult;
+use crate::routers::ThrowParseError;
 use crate::service::notice::Notice;
 use crate::utils::serde::empty_string_as_none;
 use crate::{service, utils};
@@ -35,7 +36,8 @@ async fn get_notice(req: &mut Request) -> RouterResult {
         pub rows: Vec<Notice>,
     }
     let stu_id = utils::jwt::auth(req)?;
-    let GetNoticeReq { page, page_size } = req.extract().await?;
+    let GetNoticeReq { page, page_size } =
+        req.extract().await.parse_error()?;
     let page = page.unwrap_or(1);
     let page_size = page_size.unwrap_or(10);
     let res =
@@ -57,7 +59,8 @@ async fn put_notice_by_id(req: &mut Request) -> RouterResult {
         pub id: u32,
         pub status: u32,
     }
-    let PutNoticeByIdReq { id, status } = req.extract().await?;
+    let PutNoticeByIdReq { id, status } =
+        req.extract().await.parse_error()?;
     service::notice::update_notice(id, status).await?;
     Ok("更新通知状态成功".into())
 }

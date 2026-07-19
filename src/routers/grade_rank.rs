@@ -1,14 +1,17 @@
-use crate::routers::demo::{
-    DEMO_COURSE_ID, DEMO_COURSE_NAME, DEMO_STU_ID,
-};
-use crate::service::grade_rank::{
-    GradeInfo, HdjwRankDataSource, HdjwRankDisplay, HdjwRankRange,
-};
-use crate::utils::serde::empty_string_as_none;
 use crate::{
-    result::{AppError, RouterResult},
-    service::{self},
-    utils,
+    error::{AppError, RouterResult},
+    routers::{
+        ThrowParseError,
+        demo::{DEMO_COURSE_ID, DEMO_COURSE_NAME, DEMO_STU_ID},
+    },
+    service::{
+        self,
+        grade_rank::{
+            GradeInfo, HdjwRankDataSource, HdjwRankDisplay,
+            HdjwRankRange,
+        },
+    },
+    utils::{self, serde::empty_string_as_none},
 };
 use salvo::{Request, Router, handler, macros::Extractible};
 use serde::Deserialize;
@@ -56,7 +59,7 @@ async fn get_grade(req: &mut Request) -> RouterResult {
         pub xn: u16,
         pub xq: u8,
     }
-    let GetGradeReq { xn, xq } = req.extract().await?;
+    let GetGradeReq { xn, xq } = req.extract().await.parse_error()?;
     let res = service::grade_rank::get_grade(xn, xq, &stu_id).await?;
     Ok(res.into())
 }
@@ -76,23 +79,23 @@ async fn get_rank_from_hdjw(req: &mut Request) -> RouterResult {
         pub data_source: u8,
         pub display: u8,
     }
-    let query: Request = req.extract().await?;
+    let query: Request = req.extract().await.parse_error()?;
     let stu_id = utils::jwt::auth(req)?;
 
     let range = match query.range {
         1 => HdjwRankRange::Major,
         2 => HdjwRankRange::Minor,
-        _ => return Err(AppError::ParseError),
+        _ => return Err(AppError::parse_error()),
     };
     let data_source = match query.data_source {
         1 => HdjwRankDataSource::Total,
         2 => HdjwRankDataSource::Execution,
-        _ => return Err(AppError::ParseError),
+        _ => return Err(AppError::parse_error()),
     };
     let display = match query.display {
         1 => HdjwRankDisplay::Max,
         2 => HdjwRankDisplay::Initial,
-        _ => return Err(AppError::ParseError),
+        _ => return Err(AppError::parse_error()),
     };
 
     let res = service::grade_rank::get_rank_from_hdjw(
@@ -129,7 +132,8 @@ async fn get_grade_detail(req: &mut Request) -> RouterResult {
         pub jx0404id: String,
     }
     let stu_id = utils::jwt::auth(req)?;
-    let GetGradeDetailReq { jx0404id } = req.extract().await?;
+    let GetGradeDetailReq { jx0404id } =
+        req.extract().await.parse_error()?;
     let res =
         service::grade_rank::get_grade_detail(&stu_id, &jx0404id)
             .await?;

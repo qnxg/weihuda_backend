@@ -1,8 +1,9 @@
-use super::Result;
 use super::get_db_pool;
+use crate::error::{AppResult, ThrowInternalErrorResult};
 use crate::utils;
 use chrono::NaiveDateTime;
 
+#[tracing::instrument(skip_all, fields(otel.kind = "client", event_type = "db"), err)]
 pub async fn add_left_message(
     stu_id: &str,
     desc: &str,
@@ -10,7 +11,7 @@ pub async fn add_left_message(
     is_agree: bool,
     send_time: NaiveDateTime,
     is_send: bool,
-) -> Result<u64> {
+) -> AppResult<u64> {
     let now = utils::time::now_time();
     let res = sqlx::query!(
         r#"
@@ -29,6 +30,7 @@ pub async fn add_left_message(
         now,
     )
     .execute(get_db_pool().await)
-    .await?;
+    .await
+    .internal_err()?;
     Ok(res.last_insert_id())
 }

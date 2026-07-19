@@ -1,7 +1,9 @@
-use crate::result::{AppError, RouterResult};
-use crate::service::feedback::FeedbackInfo;
-use crate::utils::serde::empty_string_as_none;
-use crate::{service, utils};
+use crate::{
+    error::{AppError, RouterResult},
+    routers::ThrowParseError,
+    service::{self, feedback::FeedbackInfo},
+    utils::{self, serde::empty_string_as_none},
+};
 use salvo::macros::Extractible;
 use salvo::{Request, Router, handler};
 use serde::{Deserialize, Serialize};
@@ -28,7 +30,8 @@ async fn get_feedback(req: &mut Request) -> RouterResult {
         pub rows: Vec<FeedbackInfo>,
     }
     let stu_id = utils::jwt::auth(req)?;
-    let GetFeedbackReq { page } = req.extract().await?;
+    let GetFeedbackReq { page } =
+        req.extract().await.parse_error()?;
     let res = service::feedback::get_feedback_list(&stu_id, 10, page)
         .await?;
     Ok(GetFeedbackRes {
@@ -56,13 +59,14 @@ async fn add_feedback(req: &mut Request) -> RouterResult {
         pub img_url: Option<String>,
     }
     let stu_id = utils::jwt::auth(req).ok();
-    let feedback: AddFeedbackReq = req.extract().await?;
+    let feedback: AddFeedbackReq =
+        req.extract().await.parse_error()?;
     // 如果已经登陆，那么 stu_id 不看传入的
     // 如果没有登录，传入的 stu_id 必选，但是插入的时候不插入 stu_id，并且必须提供联系方式
     if stu_id.is_none()
         && (feedback.stu_id.is_none() || feedback.contact.is_none())
     {
-        return Err(AppError::ParseError);
+        return Err(AppError::parse_error());
     }
     let mut msg = feedback.desc.clone();
     if stu_id.is_none() {
@@ -93,14 +97,15 @@ async fn get_feedback_msg(req: &mut Request) -> RouterResult {
     struct GetFeedbackMsgReq {
         pub feedback_id: u32,
     }
-    let GetFeedbackMsgReq { feedback_id } = req.extract().await?;
+    let GetFeedbackMsgReq { feedback_id } =
+        req.extract().await.parse_error()?;
     let Some(feedback) =
         service::feedback::get_feedback(feedback_id).await?
     else {
-        return Err("反馈不存在".into());
+        return Err(AppError::customized("反馈不存在"));
     };
     if feedback.stu_id != Some(stu_id) {
-        return Err("反馈不存在".into());
+        return Err(AppError::customized("反馈不存在"));
     }
     let res =
         service::feedback::get_feedback_msg(feedback_id).await?;
