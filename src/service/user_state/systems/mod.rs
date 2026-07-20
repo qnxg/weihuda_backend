@@ -1,4 +1,4 @@
-pub mod ca;
+﻿pub mod ca;
 pub mod framework;
 pub mod gym;
 pub mod hdjw;
@@ -11,8 +11,7 @@ pub mod yjsxt;
 use crate::{
     error::{AppError, AppResult, ThrowInternalError},
     infra::cache::{
-        CacheKey, CacheStrategy, invalidate_cache, update_cache,
-        with_cache,
+        CacheKey, CacheStrategy, update_cache, with_cache,
     },
     service::{
         self,
@@ -151,10 +150,26 @@ where
         Ok(())
     }
 
+    // cas 这里重复登录可能会导致较为严重的问题（特别是 TFA 令牌重写可能会出现未知行为）
+    // 所以这里无论是 token 过期时刷新还是 token 缓存不命中刷新，都需要合入一个 SingleFlight 中执行
+    async fn refresh_cas_cookie(stu_id: &str) -> AppResult<String> {
+        SINGLE_FLIGHT
+            .call(stu_id, async || {
+                check_state(stu_id).await?;
+                let cookies = get_cas_token(stu_id).await?;
+                update_cache(
+                    CasCookieCacheKey::new(stu_id),
+                    cookies.clone(),
+                )
+                .await?;
+                Ok::<_, AppError>(cookies)
+            })
+            .await
+    }
+
     let cookies =
         with_cache(CasCookieCacheKey::new(stu_id), async || {
-            check_state(stu_id).await?;
-            get_cas_token(stu_id).await
+            refresh_cas_cookie(stu_id).await
         })
         .await?;
 
@@ -178,17 +193,7 @@ where
 
     // 走到这里说明旧的 cas_token 过期了，需要刷新
     let cookies = SINGLE_FLIGHT
-        .call(stu_id, async || {
-            check_state(stu_id).await?;
-            invalidate_cache(CasCookieCacheKey::new(stu_id)).await?;
-            let cookies = get_cas_token(stu_id).await?;
-            update_cache(
-                CasCookieCacheKey::new(stu_id),
-                cookies.clone(),
-            )
-            .await?;
-            Ok::<_, AppError>(cookies)
-        })
+        .call(stu_id, async || refresh_cas_cookie(stu_id).await)
         .await?;
     let cas_token = CasToken::from_cookie_unchecked(&cookies, stu_id);
 
