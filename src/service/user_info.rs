@@ -1,54 +1,73 @@
-﻿use crate::{
-    error::{AppError, AppResult, ThrowInternalError},
-    infra::{self},
-    service::user_state::{Xgxt, with_token},
-    utils::{
+﻿use std::time::Duration;
+
+use crate::{
+    error::{AppError, AppResult},
+    infra::{
         self,
-        cache::{CACHE, CacheEnum},
+        cache::{
+            CacheAsyncUpdateResult, CacheKey, CacheStrategy,
+            invalidate_cache, with_cache_async_update,
+        },
     },
+    service::user_state::{Xgxt, with_token},
+    utils,
 };
 
 pub use hnu_query::xgxt::personal_info::{Level, PersonalInfo};
 pub use infra::mysql::user::get_user_setting;
 pub use infra::mysql::user::update_user_setting;
 
+#[derive(Debug, Clone)]
+struct PersonalInfoCacheKey {
+    stu_id: String,
+}
+
+impl PersonalInfoCacheKey {
+    pub fn new(stu_id: &str) -> Self {
+        Self {
+            stu_id: stu_id.to_string(),
+        }
+    }
+}
+
+impl CacheKey for PersonalInfoCacheKey {
+    const PREFIX: &'static str = "personal_info";
+    const VERSION: u64 = 1;
+    type Value = PersonalInfo;
+    fn strategy(&self) -> CacheStrategy {
+        CacheStrategy::new(
+            self.stu_id.clone(),
+            Duration::from_hours(24 * 7),
+        )
+    }
+}
+
 /// 带缓存
 ///
 /// - `refresh` 是否强制刷新，如果为 true，则忽略缓存，重新获取
-#[tracing::instrument(
-    fields(
-        otel.kind = "internal", 
-        event_type = "service", 
-        cache_result = "hit",
-    ),
-    err
-)]
 pub async fn get_person_info(
     stu_id: &str,
     refresh: bool,
 ) -> AppResult<PersonalInfo> {
-    let key = (CacheEnum::PersonalInfo, stu_id.to_string());
+    let key = PersonalInfoCacheKey::new(stu_id);
     if refresh {
-        CACHE.invalidate(&key).await;
+        invalidate_cache(key.clone()).await?;
     }
-    let res = CACHE
-        .try_get_with(key, async {
-            utils::record!(cache_result = "miss");
-            let person_info =
-                with_token(Xgxt::new(stu_id), async move |token| {
-                    hnu_query::xgxt::get_person_info(&token).await
-                })
-                .await?;
-            let cached_value = serde_json::to_string(&person_info)
-                .map_err(|e| {
-                    e.internal_err().with("序列化个人信息失败")
-                })?;
-            Ok(cached_value)
-        })
-        .await?;
-    let person_info = serde_json::from_str(&res)
-        .map_err(|e| e.internal_err().with("反序列化个人信息失败"))?;
-    Ok(person_info)
+    let res = with_cache_async_update(key, || {
+        let stu_id = stu_id.to_string();
+        async move {
+            match with_token(Xgxt::new(stu_id), async move |token| {
+                hnu_query::xgxt::get_person_info(&token).await
+            })
+            .await
+            {
+                Ok(v) => CacheAsyncUpdateResult::Ok(v),
+                Err(e) => CacheAsyncUpdateResult::Extend(e),
+            }
+        }
+    })
+    .await?;
+    Ok(res)
 }
 
 /// 判断学号是否为研究生

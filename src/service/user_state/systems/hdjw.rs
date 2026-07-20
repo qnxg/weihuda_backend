@@ -1,5 +1,5 @@
 use super::{
-    super::{cache::CacheEnum, utils::SerializableHeaderMap},
+    super::utils::SerializableHeaderMap,
     MAX_RETRY_COUNT,
     framework::{HnuSystem, NextAction},
     with_cas_token,
@@ -39,9 +39,6 @@ impl HnuSystem for Hdjw {
     type Error = TokenExpired;
     fn name() -> &'static str {
         "教务系统"
-    }
-    fn cache_key() -> CacheEnum {
-        CacheEnum::HdjwToken
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

@@ -2,13 +2,12 @@
     error::{AppResult, ThrowInternalErrorResult},
     infra,
     service::user_state::{Ca, with_token},
-    utils,
+    utils::{self, task_queue::UniqueTaskQueue},
 };
 use chrono::NaiveDateTime;
 use hnu_query::ca::get_grade_rank as get_rank_from_ca;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
-use tokio::sync::{Mutex, OnceCell, Semaphore};
+use tokio::sync::OnceCell;
 use tracing::Instrument;
 
 const CA_RANK_KEY: &str = "ca_rank";
@@ -43,49 +42,14 @@ struct CaTask {
     context: Option<(String, String)>,
 }
 
-struct CaTaskQueue {
-    /// 队列是等待被 worker 处理的任务
-    /// HashMap 是当前正在处理的学号（去重用）
-    queue: Mutex<(VecDeque<CaTask>, HashMap<String, ()>)>,
-    sem: Semaphore,
+async fn ca_task_queue() -> &'static UniqueTaskQueue<String, CaTask> {
+    static CA_TASK_QUEUE: OnceCell<UniqueTaskQueue<String, CaTask>> =
+        OnceCell::const_new();
+    CA_TASK_QUEUE
+        .get_or_init(|| async { UniqueTaskQueue::new() })
+        .await
 }
-impl CaTaskQueue {
-    pub fn new() -> Self {
-        Self {
-            queue: Mutex::new((VecDeque::new(), HashMap::new())),
-            sem: Semaphore::new(0),
-        }
-    }
 
-    pub async fn push(&self, task: CaTask) {
-        let mut guard = self.queue.lock().await;
-        guard.0.push_back(task);
-        self.sem.add_permits(1);
-    }
-    pub async fn contains(&self, stu_id: &str) -> bool {
-        let guard = self.queue.lock().await;
-        guard.0.iter().any(|t| t.stu_id == stu_id)
-            || guard.1.contains_key(stu_id)
-    }
-    /// 获取到的元素还是会位于队列中，需要再调用 remove 才能完全从队列中删除
-    pub async fn pop(&self) -> CaTask {
-        let rem = self.sem.acquire().await.expect("获取信号量失败");
-        // tokio 的信号量是 RAII 风格的，如果没有 .forget() 的话，信号量在 drop 后会被归还
-        rem.forget();
-        let mut guard = self.queue.lock().await;
-        let task = guard
-            .0
-            .pop_front()
-            .expect("获取到了信号量，但是队列为空");
-        guard.1.insert(task.stu_id.clone(), ());
-        task
-    }
-    pub async fn remove(&self, stu_id: &str) {
-        let mut guard = self.queue.lock().await;
-        guard.1.remove(stu_id);
-    }
-}
-static CA_TASK_QUEUE: OnceCell<CaTaskQueue> = OnceCell::const_new();
 async fn ca_task_worker(worker_id: u8) {
     async fn fetch(stu_id: &str) -> AppResult<()> {
         let rank = with_token(Ca::new(stu_id), async |token| {
@@ -123,15 +87,9 @@ async fn ca_task_worker(worker_id: u8) {
             span.record("otel.status_code", "error");
             span.record("otel.status_description", format!("{e}"));
         }
-        // 无论成功与否，都要从队列中移除，防止重复处理
-        queue.remove(&stu_id).await;
     }
 }
-async fn ca_task_queue() -> &'static CaTaskQueue {
-    CA_TASK_QUEUE
-        .get_or_init(|| async { CaTaskQueue::new() })
-        .await
-}
+
 pub async fn start_ca_task_worker() {
     for worker_id in 0..CA_TASK_WORKER_COUNT {
         tokio::spawn(ca_task_worker(worker_id as u8));
@@ -173,7 +131,7 @@ pub async fn get_ca_rank(stu_id: &str) -> AppResult<Option<CaRank>> {
         otel.kind = "internal", 
         event_type = "ca_task",
         // 是否学号已经在队列了
-        duplicate = false,
+        duplicate = tracing::field::Empty,
     ),
     err
 )]
@@ -181,22 +139,27 @@ pub async fn get_ca_rank(stu_id: &str) -> AppResult<Option<CaRank>> {
 /// 如果已经存在于获取队列中，那么就不会重复发起
 pub async fn refresh_ca_rank(stu_id: &str) -> AppResult<()> {
     let queue = ca_task_queue().await;
-    if queue.contains(stu_id).await {
-        utils::record!(duplicate = "true");
-        return Ok(());
-    }
-    infra::mysql::kv_cache::delete(&format!(
-        "{}:{}",
-        CA_RANK_KEY, stu_id
-    ))
-    .await?;
     // 捕获当前请求的 OTLP trace 上下文，随任务入队，供后台 ca_task span 关联回触发请求
     let context = utils::tracing::current_trace_context();
     queue
-        .push(CaTask {
-            stu_id: stu_id.to_string(),
-            context,
-        })
-        .await;
+        .push(
+            stu_id.to_string(),
+            CaTask {
+                stu_id: stu_id.to_string(),
+                context,
+            },
+            async || {
+                utils::record!(duplicate = true);
+            },
+            async || {
+                utils::record!(duplicate = false);
+                infra::mysql::kv_cache::delete(&format!(
+                    "{}:{}",
+                    CA_RANK_KEY, stu_id
+                ))
+                .await
+            },
+        )
+        .await?;
     Ok(())
 }

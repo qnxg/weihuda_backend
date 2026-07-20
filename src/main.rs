@@ -28,9 +28,9 @@ mod test;
 use crate::{
     config::CFG,
     middlewares::{
-        cache::cache_middleware, catch_panic::catch_panic_middleware,
-        cors::cors_middleware, default::default_middleware,
-        timeout::timeout_middleware, tracing::tracing_middleware,
+        catch_panic::catch_panic_middleware, cors::cors_middleware,
+        default::default_middleware, timeout::timeout_middleware,
+        tracing::tracing_middleware,
     },
 };
 use salvo::prelude::*;
@@ -49,6 +49,7 @@ async fn run() {
     tracing::info!("📓 Log level: {}", &CFG.server.log_level);
     tracing::info!("🚀 Starting Ca Task Worker");
     service::grade_rank::ca::start_ca_task_worker().await;
+    infra::cache::start_async_update_worker().await;
     tracing::info!("🚀 Server {} is starting", &CFG.server.name);
     tracing::info!("🔄 Listening on port: {}", &CFG.server.address);
     let listener = TcpListener::new(&CFG.server.address).bind().await;
@@ -59,7 +60,6 @@ async fn run() {
         .hoop(catch_panic_middleware)
         .hoop(default_middleware)
         .hoop(cors_middleware())
-        .hoop(cache_middleware)
         .hoop(timeout_middleware);
     let server = Server::new(listener);
     let handle = server.handle();

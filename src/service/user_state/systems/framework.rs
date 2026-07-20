@@ -1,9 +1,13 @@
-﻿use super::super::cache::{CACHE, CacheEnum};
-use crate::{
+﻿use crate::{
     error::{AppError, AppResult, ThrowInternalError},
-    utils,
+    infra::cache::{
+        CacheKey, CacheStrategy, invalidate_cache, update_cache,
+        with_cache,
+    },
+    utils::{self, single_flight::SingleFlight},
 };
 use hnu_query::Error as SpiderError;
+use std::{sync::LazyLock, time::Duration};
 
 /// 重试时遇到错误时的下一个动作
 pub enum NextAction {
@@ -21,8 +25,6 @@ pub trait HnuSystem {
     type Error: std::error::Error;
     /// 系统名称，用于显示在日志中
     fn name() -> &'static str;
-    /// 对应的缓存 key
-    fn cache_key() -> CacheEnum;
     /// 当前实例对应的学号
     fn stu_id(&self) -> &str;
     /// 获取令牌
@@ -49,6 +51,36 @@ pub trait HnuSystem {
         error: &SpiderError<Self::Error>,
     ) -> NextAction;
 }
+
+#[derive(Debug, Clone)]
+struct TokenCacheKey {
+    stu_id: String,
+    system: String,
+}
+
+impl TokenCacheKey {
+    fn new(stu_id: &str, system: &str) -> Self {
+        Self {
+            stu_id: stu_id.to_string(),
+            system: system.to_string(),
+        }
+    }
+}
+
+impl CacheKey for TokenCacheKey {
+    const PREFIX: &'static str = "token";
+    const VERSION: u64 = 1;
+    type Value = String;
+    fn strategy(&self) -> CacheStrategy {
+        CacheStrategy::new(
+            format!("{}:{}", self.system, self.stu_id),
+            Duration::from_hours(1),
+        )
+    }
+}
+
+static SINGLE_FLIGHT: LazyLock<SingleFlight<AppResult<String>>> =
+    LazyLock::new(SingleFlight::new);
 
 /// 获取学校对应系统的令牌并进行请求。框架会将自动处理令牌缓存，缓存过期等问题。
 ///
@@ -119,8 +151,8 @@ pub trait HnuSystem {
         stu_id = %system.stu_id(),
         // 尝试调用 f 多少次
         tried_count = tracing::field::Empty,
-        // 是否复用了上一次的 token。为 false 说明本次调用刷新了 token
-        token_hit = true
+        // 是否主动刷新了 token
+        refresh_token = false,
     ),
     err
 )]
@@ -133,17 +165,13 @@ where
     F: Fn(S::Token) -> Fut + Send,
     Fut: Future<Output = Result<R, SpiderError<S::Error>>> + Send,
 {
-    let serialized_token = CACHE
-        .try_get_with(
-            (S::cache_key(), system.stu_id().to_string()),
-            async {
-                utils::record!(token_hit = false);
-                let token = system.acquire_token().await?;
-                let serialized = system.serialize_token(&token)?;
-                Ok::<_, AppError>(serialized)
-            },
-        )
-        .await?;
+    let key = TokenCacheKey::new(system.stu_id(), S::name());
+    let serialized_token = with_cache(key.clone(), async || {
+        let token = system.acquire_token().await?;
+        let serialized = system.serialize_token(&token)?;
+        Ok::<_, AppError>(serialized)
+    })
+    .await?;
     let mut token = system.deserialize_token(&serialized_token)?;
     let mut tried_count = 0;
     loop {
@@ -170,20 +198,35 @@ where
                             error = %utils::debug_error_chain(&e),
                             "refresh token"
                         );
-                        utils::record!(token_hit = false);
-                        let new_token =
-                            system.acquire_token().await?;
-                        let serialized =
-                            system.serialize_token(&new_token)?;
-                        CACHE
-                            .insert(
-                                (
-                                    S::cache_key(),
-                                    system.stu_id().to_string(),
+                        utils::record!(token_refreshed = true);
+                        let serialized = SINGLE_FLIGHT
+                            .call(
+                                &format!(
+                                    "{}:{}",
+                                    S::name(),
+                                    system.stu_id()
                                 ),
-                                serialized,
+                                async || {
+                                    invalidate_cache(key.clone())
+                                        .await?;
+                                    let new_token = system
+                                        .acquire_token()
+                                        .await?;
+                                    let serialized = system
+                                        .serialize_token(
+                                            &new_token,
+                                        )?;
+                                    update_cache(
+                                        key.clone(),
+                                        serialized.clone(),
+                                    )
+                                    .await?;
+                                    Ok::<_, AppError>(serialized)
+                                },
                             )
-                            .await;
+                            .await?;
+                        let new_token =
+                            system.deserialize_token(&serialized)?;
                         token = new_token;
                         continue;
                     }

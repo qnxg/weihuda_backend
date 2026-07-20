@@ -16,7 +16,7 @@ pub async fn timeout_middleware(
 ) {
     tokio::select! {
         _ = ctrl.call_next(req, depot, res) => {},
-        _ = tokio::time::sleep(Duration::from_secs(60)) => {
+        _ = tokio::time::sleep(Duration::from_secs(10)) => {
             res.headers_mut().typed_insert(Connection::close());
             res.render(AppError::timeout());
             ctrl.skip_rest();

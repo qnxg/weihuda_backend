@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
 use super::{
-    super::{cache::CacheEnum, utils::SerializableHeaderMap},
+    super::utils::SerializableHeaderMap,
     default_retry_strategy,
     framework::{HnuSystem, NextAction},
     with_cas_token,
@@ -28,9 +28,6 @@ impl HnuSystem for Xgxt {
     type Error = Infallible;
     fn name() -> &'static str {
         "学工系统"
-    }
-    fn cache_key() -> CacheEnum {
-        CacheEnum::XGXTToken
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

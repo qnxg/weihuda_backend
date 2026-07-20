@@ -8,16 +8,17 @@ pub mod pt;
 pub mod xgxt;
 pub mod yjsxt;
 
-use std::{sync::LazyLock, time::Instant};
-
-use super::cache::{CACHE, CacheEnum};
 use crate::{
     error::{AppError, AppResult, ThrowInternalError},
+    infra::cache::{
+        CacheKey, CacheStrategy, invalidate_cache, update_cache,
+        with_cache,
+    },
     service::{
         self,
         user_state::{account_tag::ACCOUNT_TAG, tfa::TFA_TOKEN},
     },
-    utils::{self, seg_lock::NewSegLock},
+    utils::{self, single_flight::SingleFlight},
 };
 use framework::NextAction;
 use hnu_query::{
@@ -27,8 +28,40 @@ use hnu_query::{
         login::{AccountIssue, CasToken},
     },
 };
+use std::{
+    sync::LazyLock,
+    time::Duration,
+};
 
 pub const MAX_RETRY_COUNT: usize = 3;
+
+static SINGLE_FLIGHT: LazyLock<SingleFlight<AppResult<String>>> =
+    LazyLock::new(SingleFlight::new);
+
+#[derive(Debug, Clone)]
+pub(super) struct CasCookieCacheKey {
+    stu_id: String,
+}
+
+impl CasCookieCacheKey {
+    pub(super) fn new(stu_id: &str) -> Self {
+        Self {
+            stu_id: stu_id.to_string(),
+        }
+    }
+}
+
+impl CacheKey for CasCookieCacheKey {
+    const PREFIX: &'static str = "cas_cookie";
+    const VERSION: u64 = 1;
+    type Value = String;
+    fn strategy(&self) -> CacheStrategy {
+        CacheStrategy::new(
+            self.stu_id.clone(),
+            Duration::from_hours(1),
+        )
+    }
+}
 
 /// 使用 CasToken 进行请求
 ///
@@ -44,13 +77,9 @@ pub const MAX_RETRY_COUNT: usize = 3;
         otel.kind = "client",
         event_type = "hnu_call",
         // 是否复用了上一次的 token。为 false 说明本次调用刷新了 token
-        token_hit = true,
+        token_hit = tracing::field::Empty,
         // 是否是由于 tag 导致直接响应错误的
         tag_hit = false,
-        // 获取锁的等待时间，单位：毫秒
-        lock_wait = tracing::field::Empty,
-        // 持有锁的时间，只在函数成功执行后记录，单位：毫秒
-        lock_hold = tracing::field::Empty,
     ),
     err
 )]
@@ -110,43 +139,38 @@ where
             },
         }
     }
-    // TODO 更细颗粒度的加锁
-    // 这里对学号加锁，确保同一学号同一时刻只有一个请求
-    // 这样可以确保不会有多个请求反复触发 AccountIssue（比如反复触发密码错误，导致账号被锁定）
-    // 同时可以确保 CasToken 过期的话，不会反复刷新 CasToken
-    let timer = Instant::now();
-    let _guard = USER_LOCK.lock(stu_id).await;
-    utils::record!(lock_wait = timer.elapsed().as_millis());
-    let timer = Instant::now();
-    // 上一次就出现了登录问题，直接返回
-    if let Some(err) = ACCOUNT_TAG.get(stu_id).await {
-        utils::record!(tag_hit = true);
-        return Err(err);
-    };
-    // 需要 TFA
-    if TFA_TOKEN.contains_key(stu_id) {
-        return Err(AppError::customized("需要双因子认证"));
+
+    async fn check_state(stu_id: &str) -> AppResult<()> {
+        // 上一次就出现了登录问题，直接返回
+        if let Some(err) = ACCOUNT_TAG.get(stu_id).await {
+            utils::record!(tag_hit = true);
+            return Err(err);
+        };
+        // 需要 TFA
+        if TFA_TOKEN.contains_key(stu_id) {
+            utils::record!(tag_hit = true);
+            return Err(AppError::customized("需要双因子认证"));
+        }
+        Ok(())
     }
-    // 这里只是单纯用一下 moka 的 get_with 如果缓存不命中则刷新的作用，
-    // 由于这里对学号加锁，所以 get_with 的同步作用这里没有利用到
-    let cookies = CACHE
-        .try_get_with(
-            (CacheEnum::CasToken, stu_id.to_string()),
-            async {
-                let cookies = get_cas_token(stu_id).await?;
-                Ok(cookies)
-            },
-        )
+
+    let cookies =
+        with_cache(CasCookieCacheKey::new(stu_id), async || {
+            check_state(stu_id).await?;
+            get_cas_token(stu_id).await
+        })
         .await?;
+
     let cas_token = CasToken::from_cookie_unchecked(&cookies, stu_id);
     let f_result = f(&cas_token).await;
     match f_result {
         Ok(res) => {
-            utils::record!(lock_hold = timer.elapsed().as_millis());
+            utils::record!(token_hit = true);
             return Ok(res);
         }
         Err(e) => match e {
             SpiderError::Other(CasTokenExpired) => {
+                utils::record!(token_hit = false);
                 // 下面继续刷新
             }
             err => {
@@ -154,21 +178,26 @@ where
             }
         },
     }
+
     // 走到这里说明旧的 cas_token 过期了，需要刷新
-    let cookies = get_cas_token(stu_id).await?;
-    CACHE
-        .insert(
-            (CacheEnum::CasToken, stu_id.to_string()),
-            cookies.clone(),
-        )
-        .await;
+    let cookies = SINGLE_FLIGHT
+        .call(stu_id, async || {
+            check_state(stu_id).await?;
+            invalidate_cache(CasCookieCacheKey::new(stu_id)).await?;
+            let cookies = get_cas_token(stu_id).await?;
+            update_cache(
+                CasCookieCacheKey::new(stu_id),
+                cookies.clone(),
+            )
+            .await?;
+            Ok::<_, AppError>(cookies)
+        })
+        .await?;
     let cas_token = CasToken::from_cookie_unchecked(&cookies, stu_id);
+
     let f_result = f(&cas_token).await;
     match f_result {
-        Ok(res) => {
-            utils::record!(lock_hold = timer.elapsed().as_millis());
-            Ok(res)
-        }
+        Ok(res) => Ok(res),
         Err(e) => match e {
             SpiderError::Other(CasTokenExpired) => {
                 Err(e.internal_err().into())
@@ -209,6 +238,3 @@ fn default_retry_strategy<E: std::error::Error>(
         _ => NextAction::Retry,
     }
 }
-
-pub static USER_LOCK: LazyLock<NewSegLock> =
-    LazyLock::new(NewSegLock::new);

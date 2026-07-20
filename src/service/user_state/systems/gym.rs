@@ -1,5 +1,5 @@
 use super::{
-    super::{cache::CacheEnum, utils::SerializableHeaderMap},
+    super::utils::SerializableHeaderMap,
     default_retry_strategy,
     framework::{HnuSystem, NextAction},
     with_cas_token,
@@ -32,9 +32,6 @@ impl HnuSystem for Gym {
     type Error = TokenExpired;
     fn name() -> &'static str {
         "体测系统"
-    }
-    fn cache_key() -> CacheEnum {
-        CacheEnum::GymToken
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

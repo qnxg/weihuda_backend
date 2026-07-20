@@ -1,5 +1,4 @@
 use super::{
-    super::cache::CacheEnum,
     MAX_RETRY_COUNT,
     framework::{HnuSystem, NextAction},
     with_cas_token,
@@ -27,9 +26,6 @@ impl HnuSystem for Yjsxt {
     type Error = TokenExpired;
     fn name() -> &'static str {
         "研究生系统"
-    }
-    fn cache_key() -> CacheEnum {
-        CacheEnum::YjsxtToken
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

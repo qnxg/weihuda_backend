@@ -1,11 +1,12 @@
-﻿use crate::{
+﻿use std::{sync::OnceLock, time::Instant};
+
+use crate::{
     error::{AppError, AppResult, ThrowInternalErrorMsg},
     infra::{self},
-    service,
-    utils::{self, seg_lock::NewSegLock},
+    service, utils,
 };
-use std::{sync::LazyLock, time::Instant};
 
+use dashmap::DashMap;
 pub use infra::mysql::jifen::get_exchange_record_list;
 pub use infra::mysql::jifen::get_goods;
 pub use infra::mysql::jifen::get_goods_list;
@@ -16,11 +17,40 @@ pub use infra::mysql::jifen::get_jifen_record_list;
 pub use infra::mysql::jifen::get_jifen_rule;
 pub use infra::mysql::jifen::get_jifen_rule_list;
 pub use infra::mysql::jifen::{JifenGoods, JifenRecord, JifenRule};
+use tokio::sync::Mutex;
 
-static JIFEN_LOCK: LazyLock<NewSegLock> =
-    LazyLock::new(NewSegLock::new);
-static GOODS_LOCK: LazyLock<NewSegLock> =
-    LazyLock::new(NewSegLock::new);
+pub struct JifenLockGuard(String);
+impl JifenLockGuard {
+    pub fn new(key: String) -> Self {
+        Self(key)
+    }
+}
+impl Drop for JifenLockGuard {
+    fn drop(&mut self) {
+        let lock = JIFEN_LOCK.get_or_init(DashMap::new);
+        lock.remove(&self.0);
+    }
+}
+static JIFEN_LOCK: OnceLock<DashMap<String, ()>> = OnceLock::new();
+/// 尝试获得某 key 对应的锁，如果已经有线程持有锁，则返回 None
+fn get_jifen_lock(key: String) -> Option<JifenLockGuard> {
+    let lock = JIFEN_LOCK.get_or_init(DashMap::new);
+    let mut inserted = false; // 是否已经有线程持有锁
+    lock.entry(key.clone()).or_insert_with(|| {
+        inserted = true;
+    });
+    if inserted {
+        Some(JifenLockGuard::new(key))
+    } else {
+        None
+    }
+}
+
+type GoodsLock = [Mutex<()>; 64];
+static GOODS_LOCK: OnceLock<GoodsLock> = OnceLock::new();
+fn goods_lock() -> &'static GoodsLock {
+    GOODS_LOCK.get_or_init(|| std::array::from_fn(|_| Mutex::new(())))
+}
 
 /// 增加积分，返回添加后用户的积分
 /// 调用前请确保学号是存在的，否则会抛出错误
@@ -62,12 +92,6 @@ pub async fn exchange_goods(
     goods_id: u32,
 ) -> AppResult<i32> {
     const EXCHANGE_GOODS_KEY: &str = "exchange";
-    // 学号和 goods_id 均加锁
-    let timer = Instant::now();
-    let _guard1 = JIFEN_LOCK.lock(stu_id).await;
-    let _guard2 = GOODS_LOCK.lock(&goods_id.to_string()).await;
-    utils::record!(lock_wait = timer.elapsed().as_millis());
-    let timer = Instant::now();
     let goods = service::jifen::get_goods(goods_id)
         .await?
         .ok_or_else(|| {
@@ -76,6 +100,18 @@ pub async fn exchange_goods(
                 goods_id
             ))
         })?;
+    // 学号和 goods_id 均加锁
+    let Some(_guard1) =
+        get_jifen_lock(format!("{}-{}", EXCHANGE_GOODS_KEY, stu_id))
+    else {
+        return Err(AppError::customized(
+            "请求过于频繁，请稍后再试(NO_TOAST)",
+        ));
+    };
+    let timer = Instant::now();
+    let _guard2 = goods_lock()[goods_id as usize % 64].lock().await;
+    utils::record!(lock_wait = timer.elapsed().as_millis());
+    let timer = Instant::now();
     // 检查商品库存
     if !goods.enabled {
         return Err(AppError::customized("商品已下架"));
@@ -156,9 +192,14 @@ async fn check_jifen_record(
 /// 签到，返回增加后，当前的积分
 pub async fn sign_in(stu_id: &str) -> AppResult<i32> {
     const SIGN_IN_KEY: &str = "qiandao";
+    let lock_key = format!("{}-{}", SIGN_IN_KEY, stu_id);
     let param =
         utils::time::now_time().format("%Y-%m-%d").to_string();
-    let _guard = JIFEN_LOCK.lock(stu_id).await;
+    let Some(_guard) = get_jifen_lock(lock_key) else {
+        return Err(AppError::customized(
+            "请求过于频繁，请稍后再试(NO_TOAST)",
+        ));
+    };
     if !check_jifen_record(stu_id, SIGN_IN_KEY, &param).await? {
         return Err(AppError::customized("已经签到过了"));
     }
@@ -179,7 +220,12 @@ pub async fn sign_in(stu_id: &str) -> AppResult<i32> {
 /// 阅读知湖，返回本次积分增量
 pub async fn read_zhihu(stu_id: &str, url: &str) -> AppResult<i32> {
     const READ_ZHIHU_KEY: &str = "yuedu";
-    let _guard = JIFEN_LOCK.lock(stu_id).await;
+    let lock_key = format!("{}-{}", READ_ZHIHU_KEY, stu_id);
+    let Some(_guard) = get_jifen_lock(lock_key) else {
+        return Err(AppError::customized(
+            "请求过于频繁，请稍后再试(NO_TOAST)",
+        ));
+    };
     if !check_jifen_record(stu_id, READ_ZHIHU_KEY, url).await? {
         // 前端会特判 NO_TOAST，然后就不会弹出错误提示框
         return Err(AppError::customized(

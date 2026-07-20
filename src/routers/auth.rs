@@ -374,7 +374,7 @@ async fn tfa_verify(req: &mut Request) -> RouterResult {
             service::user_state::tfa::apply_verified_cas_token(
                 &stu_id, &cas_token,
             )
-            .await;
+            .await?;
             Ok("验证通过".into())
         }
         VerifyResult::CodeError(tfa_token) => {
