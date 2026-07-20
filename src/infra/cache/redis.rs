@@ -1,4 +1,4 @@
-use redis::{Client, aio::MultiplexedConnection};
+use redis::aio::ConnectionManager;
 use tokio::sync::OnceCell;
 
 use crate::{
@@ -6,22 +6,21 @@ use crate::{
     error::{AppResult, ThrowInternalError},
 };
 
-static REDIS_CLIENT: OnceCell<Client> = OnceCell::const_new();
+static REDIS_CONN: OnceCell<ConnectionManager> =
+    OnceCell::const_new();
 
-async fn get_redis_client() -> &'static Client {
-    REDIS_CLIENT
-        .get_or_init(|| async {
-            redis::Client::open(CFG.redis.redis_url.clone())
-                .expect("redis 连接失败")
+pub async fn redis_connection() -> AppResult<ConnectionManager> {
+    let conn = REDIS_CONN
+        .get_or_try_init(|| async {
+            let client =
+                redis::Client::open(CFG.redis.redis_url.clone())
+                    .map_err(|e| {
+                        e.internal_err().with("redis 连接失败")
+                    })?;
+            ConnectionManager::new(client)
+                .await
+                .map_err(|e| e.internal_err().with("redis 连接失败"))
         })
-        .await
-}
-
-pub async fn redis_connection() -> AppResult<MultiplexedConnection> {
-    let client = get_redis_client().await;
-    let connection = client
-        .get_multiplexed_async_connection()
-        .await
-        .map_err(|e| e.internal_err().with("redis 连接失败"))?;
-    Ok(connection)
+        .await?;
+    Ok(conn.clone())
 }
