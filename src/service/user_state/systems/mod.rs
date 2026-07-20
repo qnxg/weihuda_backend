@@ -1,4 +1,4 @@
-﻿pub mod ca;
+pub mod ca;
 pub mod framework;
 pub mod gym;
 pub mod hdjw;
@@ -28,10 +28,7 @@ use hnu_query::{
         login::{AccountIssue, CasToken},
     },
 };
-use std::{
-    sync::LazyLock,
-    time::Duration,
-};
+use std::{sync::LazyLock, time::Duration};
 
 pub const MAX_RETRY_COUNT: usize = 3;
 

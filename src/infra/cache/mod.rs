@@ -2,13 +2,12 @@ mod async_update;
 mod redis;
 
 use crate::{
-    error::{
-        AppError, AppResult,
-        ThrowInternalErrorResult,
-    }, infra::cache::redis::redis_connection, utils::{self, single_flight::SingleFlight},
+    error::{AppError, AppResult, ThrowInternalErrorResult},
+    infra::cache::redis::redis_connection,
+    utils::{self, single_flight::SingleFlight},
 };
-use rand::Rng;
 use ::redis::AsyncCommands;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::{
     any::Any,
@@ -18,7 +17,8 @@ use std::{
 };
 
 pub use async_update::{
-    CacheAsyncUpdateResult, with_cache_async_update, start_async_update_worker
+    CacheAsyncUpdateResult, start_async_update_worker,
+    with_cache_async_update,
 };
 
 static SINGLE_FLIGHT: LazyLock<
@@ -60,12 +60,12 @@ fn random_ttl(duration: Duration) -> u64 {
 }
 
 #[tracing::instrument(
-    skip(f), 
+    skip(f),
     fields(
         otel.kind = "internal",
         event_type = "cache",
-        prefix = tracing::field::Empty, 
-        version = tracing::field::Empty, 
+        prefix = tracing::field::Empty,
+        version = tracing::field::Empty,
         strategy_key = tracing::field::Empty,
         // 如果为 true，表明是这一批次获取同 key 缓存任务中负责去真正获取缓存的任务
         leader = false,
@@ -83,7 +83,11 @@ pub async fn with_cache<K: CacheKey>(
     f: impl AsyncFnOnce() -> AppResult<K::Value>,
 ) -> AppResult<K::Value> {
     let strategy = key.strategy();
-    utils::record!(prefix = K::PREFIX, version = K::VERSION, strategy_key = strategy.key);
+    utils::record!(
+        prefix = K::PREFIX,
+        version = K::VERSION,
+        strategy_key = strategy.key
+    );
     let redis_key =
         format!("{}:{}:{}", K::PREFIX, K::VERSION, strategy.key);
     let result = SINGLE_FLIGHT
@@ -93,17 +97,22 @@ pub async fn with_cache<K: CacheKey>(
                 Ok(Some(value)) => {
                     utils::record!(cached = true);
                     value
-                },
+                }
                 Ok(None) => {
                     utils::record!(cached = false);
                     let value = f().await?;
-                    let update_result = update_cache_inner(&redis_key, value.clone(), strategy.ttl).await;
+                    let update_result = update_cache_inner(
+                        &redis_key,
+                        value.clone(),
+                        strategy.ttl,
+                    )
+                    .await;
                     utils::record!(updated = update_result.is_ok());
                     value
-                },
+                }
                 Err(_) => {
                     utils::record!(redis_failed = true);
-                    
+
                     f().await?
                 }
             };
@@ -119,12 +128,12 @@ pub async fn with_cache<K: CacheKey>(
     Ok(res)
 }
 
-#[tracing::instrument( 
+#[tracing::instrument(
     fields(
         otel.kind = "internal",
         event_type = "cache",
-        prefix = tracing::field::Empty, 
-        version = tracing::field::Empty, 
+        prefix = tracing::field::Empty,
+        version = tracing::field::Empty,
         strategy_key = tracing::field::Empty,
     ),
     err
@@ -134,22 +143,37 @@ pub async fn invalidate_cache<K: CacheKey>(key: K) -> AppResult<()> {
     let strategy = key.strategy();
     let redis_key =
         format!("{}:{}:{}", K::PREFIX, K::VERSION, strategy.key);
-    utils::record!(prefix = K::PREFIX, version = K::VERSION, strategy_key = strategy.key);
+    utils::record!(
+        prefix = K::PREFIX,
+        version = K::VERSION,
+        strategy_key = strategy.key
+    );
     let mut conn = redis_connection().await?;
     let _: () = conn.del(&redis_key).await.internal_err()?;
     Ok(())
 }
 
-async fn update_cache_inner<T: Serialize>(key: &str, value: T, ttl: Duration) -> AppResult<()> {
+async fn update_cache_inner<T: Serialize>(
+    key: &str,
+    value: T,
+    ttl: Duration,
+) -> AppResult<()> {
     let mut conn = redis_connection().await?;
     let json_str = serde_json::to_string(&value).internal_err()?;
-    let _: () = conn.set_ex(key, &json_str, random_ttl(ttl)).await.internal_err()?;
+    let _: () = conn
+        .set_ex(key, &json_str, random_ttl(ttl))
+        .await
+        .internal_err()?;
     Ok(())
 }
 
-async fn get_cache_inner<T: for<'a> Deserialize<'a>>(key: &str) -> AppResult<Option<T>> {
+async fn get_cache_inner<T: for<'a> Deserialize<'a>>(
+    key: &str,
+) -> AppResult<Option<T>> {
     let mut conn = redis_connection().await?;
-    let Some(json_str) = conn.get::<&str, Option<String>>(key).await.internal_err()? else {
+    let Some(json_str) =
+        conn.get::<&str, Option<String>>(key).await.internal_err()?
+    else {
         return Ok(None);
     };
     let value = serde_json::from_str::<T>(&json_str).map_err(|e| {
@@ -170,11 +194,18 @@ async fn get_cache_inner<T: for<'a> Deserialize<'a>>(key: &str) -> AppResult<Opt
     ),
     err
 )]
-pub async fn update_cache<K: CacheKey>(key: K, value: K::Value) -> AppResult<()> {
+pub async fn update_cache<K: CacheKey>(
+    key: K,
+    value: K::Value,
+) -> AppResult<()> {
     let strategy = key.strategy();
     let redis_key =
         format!("{}:{}:{}", K::PREFIX, K::VERSION, strategy.key);
-    utils::record!(prefix = K::PREFIX, version = K::VERSION, strategy_key = strategy.key);
+    utils::record!(
+        prefix = K::PREFIX,
+        version = K::VERSION,
+        strategy_key = strategy.key
+    );
     update_cache_inner(&redis_key, value, strategy.ttl).await
 }
 
@@ -188,10 +219,16 @@ pub async fn update_cache<K: CacheKey>(key: K, value: K::Value) -> AppResult<()>
     ),
     err
 )]
-pub async fn get_cache<K: CacheKey>(key: K) -> AppResult<Option<K::Value>> {
+pub async fn get_cache<K: CacheKey>(
+    key: K,
+) -> AppResult<Option<K::Value>> {
     let strategy = key.strategy();
     let redis_key =
         format!("{}:{}:{}", K::PREFIX, K::VERSION, strategy.key);
-    utils::record!(prefix = K::PREFIX, version = K::VERSION, strategy_key = strategy.key);
+    utils::record!(
+        prefix = K::PREFIX,
+        version = K::VERSION,
+        strategy_key = strategy.key
+    );
     get_cache_inner(&redis_key).await
 }

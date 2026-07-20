@@ -1,4 +1,4 @@
-﻿use crate::{
+use crate::{
     error::{AppError, AppResult, ThrowInternalErrorResult},
     infra::{
         self,
@@ -148,7 +148,7 @@ fn push_hdjw_course(
 fn push_yjsxt_course(
     classtable: &mut Vec<CourseInfo>,
     item: hnu_query::yjsxt::class_table::Course,
-)  {
+) {
     // yjsxt 的 schedule 是 Option<Vec<CourseSchedule>>
     // 如果是无节次课程则为 None，直接跳过
     let Some(schedule) = item.schedule else {
@@ -328,7 +328,7 @@ pub async fn get_classtable(
                         })
                     }
                 })
-                .await 
+                .await
                 {
                     Ok(v) => v,
                     Err(e) => {
