@@ -45,17 +45,25 @@ impl<K: Hash + Eq + Clone, V> UniqueTaskQueue<K, V> {
     }
     /// 如果队列为空，阻塞等待
     ///
+    /// 注意：即使元素被 pop 出去，队列中仍记录着该元素的 `key`，后续同 `key` 元素仍然无法被加入到队列中。
+    /// 你需要在确保元素被完全处理后，调用 [ack] 来允许后续同 `key` 元素可以再次被加入到队列中。
+    ///
     /// # Safety
     ///
     /// 该函数并不能保证任务取消时的安全，调用时请确保当前任务不可能被取消
-    pub async fn pop(&self) -> V {
+    pub async fn pop(&self) -> (K, V) {
         let rem = self.sem.acquire().await.expect("获取信号量失败");
         rem.forget();
         let mut guard = self.queue.lock().await;
-        let (queue, set) = &mut *guard;
+        let (queue, _) = &mut *guard;
         let (key, value) =
             queue.pop_front().expect("获取到了信号量，但是队列为空");
+        (key, value)
+    }
+    /// 确认元素被完全处理后，允许后续同 `key` 元素可以再次被加入到队列中。
+    pub async fn ack(&self, key: K) {
+        let mut guard = self.queue.lock().await;
+        let (_, set) = &mut *guard;
         set.remove(&key);
-        value
     }
 }

@@ -193,11 +193,14 @@ pub async fn start_async_update_worker() {
 
 async fn async_update_worker(worker_id: usize) {
     loop {
-        let AsyncUpdateTask {
-            context,
-            start_time,
-            f,
-        } = ASYNC_UPDATE_QUEUE.pop().await;
+        let (
+            key,
+            AsyncUpdateTask {
+                context,
+                start_time,
+                f,
+            },
+        ) = ASYNC_UPDATE_QUEUE.pop().await;
         let wait_time = start_time.elapsed();
         let span = tracing::info_span!(
             "async_update_worker",
@@ -223,5 +226,6 @@ async fn async_update_worker(worker_id: usize) {
             span.record("otel.status_code", "error");
             span.record("otel.status_description", format!("{e}"));
         }
+        ASYNC_UPDATE_QUEUE.ack(key).await;
     }
 }

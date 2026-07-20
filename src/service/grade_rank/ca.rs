@@ -66,7 +66,7 @@ async fn ca_task_worker(worker_id: u8) {
     }
     let queue = ca_task_queue().await;
     loop {
-        let CaTask { stu_id, context } = queue.pop().await;
+        let (key, CaTask { stu_id, context }) = queue.pop().await;
         // ca_task 宽事件 span（INTERNAL，新 trace 根）。originating_trace_id/span_id 把它
         // 关联回触发请求；其内的 with_token/hnu_call 自动嵌在本 span 之下。
         let span = tracing::info_span!(
@@ -87,6 +87,7 @@ async fn ca_task_worker(worker_id: u8) {
             span.record("otel.status_code", "error");
             span.record("otel.status_description", format!("{e}"));
         }
+        queue.ack(key).await;
     }
 }
 
