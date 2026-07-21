@@ -7,8 +7,8 @@ use super::{
 use crate::error::{AppResult, ThrowInternalErrorResult};
 use hnu_query::hdjw::login::HdjwToken;
 use hnu_query::{Error as SpiderError, hdjw::error::TokenExpired};
-use std::collections::VecDeque;
 use std::sync::LazyLock;
+use std::{collections::VecDeque, time::Duration};
 use tokio::sync::Mutex;
 
 /// 号池最大容量
@@ -39,6 +39,9 @@ impl HnuSystem for Hdjw {
     type Error = TokenExpired;
     fn name() -> &'static str {
         "教务系统"
+    }
+    fn ttl() -> Duration {
+        Duration::from_mins(30)
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

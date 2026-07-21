@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use super::{
     MAX_RETRY_COUNT,
     framework::{HnuSystem, NextAction},
@@ -26,6 +28,9 @@ impl HnuSystem for Yjsxt {
     type Error = TokenExpired;
     fn name() -> &'static str {
         "研究生系统"
+    }
+    fn ttl() -> Duration {
+        Duration::from_mins(10)
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

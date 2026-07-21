@@ -25,6 +25,8 @@ pub trait HnuSystem {
     type Error: std::error::Error;
     /// 系统名称，用于显示在日志中
     fn name() -> &'static str;
+    /// 令牌缓存过期时间
+    fn ttl() -> Duration;
     /// 当前实例对应的学号
     fn stu_id(&self) -> &str;
     /// 获取令牌
@@ -56,13 +58,15 @@ pub trait HnuSystem {
 struct TokenCacheKey {
     stu_id: String,
     system: String,
+    ttl: Duration,
 }
 
 impl TokenCacheKey {
-    fn new(stu_id: &str, system: &str) -> Self {
+    fn new<T: HnuSystem>(system: &T) -> Self {
         Self {
-            stu_id: stu_id.to_string(),
-            system: system.to_string(),
+            stu_id: system.stu_id().to_string(),
+            system: <T as HnuSystem>::name().to_string(),
+            ttl: <T as HnuSystem>::ttl(),
         }
     }
 }
@@ -74,7 +78,7 @@ impl CacheKey for TokenCacheKey {
     fn strategy(&self) -> CacheStrategy {
         CacheStrategy::new(
             format!("{}:{}", self.system, self.stu_id),
-            Duration::from_hours(1),
+            self.ttl,
         )
     }
 }
@@ -165,7 +169,7 @@ where
     F: Fn(S::Token) -> Fut + Send,
     Fut: Future<Output = Result<R, SpiderError<S::Error>>> + Send,
 {
-    let key = TokenCacheKey::new(system.stu_id(), S::name());
+    let key = TokenCacheKey::new(&system);
     let serialized_token = with_cache(key.clone(), async || {
         let token = system.acquire_token().await?;
         let serialized = system.serialize_token(&token)?;

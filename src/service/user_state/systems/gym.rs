@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use super::{
     super::utils::SerializableHeaderMap,
     default_retry_strategy,
@@ -32,6 +34,9 @@ impl HnuSystem for Gym {
     type Error = TokenExpired;
     fn name() -> &'static str {
         "体测系统"
+    }
+    fn ttl() -> Duration {
+        Duration::from_mins(10)
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

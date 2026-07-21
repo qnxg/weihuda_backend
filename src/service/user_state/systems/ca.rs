@@ -1,4 +1,4 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, time::Duration};
 
 use super::{
     super::utils::SerializableHeaderMap,
@@ -28,6 +28,9 @@ impl HnuSystem for Ca {
     type Error = Infallible;
     fn name() -> &'static str {
         "可信电子凭证系统"
+    }
+    fn ttl() -> Duration {
+        Duration::from_mins(10)
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

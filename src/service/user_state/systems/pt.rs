@@ -6,7 +6,7 @@ use super::{
 };
 use crate::error::{AppResult, ThrowInternalErrorResult};
 use hnu_query::{Error as SpiderError, pt::login::PtToken};
-use std::convert::Infallible;
+use std::{convert::Infallible, time::Duration};
 
 pub struct Pt {
     stu_id: String,
@@ -27,6 +27,9 @@ impl HnuSystem for Pt {
     type Error = Infallible;
     fn name() -> &'static str {
         "个人门户"
+    }
+    fn ttl() -> Duration {
+        Duration::from_mins(30)
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()
