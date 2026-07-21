@@ -46,7 +46,7 @@ pub struct CourseInfo {
     pub people: u16,       // 上课人数
 }
 
-#[derive(Serialize, Debug, Default, Clone)]
+#[derive(Serialize, Debug, Default, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtraCourseInfo {
     pub class_name: String,  // 上课班级
@@ -399,6 +399,35 @@ pub async fn get_classtable(
     Ok(classtable)
 }
 
+#[derive(Debug)]
+struct ExtraCourseCacheKey {
+    stu_id: String,
+    xn: u16,
+    xq: u8,
+}
+
+impl ExtraCourseCacheKey {
+    pub fn new(stu_id: &str, xn: u16, xq: u8) -> Self {
+        Self {
+            stu_id: stu_id.to_string(),
+            xn,
+            xq,
+        }
+    }
+}
+
+impl CacheKey for ExtraCourseCacheKey {
+    const PREFIX: &'static str = "extra_course";
+    const VERSION: u64 = 1;
+    type Value = Vec<hnu_query::hdjw::class_table::ExtraCourse>;
+    fn strategy(&self) -> CacheStrategy {
+        CacheStrategy::new(
+            format!("{}:{}:{}", self.xn, self.xq, self.stu_id),
+            Duration::from_hours(24 * 7),
+        )
+    }
+}
+
 pub async fn get_extra_course(
     stu_id: &str,
     xn: u16,
@@ -408,12 +437,47 @@ pub async fn get_extra_course(
     if is_graduate(stu_id).await? {
         return Ok(Vec::new());
     }
-    let spider_res =
-        with_token(Hdjw::new(stu_id), |token| async move {
-            hnu_query::hdjw::get_class_table_extra(&token, xn, xq)
+    let spider_res = with_cache_async_update(
+        ExtraCourseCacheKey::new(stu_id, xn, xq),
+        || {
+            let stu_id = stu_id.to_string();
+            async move {
+                let keep = Arc::new(std::sync::Mutex::new(true));
+                match with_token(Hdjw::new(stu_id), |token| {
+                    let keep = keep.clone();
+                    async move {
+                        hnu_query::hdjw::get_class_table_extra(
+                            &token, xn, xq,
+                        )
+                        .await
+                        .map_err(|e| {
+                            if matches!(e, hnu_query::Error::Parse(_))
+                            {
+                                *keep
+                                    .lock()
+                                    .expect("failed to lock mutex") =
+                                    false;
+                            }
+                            e
+                        })
+                    }
+                })
                 .await
-        })
-        .await?;
+                {
+                    Ok(v) => CacheAsyncUpdateResult::Ok(v),
+                    Err(e) => {
+                        if *keep.lock().expect("failed to lock mutex")
+                        {
+                            CacheAsyncUpdateResult::Extend(e)
+                        } else {
+                            CacheAsyncUpdateResult::Err(e)
+                        }
+                    }
+                }
+            }
+        },
+    )
+    .await?;
     let mut res = Vec::new();
     for item in spider_res {
         res.push(ExtraCourseInfo {
