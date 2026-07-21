@@ -1,21 +1,45 @@
-﻿use crate::{
+﻿use std::time::Duration;
+
+use crate::{
     error::{
         AppResult, ThrowInternalErrorMsg, ThrowInternalErrorResult,
     },
+    infra::cache::{
+        CacheKey, CacheStrategy, invalidate_cache, with_cache,
+    },
     service::{self},
-    utils,
-    utils::cache::{CACHE, CacheEnum::Electricity},
 };
 
+#[derive(Debug, Clone)]
+struct ElectricityCacheKey {
+    park: String,
+    build: String,
+    room: String,
+}
+
+impl ElectricityCacheKey {
+    fn new(park: &str, build: &str, room: &str) -> Self {
+        Self {
+            park: park.to_string(),
+            build: build.to_string(),
+            room: room.to_string(),
+        }
+    }
+}
+
+impl CacheKey for ElectricityCacheKey {
+    const PREFIX: &'static str = "electricity";
+    const VERSION: u64 = 1;
+    type Value = String;
+    fn strategy(&self) -> CacheStrategy {
+        CacheStrategy::new(
+            format!("{}:{}:{}", self.park, self.build, self.room),
+            Duration::from_hours(4),
+        )
+    }
+}
+
 /// 默认情况下是带缓存的，设置 refresh=true 则强制刷新
-#[tracing::instrument(
-    fields(
-        otel.kind = "internal",
-        event_type = "service", 
-        cache_result = tracing::field::Empty,
-    ),
-    err
-)]
 pub async fn get_electricity(
     stu_id: &str,
     refresh: bool,
@@ -41,22 +65,16 @@ pub async fn get_electricity(
             .into());
     };
     let room = dormitory.room();
-    let key = format!("{}/{}/{}", park, build, room);
-    if !refresh
-        && let Some(electricity) =
-            CACHE.get(&(Electricity, key.clone())).await
-    {
-        utils::record!(cache_result = "hit");
-        return Ok(electricity);
+    let key = ElectricityCacheKey::new(park, build, room);
+    if refresh {
+        invalidate_cache(key.clone()).await?;
     }
-    // 需要强制刷新，或是之前的缓存过期
-    let electricity = hnu_query::wxpay::get_electricity(dormitory)
-        .await
-        .internal_err()?;
-    CACHE
-        .insert((Electricity, key.clone()), electricity.clone())
-        .await;
-    utils::record!(cache_result = "miss");
+    let electricity = with_cache(key, async || {
+        hnu_query::wxpay::get_electricity(dormitory)
+            .await
+            .internal_err()
+    })
+    .await?;
     Ok(electricity)
 }
 

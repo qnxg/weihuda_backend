@@ -1,5 +1,6 @@
+use std::time::Duration;
+
 use super::{
-    super::cache::CacheEnum,
     MAX_RETRY_COUNT,
     framework::{HnuSystem, NextAction},
     with_cas_token,
@@ -28,8 +29,8 @@ impl HnuSystem for Yjsxt {
     fn name() -> &'static str {
         "研究生系统"
     }
-    fn cache_key() -> CacheEnum {
-        CacheEnum::YjsxtToken
+    fn ttl() -> Duration {
+        Duration::from_mins(10)
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

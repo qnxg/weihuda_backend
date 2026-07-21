@@ -1,4 +1,7 @@
-use super::cache::{CACHE, CacheEnum};
+use crate::{
+    error::AppResult, infra::cache::update_cache,
+    service::user_state::systems::CasCookieCacheKey,
+};
 use hnu_query::cas::{login::CasToken, tfa::TFAToken};
 use moka::future::Cache;
 use std::{sync::LazyLock, time::Duration};
@@ -14,11 +17,11 @@ pub static TFA_TOKEN: LazyLock<Cache<String, TFAToken>> =
 pub async fn apply_verified_cas_token(
     stu_id: &str,
     cas_token: &CasToken,
-) {
-    CACHE
-        .insert(
-            (CacheEnum::CasToken, stu_id.to_string()),
-            cas_token.cookie().to_string(),
-        )
-        .await;
+) -> AppResult<()> {
+    update_cache(
+        CasCookieCacheKey::new(stu_id),
+        cas_token.cookie().to_string(),
+    )
+    .await?;
+    Ok(())
 }

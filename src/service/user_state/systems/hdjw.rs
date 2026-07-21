@@ -1,5 +1,5 @@
 use super::{
-    super::{cache::CacheEnum, utils::SerializableHeaderMap},
+    super::utils::SerializableHeaderMap,
     MAX_RETRY_COUNT,
     framework::{HnuSystem, NextAction},
     with_cas_token,
@@ -7,8 +7,8 @@ use super::{
 use crate::error::{AppResult, ThrowInternalErrorResult};
 use hnu_query::hdjw::login::HdjwToken;
 use hnu_query::{Error as SpiderError, hdjw::error::TokenExpired};
-use std::collections::VecDeque;
 use std::sync::LazyLock;
+use std::{collections::VecDeque, time::Duration};
 use tokio::sync::Mutex;
 
 /// 号池最大容量
@@ -40,8 +40,8 @@ impl HnuSystem for Hdjw {
     fn name() -> &'static str {
         "教务系统"
     }
-    fn cache_key() -> CacheEnum {
-        CacheEnum::HdjwToken
+    fn ttl() -> Duration {
+        Duration::from_mins(30)
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

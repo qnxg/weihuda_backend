@@ -1,6 +1,12 @@
-﻿use crate::{
+use crate::{
     error::{AppError, AppResult, ThrowInternalErrorResult},
-    infra::{self},
+    infra::{
+        self,
+        cache::{
+            CacheAsyncUpdateResult, CacheKey, CacheStrategy,
+            with_cache_async_update,
+        },
+    },
     service::{
         self,
         user_info::is_graduate,
@@ -9,7 +15,7 @@
     utils,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 pub use infra::mysql::course::CustomizeCourseInfo;
 pub use infra::mysql::course::add_course as add_customize_course;
@@ -20,7 +26,7 @@ pub use infra::mysql::course::update_course as update_customize_course;
 const FLEX_TIME_CONFIG_KEY: &str = "flexTime";
 
 // 除了 extra 字段外，其他的 Option 字段都是由于支持自定义课程
-#[derive(Serialize, Debug, Default, Clone)]
+#[derive(Serialize, Debug, Default, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CourseInfo {
     pub course_name: String,       // 课程名称
@@ -40,7 +46,7 @@ pub struct CourseInfo {
     pub people: u16,       // 上课人数
 }
 
-#[derive(Serialize, Debug, Default, Clone)]
+#[derive(Serialize, Debug, Default, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtraCourseInfo {
     pub class_name: String,  // 上课班级
@@ -95,7 +101,7 @@ fn push_customize_course(
 fn push_hdjw_course(
     classtable: &mut Vec<CourseInfo>,
     item: hnu_query::hdjw::class_table::Course,
-) -> AppResult<()> {
+) {
     // record 中的一个 key 就对应于前端课表上的一个格子
     // 根据星期几和节次可以定位到前端课表上的一个格子
     // 一个格子里只显示一个地点。一个课程可能出现上课地点变动的情况，此时需要多个格子来区分
@@ -136,18 +142,17 @@ fn push_hdjw_course(
         };
         classtable.push(tmp);
     }
-    Ok(())
 }
 
 /// 将爬虫返回的研究生课程信息解析，放入课表中
 fn push_yjsxt_course(
     classtable: &mut Vec<CourseInfo>,
     item: hnu_query::yjsxt::class_table::Course,
-) -> AppResult<()> {
+) {
     // yjsxt 的 schedule 是 Option<Vec<CourseSchedule>>
     // 如果是无节次课程则为 None，直接跳过
     let Some(schedule) = item.schedule else {
-        return Ok(());
+        return;
     };
     // 将天数，节次，地点相同的课程的周次合并到一起
     let mut record = HashMap::new();
@@ -184,7 +189,6 @@ fn push_yjsxt_course(
         };
         classtable.push(item);
     }
-    Ok(())
 }
 
 /// 注意，调用后会使得某些元素的周次变成空的，因此需要调用该函数后手动清除这些元素，由于可能的性能原因，该函数不负责清除工作
@@ -227,6 +231,35 @@ fn apply_flex_time(
     Ok(())
 }
 
+#[derive(Debug, Clone)]
+struct ClasstableCacheKey {
+    stu_id: String,
+    xn: u16,
+    xq: u8,
+}
+
+impl ClasstableCacheKey {
+    pub fn new(stu_id: &str, xn: u16, xq: u8) -> Self {
+        Self {
+            stu_id: stu_id.to_string(),
+            xn,
+            xq,
+        }
+    }
+}
+
+impl CacheKey for ClasstableCacheKey {
+    const PREFIX: &'static str = "classtable";
+    const VERSION: u64 = 1;
+    type Value = Vec<CourseInfo>;
+    fn strategy(&self) -> CacheStrategy {
+        CacheStrategy::new(
+            format!("{}:{}:{}", self.xn, self.xq, self.stu_id),
+            Duration::from_hours(24),
+        )
+    }
+}
+
 /// 包含了用户自定义的课程，同时根据调休将课程进行了调整
 /// 这个函数会生成一个 `Vec<CourseInfo>` 表示课表。`Vec<CourseInfo>` 内的每个元素表示前端课表页面上的一个格子
 #[tracing::instrument(
@@ -237,59 +270,119 @@ fn apply_flex_time(
     ),
     err
 )]
+#[expect(clippy::too_many_lines)]
 pub async fn get_classtable(
     stu_id: &str,
     xn: u16,
     xq: u8,
 ) -> AppResult<Vec<CourseInfo>> {
-    let mut classtable = Vec::new();
+    let is_graduate = is_graduate(stu_id).await?;
+    utils::record!(is_graduate = is_graduate);
+    let cache_key = ClasstableCacheKey::new(stu_id, xn, xq);
+    let mut classtable = with_cache_async_update(cache_key, || {
+        let stu_id = stu_id.to_string();
+        async move {
+            let mut classtable = Vec::new();
+            if is_graduate {
+                let semester = match with_token(
+                    Yjsxt::new(&stu_id),
+                    |token| async move {
+                        hnu_query::yjsxt::get_semester(&token).await
+                    },
+                )
+                .await
+                {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return CacheAsyncUpdateResult::Extend(e);
+                    }
+                };
+                let Some(semester_id) =
+                    semester.into_iter().find_map(|v| {
+                        if v.xn == xn && v.xq == xq {
+                            Some(v.id)
+                        } else {
+                            None
+                        }
+                    })
+                else {
+                    return CacheAsyncUpdateResult::Extend(
+                        AppError::customized("学期不存在"),
+                    );
+                };
+
+                let keep = Arc::new(std::sync::Mutex::new(true));
+                let yjsxt_course = match with_token(Yjsxt::new(&stu_id), |token| {
+                    let semester_id_value = &semester_id;
+                    let keep = keep.clone();
+                    async move {
+                        hnu_query::yjsxt::class_table::get_class_table(
+                            &token,
+                            semester_id_value,
+                        )
+                        .await.map_err(|e| {
+                            if matches!(e, hnu_query::Error::Parse(_)) {
+                                *keep.lock().expect("failed to lock mutex") = false;
+                            }
+                            e
+                        })
+                    }
+                })
+                .await
+                {
+                    Ok(v) => v,
+                    Err(e) => {
+                        if *keep.lock().expect("failed to lock mutex") {
+                            return CacheAsyncUpdateResult::Extend(e);
+                        } else {
+                            return CacheAsyncUpdateResult::Err(e);
+                        }
+                    }
+                };
+
+                for item in yjsxt_course {
+                    push_yjsxt_course(&mut classtable, item);
+                }
+            } else {
+                let keep = Arc::new(std::sync::Mutex::new(true));
+                let hdjw_course = match with_token(Hdjw::new(stu_id), |token| {
+                    let keep = keep.clone();
+                    async move {
+                        hnu_query::hdjw::get_class_table(&token, xn, xq).await
+                            .map_err(|e| {
+                                if matches!(e, hnu_query::Error::Parse(_)) {
+                                    *keep.lock().expect("failed to lock mutex") = false;
+                                }
+                                e
+                            })
+                    }
+                })
+                .await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        if *keep.lock().expect("failed to lock mutex") {
+                            return CacheAsyncUpdateResult::Extend(e);
+                        } else {
+                            return CacheAsyncUpdateResult::Err(e);
+                        }
+                    }
+                };
+
+                for item in hdjw_course {
+                    push_hdjw_course(&mut classtable, item);
+                }
+            }
+            CacheAsyncUpdateResult::Ok(classtable)
+        }
+    })
+    .await?;
+
     let customize_course =
         get_customize_course(stu_id, xn, xq).await?;
     for item in customize_course {
         push_customize_course(&mut classtable, item)?;
     }
-    let is_graduate = is_graduate(stu_id).await?;
-    utils::record!(is_graduate = is_graduate);
-    if is_graduate {
-        let semester =
-            with_token(Yjsxt::new(stu_id), |token| async move {
-                hnu_query::yjsxt::get_semester(&token).await
-            })
-            .await?;
-        let semester_id = semester
-            .into_iter()
-            .find_map(|v| {
-                if v.xn == xn && v.xq == xq {
-                    Some(v.id)
-                } else {
-                    None
-                }
-            })
-            .ok_or_else(|| AppError::customized("学期不存在"))?;
-        let yjsxt_course = with_token(Yjsxt::new(stu_id), |token| {
-            let semester_id_value = &semester_id;
-            async move {
-                hnu_query::yjsxt::class_table::get_class_table(
-                    &token,
-                    semester_id_value,
-                )
-                .await
-            }
-        })
-        .await?;
-        for item in yjsxt_course {
-            push_yjsxt_course(&mut classtable, item)?;
-        }
-    } else {
-        let hdjw_course =
-            with_token(Hdjw::new(stu_id), |token| async move {
-                hnu_query::hdjw::get_class_table(&token, xn, xq).await
-            })
-            .await?;
-        for item in hdjw_course {
-            push_hdjw_course(&mut classtable, item)?;
-        }
-    }
+
     // 处理调休
     let mut flex_time = get_flex_time_list().await?;
     // 只保留当前学期的调休
@@ -306,6 +399,35 @@ pub async fn get_classtable(
     Ok(classtable)
 }
 
+#[derive(Debug)]
+struct ExtraCourseCacheKey {
+    stu_id: String,
+    xn: u16,
+    xq: u8,
+}
+
+impl ExtraCourseCacheKey {
+    pub fn new(stu_id: &str, xn: u16, xq: u8) -> Self {
+        Self {
+            stu_id: stu_id.to_string(),
+            xn,
+            xq,
+        }
+    }
+}
+
+impl CacheKey for ExtraCourseCacheKey {
+    const PREFIX: &'static str = "extra_course";
+    const VERSION: u64 = 1;
+    type Value = Vec<hnu_query::hdjw::class_table::ExtraCourse>;
+    fn strategy(&self) -> CacheStrategy {
+        CacheStrategy::new(
+            format!("{}:{}:{}", self.xn, self.xq, self.stu_id),
+            Duration::from_hours(24 * 7),
+        )
+    }
+}
+
 pub async fn get_extra_course(
     stu_id: &str,
     xn: u16,
@@ -315,12 +437,47 @@ pub async fn get_extra_course(
     if is_graduate(stu_id).await? {
         return Ok(Vec::new());
     }
-    let spider_res =
-        with_token(Hdjw::new(stu_id), |token| async move {
-            hnu_query::hdjw::get_class_table_extra(&token, xn, xq)
+    let spider_res = with_cache_async_update(
+        ExtraCourseCacheKey::new(stu_id, xn, xq),
+        || {
+            let stu_id = stu_id.to_string();
+            async move {
+                let keep = Arc::new(std::sync::Mutex::new(true));
+                match with_token(Hdjw::new(stu_id), |token| {
+                    let keep = keep.clone();
+                    async move {
+                        hnu_query::hdjw::get_class_table_extra(
+                            &token, xn, xq,
+                        )
+                        .await
+                        .map_err(|e| {
+                            if matches!(e, hnu_query::Error::Parse(_))
+                            {
+                                *keep
+                                    .lock()
+                                    .expect("failed to lock mutex") =
+                                    false;
+                            }
+                            e
+                        })
+                    }
+                })
                 .await
-        })
-        .await?;
+                {
+                    Ok(v) => CacheAsyncUpdateResult::Ok(v),
+                    Err(e) => {
+                        if *keep.lock().expect("failed to lock mutex")
+                        {
+                            CacheAsyncUpdateResult::Extend(e)
+                        } else {
+                            CacheAsyncUpdateResult::Err(e)
+                        }
+                    }
+                }
+            }
+        },
+    )
+    .await?;
     let mut res = Vec::new();
     for item in spider_res {
         res.push(ExtraCourseInfo {

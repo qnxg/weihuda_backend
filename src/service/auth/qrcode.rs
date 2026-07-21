@@ -1,5 +1,12 @@
-use crate::utils::cache::CacheEnum::AuthQrCode;
-use crate::{error::AppResult, utils::cache::CACHE};
+use std::time::Duration;
+
+use crate::{
+    error::AppResult,
+    infra::cache::{
+        CacheKey, CacheStrategy, get_cache, invalidate_cache,
+        update_cache,
+    },
+};
 use rand::{Rng, distributions::Alphanumeric};
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +23,28 @@ pub enum AuthQrCodeStatus {
     Used,
 }
 
+#[derive(Debug, Clone)]
+struct AuthQrCodeCacheKey {
+    code: String,
+}
+
+impl AuthQrCodeCacheKey {
+    fn new(code: &str) -> Self {
+        Self {
+            code: code.to_string(),
+        }
+    }
+}
+
+impl CacheKey for AuthQrCodeCacheKey {
+    const PREFIX: &'static str = "auth_qrcode";
+    const VERSION: u64 = 1;
+    type Value = String;
+    fn strategy(&self) -> CacheStrategy {
+        CacheStrategy::new(self.code.clone(), Duration::from_mins(10))
+    }
+}
+
 /// 生成一个 auth_qrcode
 pub async fn generate_auth_qrcode() -> AppResult<String> {
     let code: String = rand::thread_rng()
@@ -23,7 +52,7 @@ pub async fn generate_auth_qrcode() -> AppResult<String> {
         .take(8)
         .map(char::from)
         .collect();
-    CACHE.insert((AuthQrCode, code.clone()), "-1".into()).await;
+    update_cache(AuthQrCodeCacheKey::new(&code), "-1".into()).await?;
     Ok(code)
 }
 
@@ -32,7 +61,8 @@ pub async fn generate_auth_qrcode() -> AppResult<String> {
 pub async fn get_auth_qrcode_status(
     code: &str,
 ) -> AppResult<Option<AuthQrCodeStatus>> {
-    if let Some(stu_id) = CACHE.get(&(AuthQrCode, code.into())).await
+    if let Some(stu_id) =
+        get_cache(AuthQrCodeCacheKey::new(code)).await?
     {
         if stu_id == "-1" {
             Ok(Some(AuthQrCodeStatus::Unused))
@@ -50,9 +80,8 @@ pub async fn confirm_auth_qrcode(
     code: &str,
     stu_id: &str,
 ) -> AppResult<()> {
-    CACHE
-        .insert((AuthQrCode, code.to_string()), stu_id.to_string())
-        .await;
+    update_cache(AuthQrCodeCacheKey::new(code), stu_id.to_string())
+        .await?;
     Ok(())
 }
 
@@ -62,10 +91,11 @@ pub async fn confirm_auth_qrcode(
 pub async fn consume_auth_qrcode(
     code: &str,
 ) -> AppResult<Option<String>> {
-    if let Some(stu_id) = CACHE.get(&(AuthQrCode, code.into())).await
+    if let Some(stu_id) =
+        get_cache(AuthQrCodeCacheKey::new(code)).await?
         && stu_id != "-1"
     {
-        CACHE.invalidate(&(AuthQrCode, code.into())).await;
+        invalidate_cache(AuthQrCodeCacheKey::new(code)).await?;
         Ok(Some(stu_id))
     } else {
         Ok(None)

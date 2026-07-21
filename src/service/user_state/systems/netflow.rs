@@ -1,7 +1,7 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, time::Duration};
 
 use super::{
-    super::{cache::CacheEnum, utils::SerializableHeaderMap},
+    super::utils::SerializableHeaderMap,
     default_retry_strategy,
     framework::{HnuSystem, NextAction},
     with_cas_token,
@@ -29,8 +29,8 @@ impl HnuSystem for Netflow {
     fn name() -> &'static str {
         "校园网流量系统"
     }
-    fn cache_key() -> CacheEnum {
-        CacheEnum::NetflowToken
+    fn ttl() -> Duration {
+        Duration::from_mins(30)
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

@@ -18,6 +18,7 @@ pub struct Configs {
     pub pow: Pow,
     #[serde(default)]
     pub observability: Observability,
+    pub redis: Redis,
 }
 
 #[derive(Deserialize, Debug)]
@@ -97,6 +98,11 @@ impl Observability {
             .map(str::trim)
             .filter(|s| !s.is_empty())
     }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Redis {
+    pub redis_url: String,
 }
 
 pub static CFG: LazyLock<Configs> =

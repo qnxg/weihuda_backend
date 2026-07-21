@@ -1,13 +1,12 @@
-use std::convert::Infallible;
-
 use super::{
-    super::{cache::CacheEnum, utils::SerializableHeaderMap},
+    super::utils::SerializableHeaderMap,
     default_retry_strategy,
     framework::{HnuSystem, NextAction},
     with_cas_token,
 };
 use crate::error::{AppResult, ThrowInternalErrorResult};
 use hnu_query::{Error as SpiderError, pt::login::PtToken};
+use std::{convert::Infallible, time::Duration};
 
 pub struct Pt {
     stu_id: String,
@@ -29,8 +28,8 @@ impl HnuSystem for Pt {
     fn name() -> &'static str {
         "个人门户"
     }
-    fn cache_key() -> CacheEnum {
-        CacheEnum::PtToken
+    fn ttl() -> Duration {
+        Duration::from_mins(30)
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

@@ -1,7 +1,7 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, time::Duration};
 
 use super::{
-    super::{cache::CacheEnum, utils::SerializableHeaderMap},
+    super::utils::SerializableHeaderMap,
     default_retry_strategy,
     framework::{HnuSystem, NextAction},
     with_cas_token,
@@ -29,8 +29,8 @@ impl HnuSystem for Xgxt {
     fn name() -> &'static str {
         "学工系统"
     }
-    fn cache_key() -> CacheEnum {
-        CacheEnum::XGXTToken
+    fn ttl() -> Duration {
+        Duration::from_mins(10)
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

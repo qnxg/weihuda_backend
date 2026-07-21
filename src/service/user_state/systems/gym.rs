@@ -1,5 +1,7 @@
+use std::time::Duration;
+
 use super::{
-    super::{cache::CacheEnum, utils::SerializableHeaderMap},
+    super::utils::SerializableHeaderMap,
     default_retry_strategy,
     framework::{HnuSystem, NextAction},
     with_cas_token,
@@ -33,8 +35,8 @@ impl HnuSystem for Gym {
     fn name() -> &'static str {
         "体测系统"
     }
-    fn cache_key() -> CacheEnum {
-        CacheEnum::GymToken
+    fn ttl() -> Duration {
+        Duration::from_mins(10)
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()

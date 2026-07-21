@@ -1,7 +1,7 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, time::Duration};
 
 use super::{
-    super::{cache::CacheEnum, utils::SerializableHeaderMap},
+    super::utils::SerializableHeaderMap,
     default_retry_strategy,
     framework::{HnuSystem, NextAction},
 };
@@ -38,8 +38,8 @@ impl HnuSystem for Lab {
     fn name() -> &'static str {
         "大物实验系统"
     }
-    fn cache_key() -> CacheEnum {
-        CacheEnum::LabToken
+    fn ttl() -> Duration {
+        Duration::from_mins(10)
     }
     fn stu_id(&self) -> &str {
         self.stu_id.as_str()
