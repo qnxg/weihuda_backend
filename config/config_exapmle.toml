@@ -1,6 +1,7 @@
 [server]
 name = "back_2024"
 address = "0.0.0.0:8000"
+rpc_address = "0.0.0.0:8001"
 # 后端在启动后除了上报 trace 外还会向标准输出中打印日志，日志是 pretty 格式的，便于阅读
 # 日志等级："debug", "info", "warn", "error"
 # 该日志等级只会影响标准输出的日志，不影响上报 trace 的日志等级
