@@ -19,6 +19,7 @@ mod infra;
 mod middlewares;
 mod observability;
 mod routers;
+mod rpc;
 mod service;
 mod utils;
 
@@ -47,10 +48,12 @@ async fn run() {
     std::panic::set_hook(Box::new(panic_hook));
 
     tracing::info!("📓 Log level: {}", &CFG.server.log_level);
-    tracing::info!("🚀 Starting Ca Task Worker");
+    tracing::info!("Starting Ca Task Worker");
     service::grade_rank::ca::start_ca_task_worker().await;
     infra::cache::start_async_update_worker().await;
-    tracing::info!("🚀 Server {} is starting", &CFG.server.name);
+    tracing::info!("Starting Rpc Server");
+    tokio::spawn(rpc::serve());
+    tracing::info!("Server {} is starting", &CFG.server.name);
     tracing::info!("🔄 Listening on port: {}", &CFG.server.address);
     let listener = TcpListener::new(&CFG.server.address).bind().await;
     let routers = routers::routers();

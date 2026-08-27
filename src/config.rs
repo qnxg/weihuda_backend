@@ -25,6 +25,7 @@ pub struct Configs {
 pub struct Server {
     pub name: String,
     pub address: String,
+    pub rpc_address: String,
     pub log_level: String,
 }
 

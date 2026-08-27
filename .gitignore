@@ -1,5 +1,6 @@
 .vscode
 /target
+/volo-gen/target
 /logs
 config.toml
 .env
