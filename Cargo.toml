@@ -69,13 +69,9 @@ hex = "0.4.3"
 rsa = { version = "0.9.10", features = ["pem", "sha2"] }
 hnu_query = { version = "5.0.1", features = ["tracing"] }
 redis = { version = "1.4.1", features = ["tokio-comp", "connection-manager"] }
-tarpc = { version = "0.37", features = [
-    "tokio1",
-    "serde1",
-    "serde-transport",
-    "serde-transport-json",
-    "tcp",
-] }
+volo = "0.12.3"
+volo-thrift = "0.12.5"
+volo-gen = { version = "0.1.0", path = "volo-gen" }
 
 #[dev-dependencies]
 

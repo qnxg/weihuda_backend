@@ -1,44 +1,38 @@
 mod user;
 
 use crate::config::CFG;
-use futures::{future, prelude::*};
-use tarpc::{
-    server::{self, Channel},
-    tokio_serde::formats::Json,
+use std::net::SocketAddr;
+use user::UserServer;
+use volo_gen::weihuda::rpc::UserServiceServer;
+use volo_thrift::codec::default::{
+    DefaultMakeCodec, framed::MakeFramedCodec,
+    thrift::MakeThriftCodec,
 };
-use user::{User, UserServer};
 
 pub async fn serve() {
-    let mut listener = match tarpc::serde_transport::tcp::listen(
-        &CFG.server.rpc_address,
-        Json::default,
-    )
-    .await
-    {
-        Ok(listener) => {
-            tracing::info!(
-                "Successfully started RPC on {}",
-                &CFG.server.rpc_address
-            );
-            listener
-        }
+    let address = match CFG.server.rpc_address.parse::<SocketAddr>() {
+        Ok(address) => address,
         Err(e) => {
-            tracing::error!("Failed to start RPC: {:?}", e);
+            tracing::error!(
+                "Failed to parse RPC address {}: {:?}",
+                &CFG.server.rpc_address,
+                e
+            );
             std::process::exit(1);
         }
     };
-    listener.config_mut().max_frame_length(1024 * 1024);
-    listener
-        .filter_map(|r| future::ready(r.ok()))
-        .map(server::BaseChannel::with_defaults)
-        .map(|channel| {
-            channel.execute(UserServer.serve()).for_each(spawn)
-        })
-        .buffer_unordered(100)
-        .for_each(|_| async {})
-        .await;
-}
 
-async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
-    tokio::spawn(fut);
+    tracing::info!("Starting RPC on {}", &CFG.server.rpc_address);
+    let make_codec = DefaultMakeCodec::new(
+        MakeFramedCodec::new(MakeThriftCodec::default())
+            .with_max_frame_size(1024 * 1024),
+    );
+    if let Err(e) = UserServiceServer::new(UserServer)
+        .make_codec(make_codec)
+        .run(volo::net::Address::from(address))
+        .await
+    {
+        tracing::error!("RPC server stopped: {:?}", e);
+        std::process::exit(1);
+    }
 }

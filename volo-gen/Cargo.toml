@@ -1,0 +1,12 @@
+[package]
+name = "volo-gen"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pilota = "0.13.1"
+volo = "0.12.3"
+volo-thrift = "0.12.5"
+
+[build-dependencies]
+volo-build = "0.12.3"
