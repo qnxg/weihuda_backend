@@ -192,9 +192,7 @@ where
     }
 
     // 走到这里说明旧的 cas_token 过期了，需要刷新
-    let cookies = SINGLE_FLIGHT
-        .call(stu_id, async || refresh_cas_cookie(stu_id).await)
-        .await?;
+    let cookies = refresh_cas_cookie(stu_id).await?;
     let cas_token = CasToken::from_cookie_unchecked(&cookies, stu_id);
 
     let f_result = f(&cas_token).await;
