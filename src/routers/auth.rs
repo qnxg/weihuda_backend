@@ -71,16 +71,20 @@ async fn bind_user(req: &mut Request) -> RouterResult {
         password,
     } = req.extract().await.parse_error()?;
 
-    let Some(pow_stu_id) =
-        service::auth::pow::verify_pow(&pow_ticket, pow_answer)
-            .await?
-    else {
-        return Err(AppError::customized("pow 验证失败，请重试"));
-    };
-
     let stu_id = utils::format_stuid(&stu_id);
-    if pow_stu_id != stu_id {
-        return Err(AppError::customized("pow 验证失败，请重试"));
+
+    // pow 关闭时跳过验证，直接放行
+    if CFG.pow.enabled {
+        let Some(pow_stu_id) =
+            service::auth::pow::verify_pow(&pow_ticket, pow_answer)
+                .await?
+        else {
+            return Err(AppError::customized("pow 验证失败，请重试"));
+        };
+
+        if pow_stu_id != stu_id {
+            return Err(AppError::customized("pow 验证失败，请重试"));
+        }
     }
 
     let password = utils::crypto::decrypt_frontend(&password)?;
