@@ -59,8 +59,15 @@ pub struct Captcha {
 
 #[derive(Deserialize, Debug)]
 pub struct Pow {
+    /// 是否启用 pow 校验；默认开启，配置为 false 时绑定接口跳过 pow 验证
+    #[serde(default = "default_pow_enabled")]
+    pub enabled: bool,
     pub expired_time: u64,
     pub difficulty: u64,
+}
+
+fn default_pow_enabled() -> bool {
+    true
 }
 
 #[derive(Deserialize, Debug)]
