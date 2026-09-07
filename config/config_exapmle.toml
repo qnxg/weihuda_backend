@@ -34,6 +34,8 @@ jwt = ""
 password = ""
 
 [pow]
+# 是否启用 pow 校验，默认为 true；false 时绑定接口跳过 pow 验证
+enabled = true
 # 工作量证明过期时间，单位：秒
 expired_time = 300
 # 工作量证明难度，值越大，难度越大
