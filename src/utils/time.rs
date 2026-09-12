@@ -21,12 +21,11 @@ pub fn is_well_formed_xnxq(xnxq: &str) -> bool {
     PATTERN.is_match(xnxq)
 }
 
-/// 获取当前时间信息
+/// 获取当前时间信息（UTC+8）
 /// 返回 (日期字符串，年份，月份，日期)
 /// 其中日期字符串格式为YYYY-MM-DD
-/// 注意，日期信息为 UTC 时间并非 UTC+8
 pub fn date_today() -> (String, i32, u32, u32) {
-    let current_date = chrono::Utc::now();
+    let current_date = now_time();
     let year = current_date.year();
     let month = current_date.month();
     let day = current_date.day();
