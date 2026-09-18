@@ -47,8 +47,8 @@ impl AsyncUpdateQueueKey {
 
     const fn worker_count(self) -> usize {
         match self {
-            Self::Xgxt => 5,
-            Self::Hdjw => 5,
+            Self::Xgxt => 12,
+            Self::Hdjw => 15,
             Self::Yjsxt => 5,
         }
     }
