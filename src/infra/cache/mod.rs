@@ -17,8 +17,8 @@ use std::{
 };
 
 pub use async_update::{
-    CacheAsyncUpdateResult, start_async_update_worker,
-    with_cache_async_update,
+    AsyncUpdateQueueKey, CacheAsyncUpdateResult,
+    start_async_update_worker, with_cache_async_update,
 };
 
 static SINGLE_FLIGHT: LazyLock<

@@ -1,12 +1,12 @@
-﻿use std::time::Duration;
+use std::time::Duration;
 
 use crate::{
     error::{AppError, AppResult},
     infra::{
         self,
         cache::{
-            CacheAsyncUpdateResult, CacheKey, CacheStrategy,
-            invalidate_cache, with_cache_async_update,
+            AsyncUpdateQueueKey, CacheAsyncUpdateResult, CacheKey,
+            CacheStrategy, invalidate_cache, with_cache_async_update,
         },
     },
     service::user_state::{Xgxt, with_token},
@@ -53,19 +53,26 @@ pub async fn get_person_info(
     if refresh {
         invalidate_cache(key.clone()).await?;
     }
-    let res = with_cache_async_update(key, || {
-        let stu_id = stu_id.to_string();
-        async move {
-            match with_token(Xgxt::new(stu_id), async move |token| {
-                hnu_query::xgxt::get_person_info(&token).await
-            })
-            .await
-            {
-                Ok(v) => CacheAsyncUpdateResult::Ok(v),
-                Err(e) => CacheAsyncUpdateResult::Extend(e),
+    let res = with_cache_async_update(
+        AsyncUpdateQueueKey::Xgxt,
+        key,
+        || {
+            let stu_id = stu_id.to_string();
+            async move {
+                match with_token(
+                    Xgxt::new(stu_id),
+                    async move |token| {
+                        hnu_query::xgxt::get_person_info(&token).await
+                    },
+                )
+                .await
+                {
+                    Ok(v) => CacheAsyncUpdateResult::Ok(v),
+                    Err(e) => CacheAsyncUpdateResult::Extend(e),
+                }
             }
-        }
-    })
+        },
+    )
     .await?;
     Ok(res)
 }

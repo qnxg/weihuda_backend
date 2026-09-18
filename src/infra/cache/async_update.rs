@@ -9,6 +9,7 @@ use crate::{
     utils::{self, task_queue::UniqueTaskQueue},
 };
 use std::{
+    collections::HashMap,
     future::Future,
     pin::Pin,
     sync::{Arc, LazyLock, Mutex},
@@ -24,11 +25,51 @@ struct AsyncUpdateTask {
     f: AsyncUpdateTaskF,
 }
 
-static ASYNC_UPDATE_QUEUE: LazyLock<
-    UniqueTaskQueue<String, AsyncUpdateTask>,
-> = LazyLock::new(UniqueTaskQueue::new);
+type AsyncUpdateQueue = UniqueTaskQueue<String, AsyncUpdateTask>;
 
-const ASYNC_UPDATE_WORKER_COUNT: usize = 5;
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum AsyncUpdateQueueKey {
+    Xgxt,
+    Hdjw,
+    Yjsxt,
+}
+
+impl AsyncUpdateQueueKey {
+    const ALL: [Self; 3] = [Self::Xgxt, Self::Hdjw, Self::Yjsxt];
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Xgxt => "xgxt",
+            Self::Hdjw => "hdjw",
+            Self::Yjsxt => "yjsxt",
+        }
+    }
+
+    const fn worker_count(self) -> usize {
+        match self {
+            Self::Xgxt => 5,
+            Self::Hdjw => 5,
+            Self::Yjsxt => 5,
+        }
+    }
+}
+
+static ASYNC_UPDATE_QUEUES: LazyLock<
+    HashMap<AsyncUpdateQueueKey, AsyncUpdateQueue>,
+> = LazyLock::new(|| {
+    AsyncUpdateQueueKey::ALL
+        .into_iter()
+        .map(|key| (key, AsyncUpdateQueue::new()))
+        .collect()
+});
+
+fn async_update_queue(
+    key: AsyncUpdateQueueKey,
+) -> &'static AsyncUpdateQueue {
+    ASYNC_UPDATE_QUEUES
+        .get(&key)
+        .expect("async update 队列未注册")
+}
 
 pub enum CacheAsyncUpdateResult<T> {
     /// 获取新的数据成功，用 T 来更新缓存
@@ -45,6 +86,7 @@ pub enum CacheAsyncUpdateResult<T> {
 /// 使用异步更新的方式获取缓存
 ///
 /// 在 [with_cache] 的基础上，还有当缓存命中时，会将 `f` 放入一个队列中，异步更新缓存。
+/// `queue_key` 指定任务使用的队列；不同队列拥有独立的 worker，不会互相阻塞。
 ///
 /// 一般对于更新频率不高的数据可以使用这个函数，配合设置较大的 TTL，可以做到缓存次次命中，同时
 /// 缓存也是较新的（只会有少许延迟，对于更新频率不高的场景下可以接受）
@@ -53,6 +95,7 @@ pub enum CacheAsyncUpdateResult<T> {
     fields(
         otel.kind = "internal",
         event_type = "cache",
+        queue_key = queue_key.as_str(),
         prefix = tracing::field::Empty,
         version = tracing::field::Empty,
         strategy_key = tracing::field::Empty,
@@ -62,6 +105,7 @@ pub enum CacheAsyncUpdateResult<T> {
 )]
 #[expect(clippy::too_many_lines)]
 pub async fn with_cache_async_update<K, F, Fut>(
+    queue_key: AsyncUpdateQueueKey,
     key: K,
     f: F,
 ) -> AppResult<K::Value>
@@ -108,6 +152,7 @@ where
         let context = utils::tracing::current_trace_context();
         let span = tracing::info_span!(
             "push_to_async_update_queue",
+            queue_key = queue_key.as_str(),
             prefix = K::PREFIX,
             version = K::VERSION,
             strategy_key = strategy.key,
@@ -164,7 +209,7 @@ where
                     start_time: Instant::now(),
                     f: task_f,
                 };
-                let _ = ASYNC_UPDATE_QUEUE
+                let _ = async_update_queue(queue_key)
                     .push(
                         redis_key2,
                         task,
@@ -186,12 +231,24 @@ where
 }
 
 pub async fn start_async_update_worker() {
-    for worker_id in 0..ASYNC_UPDATE_WORKER_COUNT {
-        tokio::spawn(async_update_worker(worker_id));
+    for queue_key in AsyncUpdateQueueKey::ALL {
+        let worker_count = queue_key.worker_count();
+        tracing::info!(
+            queue_key = queue_key.as_str(),
+            worker_count,
+            "Starting async update workers"
+        );
+        for worker_id in 0..worker_count {
+            tokio::spawn(async_update_worker(queue_key, worker_id));
+        }
     }
 }
 
-async fn async_update_worker(worker_id: usize) {
+async fn async_update_worker(
+    queue_key: AsyncUpdateQueueKey,
+    worker_id: usize,
+) {
+    let queue = async_update_queue(queue_key);
     loop {
         let (
             key,
@@ -200,12 +257,14 @@ async fn async_update_worker(worker_id: usize) {
                 start_time,
                 f,
             },
-        ) = ASYNC_UPDATE_QUEUE.pop().await;
+        ) = queue.pop().await;
         let wait_time = start_time.elapsed();
         let span = tracing::info_span!(
             "async_update_worker",
             otel.kind = "internal",
             event_type = "cache",
+            queue_key = queue_key.as_str(),
+            task_key = %key,
             worker_id = worker_id,
             originating_trace_id =
                 %context.as_ref().map(|(trace_id, _)| trace_id.clone()).unwrap_or_default(),
@@ -226,6 +285,6 @@ async fn async_update_worker(worker_id: usize) {
             span.record("otel.status_code", "error");
             span.record("otel.status_description", format!("{e}"));
         }
-        ASYNC_UPDATE_QUEUE.ack(key).await;
+        queue.ack(key).await;
     }
 }

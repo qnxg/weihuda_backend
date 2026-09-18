@@ -3,8 +3,8 @@ use crate::{
     infra::{
         self,
         cache::{
-            CacheAsyncUpdateResult, CacheKey, CacheStrategy,
-            with_cache_async_update,
+            AsyncUpdateQueueKey, CacheAsyncUpdateResult, CacheKey,
+            CacheStrategy, with_cache_async_update,
         },
     },
     service::{
@@ -279,102 +279,149 @@ pub async fn get_classtable(
     let is_graduate = is_graduate(stu_id).await?;
     utils::record!(is_graduate = is_graduate);
     let cache_key = ClasstableCacheKey::new(stu_id, xn, xq);
-    let mut classtable = with_cache_async_update(cache_key, || {
-        let stu_id = stu_id.to_string();
-        async move {
-            let mut classtable = Vec::new();
-            if is_graduate {
-                let semester = match with_token(
-                    Yjsxt::new(&stu_id),
-                    |token| async move {
-                        hnu_query::yjsxt::get_semester(&token).await
-                    },
-                )
-                .await
-                {
-                    Ok(v) => v,
-                    Err(e) => {
-                        return CacheAsyncUpdateResult::Extend(e);
-                    }
-                };
-                let Some(semester_id) =
-                    semester.into_iter().find_map(|v| {
-                        if v.xn == xn && v.xq == xq {
-                            Some(v.id)
-                        } else {
-                            None
+    let queue_key = if is_graduate {
+        AsyncUpdateQueueKey::Yjsxt
+    } else {
+        AsyncUpdateQueueKey::Hdjw
+    };
+    let mut classtable = with_cache_async_update(
+        queue_key,
+        cache_key,
+        || {
+            let stu_id = stu_id.to_string();
+            async move {
+                let mut classtable = Vec::new();
+                if is_graduate {
+                    let semester = match with_token(
+                        Yjsxt::new(&stu_id),
+                        |token| async move {
+                            hnu_query::yjsxt::get_semester(&token)
+                                .await
+                        },
+                    )
+                    .await
+                    {
+                        Ok(v) => v,
+                        Err(e) => {
+                            return CacheAsyncUpdateResult::Extend(e);
                         }
-                    })
-                else {
-                    return CacheAsyncUpdateResult::Extend(
-                        AppError::customized("学期不存在"),
-                    );
-                };
-
-                let keep = Arc::new(std::sync::Mutex::new(true));
-                let yjsxt_course = match with_token(Yjsxt::new(&stu_id), |token| {
-                    let semester_id_value = &semester_id;
-                    let keep = keep.clone();
-                    async move {
-                        hnu_query::yjsxt::class_table::get_class_table(
-                            &token,
-                            semester_id_value,
-                        )
-                        .await.map_err(|e| {
-                            if matches!(e, hnu_query::Error::Parse(_)) {
-                                *keep.lock().expect("failed to lock mutex") = false;
+                    };
+                    let Some(semester_id) =
+                        semester.into_iter().find_map(|v| {
+                            if v.xn == xn && v.xq == xq {
+                                Some(v.id)
+                            } else {
+                                None
                             }
-                            e
                         })
-                    }
-                })
-                .await
-                {
-                    Ok(v) => v,
-                    Err(e) => {
-                        if *keep.lock().expect("failed to lock mutex") {
-                            return CacheAsyncUpdateResult::Extend(e);
-                        } else {
-                            return CacheAsyncUpdateResult::Err(e);
-                        }
-                    }
-                };
+                    else {
+                        return CacheAsyncUpdateResult::Extend(
+                            AppError::customized("学期不存在"),
+                        );
+                    };
 
-                for item in yjsxt_course {
-                    push_yjsxt_course(&mut classtable, item);
-                }
-            } else {
-                let keep = Arc::new(std::sync::Mutex::new(true));
-                let hdjw_course = match with_token(Hdjw::new(stu_id), |token| {
-                    let keep = keep.clone();
-                    async move {
-                        hnu_query::hdjw::get_class_table(&token, xn, xq).await
-                            .map_err(|e| {
-                                if matches!(e, hnu_query::Error::Parse(_)) {
-                                    *keep.lock().expect("failed to lock mutex") = false;
-                                }
-                                e
-                            })
-                    }
-                })
-                .await {
-                    Ok(v) => v,
-                    Err(e) => {
-                        if *keep.lock().expect("failed to lock mutex") {
-                            return CacheAsyncUpdateResult::Extend(e);
-                        } else {
-                            return CacheAsyncUpdateResult::Err(e);
+                    let keep =
+                        Arc::new(std::sync::Mutex::new(true));
+                    let yjsxt_course = match with_token(
+                        Yjsxt::new(&stu_id),
+                        |token| {
+                            let semester_id_value = &semester_id;
+                            let keep = keep.clone();
+                            async move {
+                                hnu_query::yjsxt::class_table::get_class_table(
+                                    &token,
+                                    semester_id_value,
+                                )
+                                .await
+                                .map_err(|e| {
+                                    if matches!(
+                                        e,
+                                        hnu_query::Error::Parse(_)
+                                    ) {
+                                        *keep
+                                            .lock()
+                                            .expect(
+                                                "failed to lock mutex",
+                                            ) = false;
+                                    }
+                                    e
+                                })
+                            }
+                        },
+                    )
+                    .await
+                    {
+                        Ok(v) => v,
+                        Err(e) => {
+                            if *keep
+                                .lock()
+                                .expect("failed to lock mutex")
+                            {
+                                return CacheAsyncUpdateResult::Extend(
+                                    e,
+                                );
+                            } else {
+                                return CacheAsyncUpdateResult::Err(e);
+                            }
                         }
-                    }
-                };
+                    };
 
-                for item in hdjw_course {
-                    push_hdjw_course(&mut classtable, item);
+                    for item in yjsxt_course {
+                        push_yjsxt_course(&mut classtable, item);
+                    }
+                } else {
+                    let keep =
+                        Arc::new(std::sync::Mutex::new(true));
+                    let hdjw_course = match with_token(
+                        Hdjw::new(stu_id),
+                        |token| {
+                            let keep = keep.clone();
+                            async move {
+                                hnu_query::hdjw::get_class_table(
+                                    &token, xn, xq,
+                                )
+                                .await
+                                .map_err(|e| {
+                                    if matches!(
+                                        e,
+                                        hnu_query::Error::Parse(_)
+                                    ) {
+                                        *keep
+                                            .lock()
+                                            .expect(
+                                                "failed to lock mutex",
+                                            ) = false;
+                                    }
+                                    e
+                                })
+                            }
+                        },
+                    )
+                    .await
+                    {
+                        Ok(v) => v,
+                        Err(e) => {
+                            if *keep
+                                .lock()
+                                .expect("failed to lock mutex")
+                            {
+                                return CacheAsyncUpdateResult::Extend(
+                                    e,
+                                );
+                            } else {
+                                return CacheAsyncUpdateResult::Err(e);
+                            }
+                        }
+                    };
+
+                    for item in hdjw_course {
+                        push_hdjw_course(&mut classtable, item);
+                    }
                 }
+                CacheAsyncUpdateResult::Ok(classtable)
             }
-            CacheAsyncUpdateResult::Ok(classtable)
-        }
-    })
+        },
+    )
     .await?;
 
     let customize_course =
@@ -438,6 +485,7 @@ pub async fn get_extra_course(
         return Ok(Vec::new());
     }
     let spider_res = with_cache_async_update(
+        AsyncUpdateQueueKey::Hdjw,
         ExtraCourseCacheKey::new(stu_id, xn, xq),
         || {
             let stu_id = stu_id.to_string();
