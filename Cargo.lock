@@ -1519,9 +1519,9 @@ dependencies = [
 
 [[package]]
 name = "hnu_query"
-version = "5.1.5"
+version = "5.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1db3e5dabc47dacc9ae6af64e78c838e9ad970701b95ef521d3ca547478c133b"
+checksum = "d46099c7947b4de0318ac7fa509bb84d657e6f953ec081e76eef8601e9ba834f"
 dependencies = [
  "aes",
  "async-trait",
