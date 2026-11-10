@@ -1519,9 +1519,9 @@ dependencies = [
 
 [[package]]
 name = "hnu_query"
-version = "5.2.0"
+version = "5.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d46099c7947b4de0318ac7fa509bb84d657e6f953ec081e76eef8601e9ba834f"
+checksum = "d97fa48d4c675214ae1571b0fcd5df6a64d7f4e56beda671f57c74913260f6fb"
 dependencies = [
  "aes",
  "async-trait",
@@ -5050,7 +5050,7 @@ checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
 
 [[package]]
 name = "weihuda_backend"
-version = "2.4.6"
+version = "2.4.7"
 dependencies = [
  "aes",
  "anyhow",
