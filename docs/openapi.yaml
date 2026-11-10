@@ -1427,7 +1427,13 @@ components:
           description: 学号
         password:
           type: string
-          description: 个人门户密码
+          description: RSAES-PKCS1-V1_5 加密并 Base64 编码的个人门户密码
+        powTicket:
+          type: string
+          description: PoW 关闭时可省略；开启时必填
+        powAnswer:
+          type: integer
+          description: PoW 关闭时可省略；开启时必填
 
     UserInfo:
       type: object

@@ -57,8 +57,9 @@ async fn bind_user(req: &mut Request) -> RouterResult {
         rename_all = "camelCase"
     ))]
     struct BindUserReq {
-        pub pow_ticket: String,
-        pub pow_answer: usize,
+        // 目前暂时保留兼容性，下次大版本更新直接完全砍掉 pow 相关代码
+        pub pow_ticket: Option<String>,
+        pub pow_answer: Option<usize>,
         pub code: String,
         pub stu_id: String,
         pub password: String,
@@ -75,6 +76,10 @@ async fn bind_user(req: &mut Request) -> RouterResult {
 
     // pow 关闭时跳过验证，直接放行
     if CFG.pow.enabled {
+        let pow_ticket =
+            pow_ticket.ok_or_else(AppError::parse_error)?;
+        let pow_answer =
+            pow_answer.ok_or_else(AppError::parse_error)?;
         let Some(pow_stu_id) =
             service::auth::pow::verify_pow(&pow_ticket, pow_answer)
                 .await?
