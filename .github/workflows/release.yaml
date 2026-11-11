@@ -9,6 +9,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Switch to independent Ubuntu mirrors
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          MIRROR_FILE=/etc/apt/apt-mirrors.txt
+
+          if [[ ! -f "$MIRROR_FILE" ]]; then
+            echo "::error::APT mirror list not found"
+            exit 1
+          fi
+
+          printf '%s\n' \
+            'https://mirrors.edge.kernel.org/ubuntu/' \
+            'https://mirrors.mit.edu/ubuntu/' \
+            'http://mirror.math.princeton.edu/pub/ubuntu' \
+            'http://mirror.us.leaseweb.net/ubuntu' \
+            'http://ubuntu.osuosl.org/ubuntu' \
+            | sudo tee "$MIRROR_FILE" >/dev/null
+
+          echo "APT mirrors:"
+          cat "$MIRROR_FILE"
+
+          sudo apt-get update
+
       - name: Install Musl Tools
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
