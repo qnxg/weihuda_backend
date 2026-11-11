@@ -666,6 +666,7 @@ paths:
         - name: type
           in: query
           required: true
+          description: 记录类型：1 返回金额为负的金融交易，其他值返回金额为正的金融交易；写卡同步记录会返回但不计入月度累计金额
           schema:
             type: string
       responses:

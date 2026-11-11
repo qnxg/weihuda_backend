@@ -69,6 +69,37 @@ fn month_range(
     Ok((start, end))
 }
 
+/// 判断是否属于 消费/充值 账单
+fn matches_history_type(
+    transaction_type: TransactionType,
+    transaction_amount: i64,
+    history_type: CardHistoryType,
+) -> bool {
+    if matches!(
+        transaction_type,
+        TransactionType::EAccountOpening
+            | TransactionType::HolderAccountOpening
+    ) {
+        return false;
+    }
+
+    match history_type {
+        CardHistoryType::Consumption => transaction_amount < 0,
+        CardHistoryType::Recharge => transaction_amount > 0,
+    }
+}
+
+/// 计算月度累计金额时去掉 领取补助 类型，不然会有重复计费
+fn monthly_total_cents(records: &[TransactionRecord]) -> i64 {
+    records
+        .iter()
+        .filter(|item| {
+            item.transaction_type != TransactionType::MoneyTransfer
+        })
+        .map(|item| item.transaction_amount)
+        .sum()
+}
+
 pub async fn get_card_history(
     stu_id: &str,
     year: u16,
@@ -102,15 +133,16 @@ pub async fn get_card_history(
         })
         .await?;
 
-    let transaction_type = match history_type {
-        CardHistoryType::Consumption => TransactionType::Consumption,
-        CardHistoryType::Recharge => TransactionType::Recharge,
-    };
-    records.retain(|item| item.transaction_type == transaction_type);
+    records.retain(|item| {
+        matches_history_type(
+            item.transaction_type,
+            item.transaction_amount,
+            history_type,
+        )
+    });
     records.sort_by_key(|item| Reverse(item.pay_time));
 
-    let total_cents: i64 =
-        records.iter().map(|item| item.transaction_amount).sum();
+    let total_cents = monthly_total_cents(&records);
     let res_items = records
         .into_iter()
         .map(CardHistoryItem::from)
@@ -146,6 +178,97 @@ pub async fn get_card_info(stu_id: &str) -> AppResult<CardInfo> {
 mod tests {
     use super::*;
     use crate::test::TEST_STU_ID;
+
+    fn transaction_record(
+        transaction_type: TransactionType,
+        transaction_amount: i64,
+    ) -> TransactionRecord {
+        TransactionRecord {
+            transaction_name: String::new(),
+            merchant_name: String::new(),
+            merchant_account: 0,
+            pay_time: NaiveDate::from_ymd_opt(2026, 1, 1)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+            transaction_amount,
+            card_balance: 0,
+            transaction_type,
+        }
+    }
+
+    #[test]
+    fn test_matches_history_type() {
+        for transaction_type in [
+            TransactionType::Consumption,
+            TransactionType::Recharge,
+            TransactionType::Benefit,
+            TransactionType::MoneyTransfer,
+            TransactionType::QRCodeConsumption,
+            TransactionType::Withholding,
+        ] {
+            assert!(matches_history_type(
+                transaction_type,
+                -1,
+                CardHistoryType::Consumption
+            ));
+            assert!(matches_history_type(
+                transaction_type,
+                1,
+                CardHistoryType::Recharge
+            ));
+            assert!(!matches_history_type(
+                transaction_type,
+                1,
+                CardHistoryType::Consumption
+            ));
+            assert!(!matches_history_type(
+                transaction_type,
+                -1,
+                CardHistoryType::Recharge
+            ));
+        }
+
+        for transaction_type in [
+            TransactionType::EAccountOpening,
+            TransactionType::HolderAccountOpening,
+        ] {
+            assert!(!matches_history_type(
+                transaction_type,
+                -1,
+                CardHistoryType::Consumption
+            ));
+            assert!(!matches_history_type(
+                transaction_type,
+                1,
+                CardHistoryType::Recharge
+            ));
+        }
+
+        assert!(!matches_history_type(
+            TransactionType::Consumption,
+            0,
+            CardHistoryType::Consumption
+        ));
+        assert!(!matches_history_type(
+            TransactionType::Recharge,
+            0,
+            CardHistoryType::Recharge
+        ));
+    }
+
+    #[test]
+    fn test_monthly_total_excludes_money_transfer() {
+        let records = [
+            transaction_record(TransactionType::Consumption, -100),
+            transaction_record(TransactionType::MoneyTransfer, -4),
+            transaction_record(TransactionType::Withholding, -4),
+            transaction_record(TransactionType::MoneyTransfer, 1000),
+            transaction_record(TransactionType::Recharge, 200),
+        ];
+
+        assert_eq!(monthly_total_cents(&records), 96);
+    }
 
     #[test]
     fn test_month_range() {
