@@ -89,15 +89,16 @@ fn matches_history_type(
     }
 }
 
-/// 计算月度累计金额时去掉 领取补助 类型，不然会有重复计费
-fn monthly_total_cents(records: &[TransactionRecord]) -> i64 {
+/// 计算月度累计数据时去掉 领取补助 类型，不然会有重复计费
+fn monthly_summary(records: &[TransactionRecord]) -> (i64, usize) {
     records
         .iter()
         .filter(|item| {
             item.transaction_type != TransactionType::MoneyTransfer
         })
-        .map(|item| item.transaction_amount)
-        .sum()
+        .fold((0, 0), |(total, count), item| {
+            (total + item.transaction_amount, count + 1)
+        })
 }
 
 pub async fn get_card_history(
@@ -142,13 +143,13 @@ pub async fn get_card_history(
     });
     records.sort_by_key(|item| Reverse(item.pay_time));
 
-    let total_cents = monthly_total_cents(&records);
+    let (total_cents, tran_count) = monthly_summary(&records);
     let res_items = records
         .into_iter()
         .map(CardHistoryItem::from)
         .collect::<Vec<_>>();
     let res = CardHistory {
-        TranCount: res_items.len() as f64,
+        TranCount: tran_count as f64,
         total: total_cents as f64 / 100.0,
         items: res_items,
     };
@@ -258,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn test_monthly_total_excludes_money_transfer() {
+    fn test_monthly_summary_excludes_money_transfer() {
         let records = [
             transaction_record(TransactionType::Consumption, -100),
             transaction_record(TransactionType::MoneyTransfer, -4),
@@ -267,7 +268,7 @@ mod tests {
             transaction_record(TransactionType::Recharge, 200),
         ];
 
-        assert_eq!(monthly_total_cents(&records), 96);
+        assert_eq!(monthly_summary(&records), (96, 3));
     }
 
     #[test]
