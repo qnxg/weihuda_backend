@@ -126,6 +126,13 @@ async fn bind_user(req: &mut Request) -> RouterResult {
                     "账号被锁定，请10分钟之后再试",
                 ));
             }
+            Err(hnu_query::Error::Other(
+                AccountIssue::PhoneNotBound,
+            )) => {
+                return Err(AppError::customized(
+                    "请先前往个人门户绑定手机号",
+                ));
+            }
             // 需要双因子认证的话，反而说明密码验证通过了
             Err(hnu_query::Error::Other(
                 AccountIssue::TFARequired(_),
