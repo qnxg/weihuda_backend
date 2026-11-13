@@ -183,10 +183,7 @@ async fn check_jifen_record(
         create_time_greater_than,
     )
     .await?;
-    if count >= jifen_rule.max_count {
-        return Ok(false);
-    }
-    Ok(true)
+    Ok(count < jifen_rule.max_count)
 }
 
 /// 签到，返回增加后，当前的积分
