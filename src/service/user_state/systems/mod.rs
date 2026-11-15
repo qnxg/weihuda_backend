@@ -124,6 +124,15 @@ where
                         .await;
                     Err(e)
                 }
+                SpiderError::Other(AccountIssue::PhoneNotBound) => {
+                    let e: AppError = AppError::customized(
+                        "请先前往个人门户绑定手机号",
+                    );
+                    ACCOUNT_TAG
+                        .insert(stu_id.to_string(), e.clone())
+                        .await;
+                    Err(e)
+                }
                 SpiderError::Other(AccountIssue::TFARequired(
                     tfa_token,
                 )) => {
