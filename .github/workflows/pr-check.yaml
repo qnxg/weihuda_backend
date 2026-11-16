@@ -11,10 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
           toolchain: stable
           target: x86_64-unknown-linux-musl
@@ -26,11 +26,11 @@ jobs:
           TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
         run: echo "DATABASE_URL=$TEST_DATABASE_URL" > .env
 
-      - name: Clippy
-        run: cargo clippy --bins --tests --examples -- -D warnings
-
-      - name: Test Documentation Items
-        run: cargo doc --document-private-items --no-deps
-
       - name: Check Code Format
         run: cargo fmt --check
+
+      - name: Test Documentation Items
+        run: RUSTDOCFLAGS='-Dwarnings' cargo doc --document-private-items --no-deps
+
+      - name: Clippy
+        run: cargo clippy --bins --tests --examples -- -D warnings

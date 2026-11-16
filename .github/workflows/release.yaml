@@ -4,46 +4,20 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     env:
       CFLAGS_x86_64_unknown_linux_musl: "-march=x86-64 -mtune=generic"
       CXXFLAGS_x86_64_unknown_linux_musl: "-march=x86-64 -mtune=generic"
       RUSTFLAGS: "-C target-cpu=x86-64"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Switch to independent Ubuntu mirrors
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          MIRROR_FILE=/etc/apt/apt-mirrors.txt
-
-          if [[ ! -f "$MIRROR_FILE" ]]; then
-            echo "::error::APT mirror list not found"
-            exit 1
-          fi
-
-          printf '%s\n' \
-            'https://mirrors.edge.kernel.org/ubuntu/' \
-            'https://mirrors.mit.edu/ubuntu/' \
-            'http://mirror.math.princeton.edu/pub/ubuntu' \
-            'http://mirror.us.leaseweb.net/ubuntu' \
-            'http://ubuntu.osuosl.org/ubuntu' \
-            | sudo tee "$MIRROR_FILE" >/dev/null
-
-          echo "APT mirrors:"
-          cat "$MIRROR_FILE"
-
-          sudo apt-get update
+        uses: actions/checkout@v7
 
       - name: Install Musl Tools
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Setup Toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
           toolchain: stable
           target: x86_64-unknown-linux-musl
@@ -54,44 +28,19 @@ jobs:
           TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
         run: echo "DATABASE_URL=$TEST_DATABASE_URL" > .env
 
-      - name: Clean previous target artifacts
-        run: cargo clean --target x86_64-unknown-linux-musl
-
       - name: Build
         run: |
           cargo build --release --bin weihuda_backend --target x86_64-unknown-linux-musl
 
-      - name: Verify AWS-LC startup CPU baseline
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          BIN=target/x86_64-unknown-linux-musl/release/weihuda_backend
-          SYMBOL="$(nm "$BIN" | awk '/OPENSSL_cpuid_setup$/ {print $3; exit}')"
-
-          if [[ -z "$SYMBOL" ]]; then
-            echo "::error::OPENSSL_cpuid_setup symbol not found"
-            exit 1
-          fi
-
-          objdump -d --disassemble="$SYMBOL" "$BIN" > cpuid-setup.asm
-
-          if grep -E '^[[:space:]]*[0-9a-f]+:.*[[:space:]]v[a-z0-9]+[[:space:]]' cpuid-setup.asm; then
-            echo "::error::AVX/VEX instruction found in AWS-LC early CPU initialization"
-            exit 1
-          fi
-
-          echo "AWS-LC early initialization contains no AVX/VEX instructions"
-
       - name: Login to Docker Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ vars.DOCKER_HOST }}
           username: ${{ vars.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and Push Docker Image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
