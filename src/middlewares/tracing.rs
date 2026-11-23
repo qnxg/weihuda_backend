@@ -35,6 +35,11 @@ pub async fn tracing_middleware(
         .and_then(|x| x.to_str().ok().map(|s| s.to_string()))
         .unwrap_or(req.remote_addr().to_string());
 
+    // 请求客户端设备名，当请求由 weihuda!lazer 发出时携带
+    let device_name = req
+        .header::<String>("X-Device-Name")
+        .unwrap_or("unknown".to_string());
+
     let stu_id =
         utils::jwt::auth(req).unwrap_or(String::from("unknown"));
 
@@ -97,6 +102,7 @@ pub async fn tracing_middleware(
         // - tracing::field::Empty: 该请求没有被设置缓存
         cache_result = tracing::field::Empty,
         origin_type = %origin_type,
+        device_name = %device_name,
     );
 
     async move {
